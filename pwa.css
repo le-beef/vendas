@@ -1,0 +1,60 @@
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 14px;
+}
+
+.install-app-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 8px 12px;
+  border: 1px solid #ffffff4a;
+  border-radius: 9px;
+  background: #ffffff14;
+  color: #fff;
+  font: 700 12px "DM Sans", sans-serif;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.install-app-button:hover,
+.install-app-button:focus-visible {
+  border-color: #fff;
+  background: #fff;
+  color: #14213d;
+  outline: none;
+}
+
+.install-app-button[hidden] {
+  display: none;
+}
+
+@media (max-width: 600px) {
+  .topbar-actions {
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 4px;
+  }
+
+  .install-app-button {
+    min-height: 34px;
+    padding: 7px 9px;
+    font-size: 10px;
+  }
+
+  .install-app-button span {
+    display: none;
+  }
+
+  .topbar-actions .connection {
+    display: flex;
+    max-width: none;
+    font-size: 9px;
+    line-height: 1;
+    white-space: nowrap;
+  }
+}

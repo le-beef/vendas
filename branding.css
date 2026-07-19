@@ -1,0 +1,74 @@
+body {
+  padding-top: 84px;
+}
+
+.topbar {
+  height: 84px;
+  position: fixed;
+  top: 0;
+  right: 0;
+  left: 0;
+  z-index: 1000;
+  border-bottom: 0;
+  background: linear-gradient(125deg, #14213d, #1e3a5f);
+  box-shadow: 0 8px 24px #14213d2e;
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  width: min(225px, 48vw);
+  height: 68px;
+}
+
+.brand img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: left center;
+}
+
+.topbar .connection {
+  color: #dbeafe;
+}
+
+.topbar .connection i {
+  box-shadow: 0 0 0 3px #ffffff16;
+}
+
+.access-brand {
+  width: min(285px, 100%);
+  margin: 0 auto 17px;
+}
+
+.access-brand img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+@media (max-width: 600px) {
+  body {
+    padding-top: 72px;
+  }
+
+  .topbar {
+    height: 72px;
+  }
+
+  .brand {
+    width: 155px;
+    height: 56px;
+  }
+
+  .connection {
+    max-width: 145px;
+    font-size: 10px;
+    text-align: right;
+  }
+
+  .access-brand {
+    width: 235px;
+  }
+}
