@@ -1,6 +1,6 @@
-import { initializeApp } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js";
-import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js";
-import { getDatabase, ref, push, set, update, onValue } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-database.js";
+import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js";
+import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged, browserLocalPersistence, inMemoryPersistence, setPersistence, createUserWithEmailAndPassword, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js";
+import { getDatabase, ref, push, set, update, onValue, get } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-database.js";
 import { firebaseConfig } from "./firebase-config.js";
 
 const demoEvents = [
@@ -10,39 +10,90 @@ const demoEvents = [
 const demoSales = [
   { id: "demo-sale", eventId: "demo-1", ticketTypeId: "inteira", ticketTypeName: "Inteira", buyerName: "Marina Alves", buyerPhone: "(11) 98888-1234", buyerEmail: "", notes: "Retirada no local", paid: true, quantity: 2, total: 170, checkedIn: true, createdAt: Date.now() }
 ];
-let state = { events: [], sales: [] };
+let state = { events: [], sales: [], users: [] };
 let selectedEventId = localStorage.getItem("ingressa-selected-event") || "";
 let selectedTicketTypeFilter = "all";
 let selectedPaymentFilter = "all";
 let selectedEntryFilter = "all";
 let participantSearchQuery = "";
+let firebaseApp;
+let auth;
 let db;
+let currentUser;
+let currentUserProfile;
+let dataSubscriptions = [];
 let isDemo = !firebaseConfig.apiKey || !firebaseConfig.databaseURL || location.protocol === "file:";
 
 const money = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 const $ = (id) => document.getElementById(id);
-const ACCESS_KEY = "ingressa-access-v3";
+const ROLE_LABELS = { admin: "Administrador", seller: "Vendedor", door: "Portaria" };
 
-async function start() {
-  if (isDemo) {
-    state = { events: JSON.parse(localStorage.getItem("ingressa-events") || "null") || demoEvents, sales: JSON.parse(localStorage.getItem("ingressa-sales") || "null") || demoSales };
-    if (location.protocol === "file:") $("connectionText").textContent = "Modo local — dados neste navegador";
-    render();
-    return;
+function roleLabel(role) { return ROLE_LABELS[role] || "Sem perfil"; }
+function hasRole(...roles) { return Boolean(currentUserProfile?.active && roles.includes(currentUserProfile.role)); }
+function requireRole(roles, message = "Seu perfil não permite realizar esta ação.") { if (hasRole(...roles)) return true; toast(message); return false; }
+function userInitials(name, email = "") { const source = String(name || email || "U").trim(); const parts = source.split(/\s+/).filter(Boolean); return (parts.length > 1 ? `${parts[0][0]}${parts.at(-1)[0]}` : source.slice(0, 2)).toLocaleUpperCase("pt-BR"); }
+function clearDataSubscriptions() { dataSubscriptions.forEach((unsubscribe) => unsubscribe()); dataSubscriptions = []; }
+function showAccessModal(message = "") { $("accessError").textContent = message; if (!$("accessModal").open) $("accessModal").showModal(); }
+function hideAccessModal() { if ($("accessModal").open) $("accessModal").close(); }
+function authErrorMessage(error) {
+  if (["auth/invalid-credential", "auth/user-not-found", "auth/wrong-password", "auth/invalid-email"].includes(error.code)) return "E-mail ou senha inválidos.";
+  if (error.code === "auth/too-many-requests") return "Muitas tentativas. Aguarde alguns minutos e tente novamente.";
+  if (error.code === "auth/network-request-failed") return "Sem conexão com a internet. Tente novamente.";
+  if (error.code === "auth/operation-not-allowed") return "Ative o login por e-mail e senha no Firebase Authentication.";
+  if (error.code === "auth/email-already-in-use") return "Este e-mail já possui uma conta.";
+  if (error.code === "auth/weak-password") return "A senha precisa ter pelo menos 6 caracteres.";
+  return error.message || "Não foi possível concluir a autenticação.";
+}
+function applyRolePermissions() {
+  document.body.classList.remove("role-admin", "role-seller", "role-door");
+  if (currentUserProfile?.role) document.body.classList.add(`role-${currentUserProfile.role}`);
+  document.querySelectorAll("[data-roles]").forEach((element) => { element.hidden = !String(element.dataset.roles).split(",").includes(currentUserProfile?.role); });
+  $("userMenu").hidden = !currentUserProfile;
+  if (!currentUserProfile) return;
+  const displayName = currentUserProfile.name || currentUser?.email || "Usuário";
+  $("userInitials").textContent = userInitials(displayName, currentUser?.email);
+  $("userDisplayName").textContent = displayName;
+  $("userPopoverName").textContent = displayName;
+  $("userEmail").textContent = currentUser?.email || currentUserProfile.email || "";
+  $("userRoleLabel").textContent = roleLabel(currentUserProfile.role);
+  $("userRoleBadge").textContent = roleLabel(currentUserProfile.role);
+}
+function attachRealtimeListeners() {
+  clearDataSubscriptions();
+  const readError = async (error) => { toast(`Acesso ao Firebase bloqueado: ${error.code || error.message}`); if (error.code === "PERMISSION_DENIED" || error.code === "permission_denied") await signOut(auth); };
+  dataSubscriptions.push(onValue(ref(db, `users/${currentUser.uid}`), async (snapshot) => { const profile = snapshot.val(); if (!profile?.active || !ROLE_LABELS[profile.role]) { await signOut(auth); return; } const roleChanged = currentUserProfile?.role !== profile.role; currentUserProfile = { ...profile, active: true }; applyRolePermissions(); if (roleChanged) attachRealtimeListeners(); else render(); }, readError));
+  dataSubscriptions.push(onValue(ref(db, "events"), (snapshot) => { state.events = objectToArray(snapshot.val()); render(); }, readError));
+  dataSubscriptions.push(onValue(ref(db, "sales"), (snapshot) => { state.sales = objectToArray(snapshot.val()); render(); }, readError));
+  if (hasRole("admin")) dataSubscriptions.push(onValue(ref(db, "users"), (snapshot) => { state.users = objectToArray(snapshot.val()); renderUsers(); }, readError));
+  else { state.users = currentUserProfile ? [{ id: currentUser.uid, ...currentUserProfile }] : []; renderUsers(); }
+}
+async function handleAuthenticatedUser(user) {
+  clearDataSubscriptions();
+  if (!user) {
+    currentUser = null; currentUserProfile = null; state = { events: [], sales: [], users: [] }; $("connectionDot").classList.remove("online"); $("connectionText").textContent = "Aguardando login"; if ($("userManagementModal").open) $("userManagementModal").close(); applyRolePermissions(); render(); showAccessModal(); return;
   }
   try {
-    const app = initializeApp(firebaseConfig);
-    await signInAnonymously(getAuth(app));
-    db = getDatabase(app, firebaseConfig.databaseURL);
-    if (!db) throw new Error("Banco de dados não inicializado.");
-    $("connectionDot").classList.add("online");
-    $("connectionText").textContent = "Firebase conectado";
-    onValue(ref(db, "events"), (snapshot) => { state.events = objectToArray(snapshot.val()); render(); }, (error) => toast(`Firebase bloqueou a leitura: ${error.code || error.message}`));
-    onValue(ref(db, "sales"), (snapshot) => { state.sales = objectToArray(snapshot.val()); render(); }, (error) => toast(`Firebase bloqueou a leitura: ${error.code || error.message}`));
-  } catch (error) {
-    console.error(error);
-    toast(error.code === "auth/operation-not-allowed" ? "Ative o login Anônimo no Firebase Authentication." : "Não foi possível conectar ao Firebase. Confira a configuração.");
+    const profileSnapshot = await get(ref(db, `users/${user.uid}`));
+    const profile = profileSnapshot.val();
+    if (!profile || !profile.active || !ROLE_LABELS[profile.role]) { await signOut(auth); showAccessModal("Sua conta ainda não possui permissão ativa. Fale com o administrador."); return; }
+    currentUser = user; currentUserProfile = { ...profile, active: profile.active === true }; hideAccessModal(); applyRolePermissions();
+    $("connectionDot").classList.add("online"); $("connectionText").textContent = "Firebase conectado";
+    attachRealtimeListeners();
+  } catch (error) { console.error(error); await signOut(auth); showAccessModal("Não foi possível carregar suas permissões. Confira as regras do Firebase."); }
+}
+async function start() {
+  if (isDemo) {
+    currentUser = { uid: "local-demo", email: "demo@local" }; currentUserProfile = { name: "Administrador local", email: "demo@local", role: "admin", active: true };
+    state = { events: JSON.parse(localStorage.getItem("ingressa-events") || "null") || demoEvents, sales: JSON.parse(localStorage.getItem("ingressa-sales") || "null") || demoSales, users: [{ id: "local-demo", ...currentUserProfile }] };
+    $("connectionText").textContent = "Modo local — dados neste navegador"; applyRolePermissions(); render(); return;
   }
+  try {
+    showAccessModal();
+    $("connectionText").textContent = "Aguardando login";
+    firebaseApp = initializeApp(firebaseConfig); auth = getAuth(firebaseApp); db = getDatabase(firebaseApp, firebaseConfig.databaseURL);
+    await setPersistence(auth, browserLocalPersistence);
+    onAuthStateChanged(auth, (user) => { handleAuthenticatedUser(user); });
+  } catch (error) { console.error(error); showAccessModal("Não foi possível iniciar o login. Confira a configuração do Firebase."); }
 }
 
 function objectToArray(value) { return Object.entries(value || {}).map(([id, item]) => ({ id, ...item })); }
@@ -126,7 +177,30 @@ function populateTicketTypes(eventId) {
   const excludedSaleId = $("saleForm").dataset.editId || "";
   select.innerHTML = event ? `<option value="">Selecione o tipo</option>${ticketTypesFor(event).map((item) => { const remaining = Math.max(0, Number(item.capacity) - soldForTicket(event.id, item, excludedSaleId)); return `<option value="${item.id}" ${remaining === 0 ? "disabled" : ""}>${escapeHtml(item.name)} — ${money.format(item.price)} — ${remaining} disponíveis</option>`; }).join("")}` : `<option value="">Selecione primeiro o evento</option>`;
 }
-function addSaleEditButtons() { document.querySelectorAll("[data-sale-row]").forEach((row) => { const actions = row.lastElementChild; if (!actions?.querySelector("[data-edit-sale]")) { const button = document.createElement("button"); button.type = "button"; button.className = "edit-button"; button.dataset.editSale = row.dataset.saleRow; button.textContent = "Editar"; actions.prepend(button); } }); }
+function addSaleEditButtons() { if (!hasRole("admin", "seller")) return; document.querySelectorAll("[data-sale-row]").forEach((row) => { const actions = row.lastElementChild; if (!actions?.querySelector("[data-edit-sale]")) { const button = document.createElement("button"); button.type = "button"; button.className = "edit-button"; button.dataset.editSale = row.dataset.saleRow; button.textContent = "Editar"; actions.prepend(button); } }); }
+
+function renderUsers() {
+  const users = [...state.users].sort((a, b) => String(a.name || a.email).localeCompare(String(b.name || b.email), "pt-BR"));
+  $("usersCount").textContent = `${users.length} ${users.length === 1 ? "usuário" : "usuários"}`;
+  $("usersList").innerHTML = users.length ? users.map((user) => {
+    const isCurrent = user.id === currentUser?.uid;
+    return `<article class="managed-user ${user.active ? "" : "is-inactive"}"><div class="managed-user-main"><span class="managed-user-avatar">${escapeHtml(userInitials(user.name, user.email))}</span><div class="managed-user-copy"><strong>${escapeHtml(user.name || "Sem nome")}${isCurrent ? " (você)" : ""}</strong><small>${escapeHtml(user.email || "E-mail não informado")}</small><em>${user.active ? "Acesso ativo" : "Acesso bloqueado"}</em></div></div><select data-user-role="${user.id}" aria-label="Perfil de ${escapeHtml(user.name || user.email)}" ${isCurrent ? "disabled" : ""}><option value="admin" ${user.role === "admin" ? "selected" : ""}>Administrador</option><option value="seller" ${user.role === "seller" ? "selected" : ""}>Vendedor</option><option value="door" ${user.role === "door" ? "selected" : ""}>Portaria</option></select><div class="managed-user-actions"><button type="button" data-reset-user="${user.id}">Redefinir senha</button>${isCurrent ? `<button type="button" disabled>Conta atual</button>` : `<button class="deactivate" type="button" data-toggle-user="${user.id}">${user.active ? "Bloquear" : "Ativar"}</button>`}</div></article>`;
+  }).join("") : `<div class="empty">Nenhum usuário cadastrado.</div>`;
+}
+async function createManagedUser(data) {
+  if (!requireRole(["admin"])) return;
+  if (isDemo) throw new Error("A criação de contas funciona somente no site conectado ao Firebase.");
+  const secondaryApp = initializeApp(firebaseConfig, `create-user-${Date.now()}`);
+  const secondaryAuth = getAuth(secondaryApp);
+  try {
+    await setPersistence(secondaryAuth, inMemoryPersistence);
+    const credential = await createUserWithEmailAndPassword(secondaryAuth, data.email.trim(), data.password);
+    await set(ref(db, `users/${credential.user.uid}`), { name: data.name.trim(), email: data.email.trim().toLocaleLowerCase("pt-BR"), role: data.role, active: true, createdAt: Date.now(), createdBy: currentUser.uid });
+  } finally { try { await signOut(secondaryAuth); } catch {} await deleteApp(secondaryApp); }
+}
+async function updateManagedUserRole(uid, role) { if (!requireRole(["admin"]) || uid === currentUser?.uid) return; await update(ref(db, `users/${uid}`), { role, updatedAt: Date.now(), updatedBy: currentUser.uid }); toast("Perfil atualizado."); }
+async function toggleManagedUser(uid) { if (!requireRole(["admin"]) || uid === currentUser?.uid) return; const user = state.users.find((item) => item.id === uid); if (!user) return; const active = !user.active; if (!confirm(`${active ? "Ativar" : "Bloquear"} o acesso de ${user.name || user.email}?`)) return; await update(ref(db, `users/${uid}`), { active, updatedAt: Date.now(), updatedBy: currentUser.uid }); toast(active ? "Acesso ativado." : "Acesso bloqueado."); }
+async function resetManagedUserPassword(uid) { if (!requireRole(["admin"])) return; const user = state.users.find((item) => item.id === uid); if (!user?.email) return; await sendPasswordResetEmail(auth, user.email); toast("E-mail para redefinição de senha enviado."); }
 
 function renderFinancialReport(event, eventSales) {
   const totalSold = eventSales.reduce((sum, sale) => sum + Number(sale.total || 0), 0);
@@ -163,7 +237,7 @@ function renderFinancialReport(event, eventSales) {
 }
 
 function syncApplicationPage() {
-  const reportOpen = location.hash === "#relatorio-financeiro" && Boolean(selectedEventId);
+  const reportOpen = location.hash === "#relatorio-financeiro" && Boolean(selectedEventId) && hasRole("admin");
   $("dashboardPage").hidden = reportOpen;
   $("financialReportPage").hidden = !reportOpen;
   document.body.classList.toggle("financial-report-open", reportOpen);
@@ -212,20 +286,24 @@ function render() {
   $("allSalesTotalLabel").textContent = participantSearchQuery || activeFilterCount ? "Total vendido — resultados filtrados" : "Total vendido — Todos";
   $("allSalesTotal").textContent = money.format(visibleSalesTotal);
   $("revenue").textContent = money.format(revenueTotal); $("revenuePaid").textContent = money.format(revenuePaid); $("revenuePending").textContent = money.format(revenuePending); $("sold").textContent = sold; $("capacity").textContent = eventCapacity(selectedEvent); $("checkins").textContent = checkins;
-  renderFinancialReport(selectedEvent, selectedSales);
-  if (selectedEvent) { $("selectedEventName").textContent = selectedEvent.name; $("selectedEventMeta").textContent = `${selectedEvent.place} · ${dateText(selectedEvent.date)} · ${priceLabel(selectedEvent)}`; $("salesPanelTitle").textContent = `Vendas de ${selectedEvent.name}`; $("allSalesTitle").textContent = `Participantes — ${selectedEvent.name}`; }
+  renderFinancialReport(hasRole("admin") ? selectedEvent : undefined, hasRole("admin") ? selectedSales : []);
+  if (selectedEvent) { $("selectedEventName").textContent = selectedEvent.name; $("selectedEventMeta").textContent = hasRole("door") ? `${selectedEvent.place} · ${dateText(selectedEvent.date)}` : `${selectedEvent.place} · ${dateText(selectedEvent.date)} · ${priceLabel(selectedEvent)}`; $("salesPanelTitle").textContent = `Vendas de ${selectedEvent.name}`; $("allSalesTitle").textContent = `Participantes — ${selectedEvent.name}`; }
   $("eventsList").innerHTML = events.length ? events.map((event) => {
     const eventSold = sales.filter((sale) => sale.eventId === event.id).reduce((sum, sale) => sum + Number(sale.quantity), 0);
-    return `<div class="event-card ${event.id === selectedEventId ? "is-selected" : ""}" data-select-event="${event.id}" role="button" tabindex="0" aria-pressed="${event.id === selectedEventId}"><span class="calendar"><b>${new Date(`${event.date}T12:00:00`).getDate()}</b><small>${new Date(`${event.date}T12:00:00`).toLocaleDateString("pt-BR", { month: "short" }).replace(".", "")}</small></span><span class="event-info"><strong>${escapeHtml(event.name)}</strong><small>${escapeHtml(event.place)} · ${priceLabel(event)}</small></span><span class="event-count">${eventSold}/${eventCapacity(event)}</span></div>`;
+    return `<div class="event-card ${event.id === selectedEventId ? "is-selected" : ""}" data-select-event="${event.id}" role="button" tabindex="0" aria-pressed="${event.id === selectedEventId}"><span class="calendar"><b>${new Date(`${event.date}T12:00:00`).getDate()}</b><small>${new Date(`${event.date}T12:00:00`).toLocaleDateString("pt-BR", { month: "short" }).replace(".", "")}</small></span><span class="event-info"><strong>${escapeHtml(event.name)}</strong><small>${escapeHtml(event.place)}${hasRole("door") ? "" : ` · ${priceLabel(event)}`}</small></span><span class="event-count">${eventSold}/${eventCapacity(event)}</span></div>`;
   }).join("") : `<div class="empty">Nenhum evento cadastrado ainda.</div>`;
-  $("salesList").innerHTML = visibleSales.length ? visibleSales.slice(0, 7).map((sale) => `<tr class="sales-row" data-sale-row="${sale.id}"><td><strong>${escapeHtml(sale.buyerName)}</strong><small>${sale.quantity} ingresso${sale.quantity > 1 ? "s" : ""}</small>${participantContactHtml(sale, selectedEvent?.name)}</td><td>${escapeHtml(sale.ticketTypeName || "Ingresso padrão")}</td><td class="sale-observation">${escapeHtml(sale.notes || "Sem observação")}</td><td>${money.format(sale.total)}</td><td><button class="payment ${sale.paid ? "paid" : ""}" data-paid="${sale.id}">${sale.paid ? "✓ Pago" : "Pendente"}</button></td><td><button class="status ${sale.checkedIn ? "checked" : ""}" data-checkin="${sale.id}">${sale.checkedIn ? "✓ Check-in" : "Fazer check-in"}</button></td><td><button class="delete-button" data-delete-sale="${sale.id}">Excluir</button></td></tr>`).join("") : `<tr><td colspan="7" class="empty">${participantSearchQuery || activeFilterCount ? "Nenhum participante encontrado com esses filtros." : "Nenhuma venda neste evento."}</td></tr>`;
-  $("allSalesList").innerHTML = visibleSales.length ? visibleSales.map((sale) => `<tr class="sales-row" data-sale-row="${sale.id}"><td><strong>${escapeHtml(sale.buyerName)}</strong><small>${sale.quantity} ingresso${sale.quantity > 1 ? "s" : ""}</small></td><td>${escapeHtml(sale.ticketTypeName || "Ingresso padrão")}</td><td class="sale-note"><span class="phone-line"><strong>${escapeHtml(sale.buyerPhone || "Não informado")}</strong>${whatsappButtonHtml(sale, selectedEvent?.name)}</span>${sale.notes ? `<small>${escapeHtml(sale.notes)}</small>` : ""}</td><td>${escapeHtml(selectedEvent?.name || "Evento removido")}</td><td>${money.format(sale.total)}</td><td><button class="payment ${sale.paid ? "paid" : ""}" data-paid="${sale.id}">${sale.paid ? "✓ Pago" : "Pendente"}</button></td><td><button class="status ${sale.checkedIn ? "checked" : ""}" data-checkin="${sale.id}">${sale.checkedIn ? "✓ Check-in" : "Fazer check-in"}</button></td><td><button class="delete-button" data-delete-sale="${sale.id}">Excluir</button></td></tr>`).join("") : `<tr><td colspan="8" class="empty">${participantSearchQuery || activeFilterCount ? "Nenhum participante encontrado com esses filtros." : "Nenhum participante neste evento."}</td></tr>`;
+  const canManageSales = hasRole("admin", "seller");
+  const paymentControl = (sale) => canManageSales ? `<button class="payment ${sale.paid ? "paid" : ""}" data-paid="${sale.id}">${sale.paid ? "✓ Pago" : "Pendente"}</button>` : `<span class="payment ${sale.paid ? "paid" : ""}">${sale.paid ? "✓ Pago" : "Pendente"}</span>`;
+  const actionControl = (sale) => canManageSales ? `<button class="delete-button" data-delete-sale="${sale.id}">Excluir</button>` : `<span class="role-readonly">Somente consulta</span>`;
+  $("salesList").innerHTML = visibleSales.length ? visibleSales.slice(0, 7).map((sale) => `<tr class="sales-row" data-sale-row="${sale.id}"><td><strong>${escapeHtml(sale.buyerName)}</strong><small>${sale.quantity} ingresso${sale.quantity > 1 ? "s" : ""}</small>${participantContactHtml(sale, selectedEvent?.name)}</td><td>${escapeHtml(sale.ticketTypeName || "Ingresso padrão")}</td><td class="sale-observation">${escapeHtml(sale.notes || "Sem observação")}</td><td class="financial-column">${money.format(sale.total)}</td><td class="financial-column">${paymentControl(sale)}</td><td><button class="status ${sale.checkedIn ? "checked" : ""}" data-checkin="${sale.id}">${sale.checkedIn ? "✓ Check-in" : "Fazer check-in"}</button></td><td>${actionControl(sale)}</td></tr>`).join("") : `<tr><td colspan="7" class="empty">${participantSearchQuery || activeFilterCount ? "Nenhum participante encontrado com esses filtros." : "Nenhuma venda neste evento."}</td></tr>`;
+  $("allSalesList").innerHTML = visibleSales.length ? visibleSales.map((sale) => `<tr class="sales-row" data-sale-row="${sale.id}"><td><strong>${escapeHtml(sale.buyerName)}</strong><small>${sale.quantity} ingresso${sale.quantity > 1 ? "s" : ""}</small></td><td>${escapeHtml(sale.ticketTypeName || "Ingresso padrão")}</td><td class="sale-note"><span class="phone-line"><strong>${escapeHtml(sale.buyerPhone || "Não informado")}</strong>${whatsappButtonHtml(sale, selectedEvent?.name)}</span>${sale.notes ? `<small>${escapeHtml(sale.notes)}</small>` : ""}</td><td>${escapeHtml(selectedEvent?.name || "Evento removido")}</td><td class="financial-column">${money.format(sale.total)}</td><td class="financial-column">${paymentControl(sale)}</td><td><button class="status ${sale.checkedIn ? "checked" : ""}" data-checkin="${sale.id}">${sale.checkedIn ? "✓ Check-in" : "Fazer check-in"}</button></td><td>${actionControl(sale)}</td></tr>`).join("") : `<tr><td colspan="8" class="empty">${participantSearchQuery || activeFilterCount ? "Nenhum participante encontrado com esses filtros." : "Nenhum participante neste evento."}</td></tr>`;
   addSaleEditButtons();
   const currentEvent = $("saleEvent").value; $("saleEvent").innerHTML = `<option value="">Selecione o evento</option>${events.map((event) => `<option value="${event.id}">${escapeHtml(event.name)} — ${priceLabel(event)}</option>`).join("")}`; if (events.some((event) => event.id === currentEvent)) $("saleEvent").value = currentEvent; populateTicketTypes($("saleEvent").value);
   syncApplicationPage();
 }
 
 async function saveEvent(data, id = "") {
+  if (!hasRole("admin")) throw new Error("Somente administradores podem criar ou editar eventos.");
   const eventSales = state.sales.filter((sale) => sale.eventId === id);
   if (id) {
     const keptIds = new Set(data.ticketTypes.map((item) => item.id));
@@ -243,6 +321,7 @@ async function saveEvent(data, id = "") {
   toast(id ? "Evento atualizado." : "Evento criado com sucesso.");
 }
 async function saveSale(data, id = "") {
+  if (!hasRole("admin", "seller")) throw new Error("Seu perfil não permite criar ou editar vendas.");
   const event = state.events.find((item) => item.id === data.eventId); if (!event) throw new Error("Selecione um evento.");
   const ticketType = ticketTypesFor(event).find((item) => item.id === data.ticketTypeId); if (!ticketType) throw new Error("Selecione o tipo de ingresso.");
   const quantity = Number(data.quantity); if (!Number.isInteger(quantity) || quantity < 1) throw new Error("Informe uma quantidade válida.");
@@ -255,34 +334,41 @@ async function saveSale(data, id = "") {
   else if (id) await update(ref(db, `sales/${id}`), saleData); else await set(push(ref(db, "sales")), { ...saleData, createdAt: Date.now() });
   toast(id ? "Participante atualizado." : "Venda registrada.");
 }
-async function toggleCheckin(id) { const sale = state.sales.find((item) => item.id === id); if (!sale) return; const value = !sale.checkedIn; if (isDemo) { sale.checkedIn = value; persistDemo(); render(); } else { await update(ref(db, `sales/${id}`), { checkedIn: value }); } }
-async function togglePayment(id) { const sale = state.sales.find((item) => item.id === id); if (!sale) return; const value = !sale.paid; if (isDemo) { sale.paid = value; persistDemo(); render(); } else { await update(ref(db, `sales/${id}`), { paid: value }); } }
-async function deleteSale(id) { const sale = state.sales.find((item) => item.id === id); if (!sale || !confirm(`Excluir a venda de ${sale.buyerName}?`)) return; if (isDemo) { state.sales = state.sales.filter((item) => item.id !== id); persistDemo(); render(); } else { await update(ref(db), { [`sales/${id}`]: null }); } toast("Venda excluída."); }
-async function deleteEvent(id) { const event = state.events.find((item) => item.id === id); if (!event || !confirm(`Excluir o evento “${event.name}” e todas as vendas dele? Esta ação não pode ser desfeita.`)) return; const changes = { [`events/${id}`]: null }; state.sales.filter((sale) => sale.eventId === id).forEach((sale) => { changes[`sales/${sale.id}`] = null; }); if (isDemo) { state.events = state.events.filter((item) => item.id !== id); state.sales = state.sales.filter((sale) => sale.eventId !== id); persistDemo(); render(); } else { await update(ref(db), changes); } toast("Evento e vendas vinculadas excluídos."); }
+async function toggleCheckin(id) { if (!requireRole(["admin", "seller", "door"])) return; const sale = state.sales.find((item) => item.id === id); if (!sale) return; const value = !sale.checkedIn; if (isDemo) { sale.checkedIn = value; persistDemo(); render(); } else { await set(ref(db, `sales/${id}/checkedIn`), value); } }
+async function togglePayment(id) { if (!requireRole(["admin", "seller"])) return; const sale = state.sales.find((item) => item.id === id); if (!sale) return; const value = !sale.paid; if (isDemo) { sale.paid = value; persistDemo(); render(); } else { await update(ref(db, `sales/${id}`), { paid: value }); } }
+async function deleteSale(id) { if (!requireRole(["admin", "seller"])) return; const sale = state.sales.find((item) => item.id === id); if (!sale || !confirm(`Excluir a venda de ${sale.buyerName}?`)) return; if (isDemo) { state.sales = state.sales.filter((item) => item.id !== id); persistDemo(); render(); } else { await update(ref(db), { [`sales/${id}`]: null }); } toast("Venda excluída."); }
+async function deleteEvent(id) { if (!requireRole(["admin"], "Somente administradores podem excluir eventos.")) return; const event = state.events.find((item) => item.id === id); if (!event || !confirm(`Excluir o evento “${event.name}” e todas as vendas dele? Esta ação não pode ser desfeita.`)) return; const changes = { [`events/${id}`]: null }; state.sales.filter((sale) => sale.eventId === id).forEach((sale) => { changes[`sales/${sale.id}`] = null; }); if (isDemo) { state.events = state.events.filter((item) => item.id !== id); state.sales = state.sales.filter((sale) => sale.eventId !== id); persistDemo(); render(); } else { await update(ref(db), changes); } toast("Evento e vendas vinculadas excluídos."); }
 function toast(message) { const el = $("toast"); el.textContent = message; el.classList.add("visible"); setTimeout(() => el.classList.remove("visible"), 3200); }
 
-function openNewEvent() { const form = $("eventForm"); form.reset(); form.dataset.editId = ""; $("eventModalTitle").textContent = "Novo evento"; $("eventSubmitButton").textContent = "Criar evento"; resetTicketTypes(); $("eventModal").showModal(); }
-function openEditEvent(id) { const item = state.events.find((event) => event.id === id); if (!item) return; const form = $("eventForm"); form.dataset.editId = id; form.elements.name.value = item.name || ""; form.elements.date.value = item.date || ""; form.elements.place.value = item.place || ""; $("ticketTypesList").innerHTML = ""; ticketTypesFor(item).forEach((type) => addTicketTypeRow(type.name, type.price, type.capacity, type.id)); $("eventModalTitle").textContent = "Editar evento"; $("eventSubmitButton").textContent = "Salvar alterações"; $("eventModal").showModal(); }
-function openNewSale(eventId = "") { if (!state.events.length) return toast("Cadastre um evento antes de registrar uma venda."); const form = $("saleForm"); form.reset(); form.dataset.editId = ""; $("saleModalTitle").textContent = "Registrar ingresso"; $("saleSubmitButton").textContent = "Confirmar venda"; $("saleEvent").value = eventId; populateTicketTypes(eventId); $("saleModal").showModal(); }
-function openEditSale(id) { const sale = state.sales.find((item) => item.id === id); if (!sale) return; if ($("allSalesModal").open) $("allSalesModal").close(); const form = $("saleForm"); form.reset(); form.dataset.editId = id; $("saleEvent").value = sale.eventId; populateTicketTypes(sale.eventId); form.elements.ticketTypeId.value = sale.ticketTypeId || ""; form.elements.buyerName.value = sale.buyerName || ""; form.elements.buyerPhone.value = sale.buyerPhone || ""; form.elements.buyerEmail.value = sale.buyerEmail || ""; form.elements.quantity.value = sale.quantity || 1; form.elements.paymentStatus.value = sale.paid ? "paid" : "pending"; form.elements.notes.value = sale.notes || ""; $("saleModalTitle").textContent = "Editar participante"; $("saleSubmitButton").textContent = "Salvar alterações"; $("saleModal").showModal(); }
+function openNewEvent() { if (!requireRole(["admin"], "Somente administradores podem criar eventos.")) return; const form = $("eventForm"); form.reset(); form.dataset.editId = ""; $("eventModalTitle").textContent = "Novo evento"; $("eventSubmitButton").textContent = "Criar evento"; resetTicketTypes(); $("eventModal").showModal(); }
+function openEditEvent(id) { if (!requireRole(["admin"], "Somente administradores podem editar eventos.")) return; const item = state.events.find((event) => event.id === id); if (!item) return; const form = $("eventForm"); form.dataset.editId = id; form.elements.name.value = item.name || ""; form.elements.date.value = item.date || ""; form.elements.place.value = item.place || ""; $("ticketTypesList").innerHTML = ""; ticketTypesFor(item).forEach((type) => addTicketTypeRow(type.name, type.price, type.capacity, type.id)); $("eventModalTitle").textContent = "Editar evento"; $("eventSubmitButton").textContent = "Salvar alterações"; $("eventModal").showModal(); }
+function openNewSale(eventId = "") { if (!requireRole(["admin", "seller"])) return; if (!state.events.length) return toast("Cadastre um evento antes de registrar uma venda."); const form = $("saleForm"); form.reset(); form.dataset.editId = ""; $("saleModalTitle").textContent = "Registrar ingresso"; $("saleSubmitButton").textContent = "Confirmar venda"; $("saleEvent").value = eventId; populateTicketTypes(eventId); $("saleModal").showModal(); }
+function openEditSale(id) { if (!requireRole(["admin", "seller"])) return; const sale = state.sales.find((item) => item.id === id); if (!sale) return; if ($("allSalesModal").open) $("allSalesModal").close(); const form = $("saleForm"); form.reset(); form.dataset.editId = id; $("saleEvent").value = sale.eventId; populateTicketTypes(sale.eventId); form.elements.ticketTypeId.value = sale.ticketTypeId || ""; form.elements.buyerName.value = sale.buyerName || ""; form.elements.buyerPhone.value = sale.buyerPhone || ""; form.elements.buyerEmail.value = sale.buyerEmail || ""; form.elements.quantity.value = sale.quantity || 1; form.elements.paymentStatus.value = sale.paid ? "paid" : "pending"; form.elements.notes.value = sale.notes || ""; $("saleModalTitle").textContent = "Editar participante"; $("saleSubmitButton").textContent = "Salvar alterações"; $("saleModal").showModal(); }
 
 document.querySelectorAll("[data-open]").forEach((button) => button.addEventListener("click", () => { if (button.dataset.open === "eventModal") return openNewEvent(); if (button.dataset.open === "saleModal") return openNewSale(selectedEventId); $(button.dataset.open).showModal(); }));
 document.querySelectorAll("[data-close]").forEach((button) => button.addEventListener("click", () => $(button.dataset.close).close()));
 $("addTicketType").addEventListener("click", () => addTicketTypeRow());
 $("saleEvent").addEventListener("change", () => populateTicketTypes($("saleEvent").value));
 $("applyParticipantFilters").addEventListener("click", () => { selectedTicketTypeFilter = $("ticketTypeFilter").value; selectedPaymentFilter = $("paymentStatusFilter").value; selectedEntryFilter = $("entryStatusFilter").value; document.querySelector(".ticket-filter").open = false; render(); });
-$("openFinancialReport").addEventListener("click", () => { if (!selectedEventId) return toast("Selecione um evento para abrir o relatório financeiro."); location.hash = "relatorio-financeiro"; });
+$("openFinancialReport").addEventListener("click", () => { if (!requireRole(["admin"], "O relatório financeiro é exclusivo para administradores.")) return; if (!selectedEventId) return toast("Selecione um evento para abrir o relatório financeiro."); location.hash = "relatorio-financeiro"; });
 $("backToDashboard").addEventListener("click", () => { history.replaceState(null, "", location.href.split("#")[0]); syncApplicationPage(); window.scrollTo({ top: 0, behavior: "smooth" }); });
+$("accessModal").addEventListener("cancel", (event) => event.preventDefault());
+$("accessForm").addEventListener("submit", async (event) => { event.preventDefault(); if (!auth) return; const button = $("accessSubmitButton"); button.disabled = true; button.textContent = "Entrando..."; $("accessError").textContent = ""; try { await signInWithEmailAndPassword(auth, $("accessEmail").value.trim(), $("accessPassword").value); $("accessPassword").value = ""; } catch (error) { $("accessError").textContent = authErrorMessage(error); } finally { button.disabled = false; button.textContent = "Entrar no painel"; } });
+$("resetPasswordButton").addEventListener("click", async () => { const email = $("accessEmail").value.trim(); if (!auth) { $("accessError").textContent = "O Firebase ainda está carregando. Tente novamente."; return; } if (!email) { $("accessError").textContent = "Digite seu e-mail para redefinir a senha."; $("accessEmail").focus(); return; } try { await sendPasswordResetEmail(auth, email); $("accessError").textContent = "Enviamos as instruções para o seu e-mail."; } catch (error) { $("accessError").textContent = authErrorMessage(error); } });
+$("logoutButton").addEventListener("click", async () => { $("userMenu").open = false; if (isDemo) { toast("O modo local usa um perfil de demonstração."); return; } await signOut(auth); });
+$("manageUsersButton").addEventListener("click", () => { if (!requireRole(["admin"])) return; $("userMenu").open = false; renderUsers(); $("userManagementModal").showModal(); });
+$("createUserForm").addEventListener("submit", async (event) => { event.preventDefault(); const form = event.currentTarget; const button = $("createUserButton"); button.disabled = true; button.textContent = "Criando..."; try { await createManagedUser(Object.fromEntries(new FormData(form))); form.reset(); toast("Usuário criado com sucesso."); } catch (error) { toast(authErrorMessage(error)); } finally { button.disabled = false; button.textContent = "+ Criar usuário"; } });
+$("usersList").addEventListener("change", async (event) => { const select = event.target.closest("[data-user-role]"); if (!select) return; try { await updateManagedUserRole(select.dataset.userRole, select.value); } catch (error) { toast(error.message); renderUsers(); } });
+$("usersList").addEventListener("click", async (event) => { const toggle = event.target.closest("[data-toggle-user]"); const reset = event.target.closest("[data-reset-user]"); try { if (toggle) await toggleManagedUser(toggle.dataset.toggleUser); if (reset) await resetManagedUserPassword(reset.dataset.resetUser); } catch (error) { toast(authErrorMessage(error)); } });
 $("participantSearch").addEventListener("input", (event) => { participantSearchQuery = event.currentTarget.value; render(); });
 $("participantSearch").addEventListener("keydown", (event) => { if (event.key === "Escape") { participantSearchQuery = ""; render(); event.currentTarget.focus(); } });
 document.querySelectorAll("[data-clear-participant-filters]").forEach((button) => button.addEventListener("click", () => { resetParticipantFilters(); document.querySelector(".ticket-filter").open = false; render(); $("participantSearch").focus(); }));
 $("eventsList").addEventListener("click", (event) => { if (event.target.closest("[data-select-event]")) resetParticipantFilters(); });
 $("eventForm").addEventListener("submit", async (event) => { event.preventDefault(); const form = event.currentTarget; try { const data = Object.fromEntries(new FormData(form)); data.ticketTypes = getTicketTypes(); if (!data.ticketTypes.length) throw new Error("Informe ao menos um tipo ou lote com valor e quantidade."); await saveEvent(data, form.dataset.editId); form.reset(); resetTicketTypes(); $("eventModal").close(); } catch (error) { toast(error.message); } });
 $("saleForm").addEventListener("submit", async (event) => { event.preventDefault(); const form = event.currentTarget; try { await saveSale(Object.fromEntries(new FormData(form)), form.dataset.editId); form.reset(); $("saleModal").close(); } catch (error) { toast(error.message); } });
-document.addEventListener("click", (event) => { const whatsappTrigger = event.target.closest("[data-whatsapp]"); if (whatsappTrigger) { event.preventDefault(); openWhatsappChooser(whatsappTrigger); return; } const whatsappApp = event.target.closest("[data-whatsapp-app]"); if (whatsappApp) { launchWhatsapp(whatsappApp.dataset.whatsappApp); return; } const removeTicket = event.target.closest("[data-remove-ticket]"); if (removeTicket) { if (document.querySelectorAll(".ticket-type-row").length === 1) return toast("O evento precisa de pelo menos um tipo de ingresso."); removeTicket.closest(".ticket-type-row").remove(); return; } const selectedAction = event.target.closest("[data-selected-action]"); if (selectedAction) { const action = selectedAction.dataset.selectedAction; if (action === "sale") openNewSale(selectedEventId); if (action === "edit") openEditEvent(selectedEventId); if (action === "export") window.exportSalesXlsx(state.sales, state.events, selectedEventId); if (action === "delete") deleteEvent(selectedEventId); return; } const selectEvent = event.target.closest("[data-select-event]"); if (selectEvent) { selectedEventId = selectEvent.dataset.selectEvent; render(); return; } const editSaleButton = event.target.closest("[data-edit-sale]"); if (editSaleButton) { openEditSale(editSaleButton.dataset.editSale); return; } const deleteSaleButton = event.target.closest("[data-delete-sale]"); if (deleteSaleButton) { deleteSale(deleteSaleButton.dataset.deleteSale); return; } const checkin = event.target.closest("[data-checkin]"); if (checkin) { toggleCheckin(checkin.dataset.checkin); return; } const paid = event.target.closest("[data-paid]"); if (paid) { togglePayment(paid.dataset.paid); return; } const saleRow = event.target.closest("[data-sale-row]"); if (saleRow) { openEditSale(saleRow.dataset.saleRow); return; } });
+document.addEventListener("click", (event) => { const whatsappTrigger = event.target.closest("[data-whatsapp]"); if (whatsappTrigger) { event.preventDefault(); openWhatsappChooser(whatsappTrigger); return; } const whatsappApp = event.target.closest("[data-whatsapp-app]"); if (whatsappApp) { launchWhatsapp(whatsappApp.dataset.whatsappApp); return; } const removeTicket = event.target.closest("[data-remove-ticket]"); if (removeTicket) { if (document.querySelectorAll(".ticket-type-row").length === 1) return toast("O evento precisa de pelo menos um tipo de ingresso."); removeTicket.closest(".ticket-type-row").remove(); return; } const selectedAction = event.target.closest("[data-selected-action]"); if (selectedAction) { const action = selectedAction.dataset.selectedAction; if (action === "sale") openNewSale(selectedEventId); if (action === "edit") openEditEvent(selectedEventId); if (action === "export" && requireRole(["admin", "seller"])) window.exportSalesXlsx(state.sales, state.events, selectedEventId); if (action === "delete") deleteEvent(selectedEventId); return; } const selectEvent = event.target.closest("[data-select-event]"); if (selectEvent) { selectedEventId = selectEvent.dataset.selectEvent; render(); return; } const editSaleButton = event.target.closest("[data-edit-sale]"); if (editSaleButton) { openEditSale(editSaleButton.dataset.editSale); return; } const deleteSaleButton = event.target.closest("[data-delete-sale]"); if (deleteSaleButton) { deleteSale(deleteSaleButton.dataset.deleteSale); return; } const checkin = event.target.closest("[data-checkin]"); if (checkin) { toggleCheckin(checkin.dataset.checkin); return; } const paid = event.target.closest("[data-paid]"); if (paid) { togglePayment(paid.dataset.paid); return; } const saleRow = event.target.closest("[data-sale-row]"); if (saleRow && hasRole("admin", "seller")) { openEditSale(saleRow.dataset.saleRow); return; } });
 document.addEventListener("keydown", (event) => { const card = event.target.closest?.("[data-select-event]"); if (card && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); selectedEventId = card.dataset.selectEvent; resetParticipantFilters(); render(); } });
 window.addEventListener("hashchange", () => { syncApplicationPage(); window.scrollTo({ top: 0, behavior: "smooth" }); });
 window.addEventListener("popstate", syncApplicationPage);
-if (localStorage.getItem(ACCESS_KEY) === "granted") start();
-else window.addEventListener("ingressa:access-granted", start, { once: true });
+start();
 resetTicketTypes();

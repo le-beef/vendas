@@ -1,60 +1,60 @@
 # Le Beef — painel de vendas de ingressos
 
-Site estático em HTML, CSS e JavaScript, pronto para publicar no GitHub Pages e usar o Firebase Realtime Database.
+Site estático em HTML, CSS e JavaScript, pronto para publicar no GitHub Pages, com Firebase Authentication e Realtime Database.
 
-## Instalar como aplicativo
+## Login individual e permissões
 
-Depois que os novos arquivos forem publicados no GitHub Pages, o botão **Instalar app** aparecerá no topo do painel. No Android e no computador, ele abre a instalação quando o navegador permitir. No iPhone/iPad, o botão mostra o caminho **Compartilhar > Adicionar à Tela de Início** no Safari.
+A versão 3.2.0 usa contas individuais com e-mail e senha. A antiga senha compartilhada foi removida.
 
-O PWA precisa ser aberto pelo endereço HTTPS do GitHub Pages. A instalação não funciona ao abrir o arquivo `index.html` diretamente no computador.
+Perfis disponíveis:
 
-## WhatsApp dos participantes
+- **Administrador**: usuários, eventos, vendas, pagamentos, check-in, Excel e relatório financeiro.
+- **Vendedor**: vendas, pagamentos, check-in e Excel.
+- **Portaria**: consulta de participantes e check-in.
 
-O telefone aparece com um botão **WhatsApp** nas listas de participantes. Ao tocar, o painel abre uma conversa com uma mensagem inicial sobre o evento. Telefones brasileiros com DDD recebem automaticamente o código do país `55` no link.
+As permissões são aplicadas na interface e também pelo arquivo `database.rules.json` no Realtime Database. Consulte [FIREBASE-SETUP.md](FIREBASE-SETUP.md) antes de publicar esta versão.
 
 ## Publicar no GitHub Pages
 
-1. Crie um repositório novo no GitHub e envie todos os arquivos desta pasta.
-2. No repositório, abra **Settings > Pages**.
+1. Envie todos os arquivos desta pasta para o repositório no GitHub.
+2. Abra **Settings > Pages**.
 3. Em **Build and deployment**, selecione **Deploy from a branch**, a branch `main` e a pasta `/(root)`.
-4. Salve. O GitHub mostrará o endereço público após a publicação.
+4. Salve e aguarde a atualização do endereço público.
 
-## Ligar ao Firebase
+## Configuração do Firebase
 
-1. No [Firebase Console](https://console.firebase.google.com/), crie um projeto e registre um app **Web**.
-2. Em **Build > Realtime Database**, crie o banco de dados.
-3. Em **Build > Authentication > Sign-in method**, ative **Anonymous**.
-4. Copie o objeto de configuração do app Web para `firebase-config.js`. Não remova `databaseURL`.
-5. Em **Realtime Database > Rules**, publique estas regras iniciais:
+O arquivo `firebase-config.js` contém a configuração do projeto `vendas-76f49`.
 
-```json
-{
-  "rules": {
-    ".read": "auth != null",
-    ".write": "auth != null"
-  }
-}
-```
+Antes de usar a versão 3.2.0:
 
-Após salvar e publicar novamente no GitHub, o indicador no topo mostrará “Firebase conectado”. Sem configuração, a página fica em modo demonstração e salva dados apenas neste navegador.
+1. Ative o provedor **E-mail/senha** no Firebase Authentication.
+2. Crie o primeiro usuário administrador.
+3. Cadastre o perfil desse administrador em `users/{uid}`.
+4. Publique o conteúdo de `database.rules.json` nas regras do Realtime Database.
 
-> Ao abrir `index.html` diretamente no computador, o sistema usa automaticamente o modo local e guarda os dados apenas naquele navegador. Isso evita o bloqueio de segurança do Firebase para arquivos `file://`. Quando o mesmo site estiver no GitHub Pages, ele se conectará ao Firebase normalmente.
+As instruções completas estão em [FIREBASE-SETUP.md](FIREBASE-SETUP.md).
 
-## Senha de acesso
+## Instalar como aplicativo
 
-O painel solicita a senha `838726` uma única vez por navegador e mantém a autorização nesse dispositivo. Como o site é estático e publicado no GitHub, essa é uma trava visual simples: ela não substitui um login seguro. Para restringir efetivamente o acesso aos dados em produção, use contas de administrador no Firebase Authentication e regras por usuário.
+No endereço HTTPS do GitHub Pages, o botão **Instalar app** permite instalar o painel no Android e no computador. No iPhone/iPad, use **Compartilhar > Adicionar à Tela de Início** no Safari.
 
 ## Estrutura de dados
 
-O sistema grava duas coleções no Realtime Database:
-
+```text
+users/{uid}       → nome, e-mail, perfil e situação do acesso
+events/{eventId}  → evento, data, local e tipos/lotes
+sales/{saleId}    → participante, contato, ingresso, valor, pagamento e check-in
 ```
-events/{eventId}  → nome, data, local e tipos/lotes com preço e quantidade própria
-sales/{saleId}    → evento, tipo de ingresso, participante, contato, quantidade, total, pagamento e check-in
-```
 
-Na tela **Ver todas**, o botão **Baixar Excel** cria uma planilha `.xlsx` com o cabeçalho preto e as linhas alternadas em cinza do modelo fornecido. A exportação funciona no computador e no celular, sem instalar aplicativos extras no site.
+## Recursos principais
 
-> As regras acima protegem o banco de visitantes anônimos, mas qualquer pessoa que acesse o seu site terá uma conta anônima válida. Para um painel de produção, o próximo passo recomendado é trocar por login de administrador e restringir as regras por usuário.
+- Eventos com tipos/lotes, valores e quantidades independentes.
+- Participantes, pagamentos e check-in em tempo real.
+- Busca e filtros combinados.
+- WhatsApp normal ou Business.
+- Exportação Excel por evento.
+- Relatório financeiro dedicado.
+- PWA adaptado ao computador e celular.
+- Login individual, gerenciamento de usuários e permissões por função.
 
-Referências: documentação do [Realtime Database para Web](https://firebase.google.com/docs/database/web/start?hl=pt-BR) e de [leitura/escrita de dados](https://firebase.google.com/docs/database/web/read-and-write).
+Ao abrir `index.html` diretamente no computador, o painel usa o modo local de demonstração. O login seguro e o banco compartilhado funcionam no site hospedado.

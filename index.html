@@ -25,6 +25,7 @@
     <link rel="stylesheet" href="whatsapp.css?v=8" />
     <link rel="stylesheet" href="pwa.css?v=7" />
     <link rel="stylesheet" href="financial-report.css?v=16" />
+    <link rel="stylesheet" href="auth-permissions.css?v=17" />
     <style id="topbar-critical-styles">
       html { scroll-padding-top: 84px; }
       body { padding-top: 84px !important; }
@@ -59,16 +60,23 @@
         <div class="access-brand"><img src="logo-le-beef.png" alt="Le Beef Espaço de Eventos" /></div>
         <p class="eyebrow">ÁREA RESTRITA</p>
         <h1>Bem-vindo de volta.</h1>
-        <p>Digite a senha para acessar o controle de ingressos.</p>
-        <label>Senha de acesso<input id="accessPassword" type="password" inputmode="numeric" required autofocus placeholder="••••••" /></label>
+        <p>Entre com sua conta individual para acessar o painel.</p>
+        <label>E-mail<input id="accessEmail" name="email" type="email" autocomplete="username" required autofocus placeholder="nome@lebeef.com.br" /></label>
+        <label>Senha<input id="accessPassword" name="password" type="password" autocomplete="current-password" required placeholder="Sua senha" /></label>
         <p id="accessError" class="access-error" aria-live="polite"></p>
-        <button class="button primary full" type="submit">Entrar no painel</button>
+        <button id="accessSubmitButton" class="button primary full" type="submit">Entrar no painel</button>
+        <button id="resetPasswordButton" class="access-reset-button" type="button">Esqueci minha senha</button>
+        <small class="access-persistence-note">Sua conta permanecerá conectada neste aparelho até você sair.</small>
       </form>
     </dialog>
     <header class="topbar">
       <a class="brand" href="#" aria-label="Le Beef - início"><img src="logo-le-beef-branca.png" alt="Le Beef Espaço de Eventos" /></a>
       <div class="topbar-actions">
         <button id="installAppButton" class="install-app-button" type="button" hidden><span aria-hidden="true">↓</span> Instalar app</button>
+        <details id="userMenu" class="user-menu" hidden>
+          <summary aria-label="Abrir menu da conta"><span id="userInitials" class="user-initials">U</span><span class="user-summary-copy"><strong id="userDisplayName">Usuário</strong><small id="userRoleLabel">Perfil</small></span></summary>
+          <div class="user-menu-popover"><div class="user-menu-identity"><strong id="userPopoverName">Usuário</strong><small id="userEmail">email</small><span id="userRoleBadge">Perfil</span></div><button id="manageUsersButton" type="button" data-roles="admin">Gerenciar usuários</button><button id="logoutButton" class="logout-button" type="button">Sair da conta</button></div>
+        </details>
         <div class="connection"><i id="connectionDot"></i><span id="connectionText">Modo demonstração</span></div>
       </div>
     </header>
@@ -81,11 +89,11 @@
           <h1>Vendas organizadas.<br /><em>Entrada sem filas.</em></h1>
           <p class="subtitle">Cadastre eventos, acompanhe as vendas e faça o check-in dos participantes em um só lugar.</p>
         </div>
-        <button class="button primary" data-open="eventModal">+ Novo evento</button>
+        <button class="button primary" data-open="eventModal" data-roles="admin">+ Novo evento</button>
       </section>
 
       <article class="panel events-panel">
-        <div class="panel-heading"><div><p class="eyebrow">MEUS EVENTOS</p><h2>Qual evento você quer acompanhar?</h2><p>Selecione um cartão para abrir o painel exclusivo dele.</p></div><button class="button secondary" data-open="eventModal">+ Adicionar evento</button></div>
+        <div class="panel-heading"><div><p class="eyebrow">MEUS EVENTOS</p><h2>Qual evento você quer acompanhar?</h2><p>Selecione um cartão para abrir o painel exclusivo dele.</p></div><button class="button secondary" data-open="eventModal" data-roles="admin">+ Adicionar evento</button></div>
         <div id="eventsList" class="events-list"></div>
       </article>
 
@@ -93,23 +101,23 @@
         <div class="selected-event-header">
           <div><p class="eyebrow">EVENTO SELECIONADO</p><h2 id="selectedEventName">Evento</h2><p id="selectedEventMeta"></p></div>
           <div class="event-actions">
-            <button class="button primary" type="button" data-selected-action="sale">+ Nova venda</button>
-            <button class="button secondary" type="button" data-selected-action="edit">Editar</button>
-            <button class="button secondary" type="button" data-selected-action="export">Excel</button>
-            <button class="button danger" type="button" data-selected-action="delete">Excluir</button>
+            <button class="button primary" type="button" data-selected-action="sale" data-roles="admin,seller">+ Nova venda</button>
+            <button class="button secondary" type="button" data-selected-action="edit" data-roles="admin">Editar</button>
+            <button class="button secondary" type="button" data-selected-action="export" data-roles="admin,seller">Excel</button>
+            <button class="button danger" type="button" data-selected-action="delete" data-roles="admin">Excluir</button>
           </div>
         </div>
 
         <section class="metrics" aria-label="Resumo do evento selecionado">
-          <article class="revenue-card"><span>Faturamento total</span><strong id="revenue">R$ 0,00</strong><div class="revenue-breakdown" aria-label="Situação dos pagamentos"><div class="revenue-detail confirmed"><small>Confirmados</small><b id="revenuePaid">R$ 0,00</b></div><div class="revenue-detail pending"><small>Pendentes</small><b id="revenuePending">R$ 0,00</b></div></div><button id="openFinancialReport" class="financial-report-button" type="button">Ver relatório financeiro <span aria-hidden="true">→</span></button></article>
+          <article class="revenue-card" data-roles="admin,seller"><span>Faturamento total</span><strong id="revenue">R$ 0,00</strong><div class="revenue-breakdown" aria-label="Situação dos pagamentos"><div class="revenue-detail confirmed"><small>Confirmados</small><b id="revenuePaid">R$ 0,00</b></div><div class="revenue-detail pending"><small>Pendentes</small><b id="revenuePending">R$ 0,00</b></div></div><button id="openFinancialReport" class="financial-report-button" type="button" data-roles="admin">Ver relatório financeiro <span aria-hidden="true">→</span></button></article>
           <article><span>Ingressos vendidos</span><strong id="sold">0</strong><small>de <b id="capacity">0</b> no total</small></article>
           <article><span>Check-ins</span><strong id="checkins">0</strong><small>participantes presentes</small></article>
         </section>
 
         <article class="panel sales-panel">
-          <div class="panel-heading"><div><p class="eyebrow">PARTICIPANTES</p><h2 id="salesPanelTitle">Vendas recentes</h2><p>Somente as vendas deste evento, atualizadas em tempo real.</p></div><div class="participant-tools"><div class="participant-tool-row"><details class="ticket-filter"><summary aria-label="Filtrar participantes"><span class="filter-glyph" aria-hidden="true"></span><span id="filterLabel">Todos</span></summary><div class="filter-menu"><label>Tipo de ingresso<select id="ticketTypeFilter"><option value="all">Todos</option></select></label><label>Situação do pagamento<select id="paymentStatusFilter"><option value="all">Todos</option><option value="paid">Pago</option><option value="pending">Pendente</option></select></label><label>Situação da entrada<select id="entryStatusFilter"><option value="all">Todos</option><option value="checked">Check-in realizado</option><option value="waiting">Aguardando entrada</option></select></label><div class="filter-actions"><button id="clearParticipantFiltersMenu" class="filter-clear-button" type="button" data-clear-participant-filters>Limpar filtros</button><button id="applyParticipantFilters" class="filter-apply-button" type="button">Aplicar filtros</button></div></div></details><button class="view-all-button" data-open="allSalesModal">Ver todas</button></div><span id="filterCount" class="filter-count">0 vendidos • 0 disponíveis</span></div></div>
+          <div class="panel-heading"><div><p class="eyebrow">PARTICIPANTES</p><h2 id="salesPanelTitle">Vendas recentes</h2><p>Somente as vendas deste evento, atualizadas em tempo real.</p></div><div class="participant-tools"><div class="participant-tool-row"><details class="ticket-filter"><summary aria-label="Filtrar participantes"><span class="filter-glyph" aria-hidden="true"></span><span id="filterLabel">Todos</span></summary><div class="filter-menu"><label>Tipo de ingresso<select id="ticketTypeFilter"><option value="all">Todos</option></select></label><label data-roles="admin,seller">Situação do pagamento<select id="paymentStatusFilter"><option value="all">Todos</option><option value="paid">Pago</option><option value="pending">Pendente</option></select></label><label>Situação da entrada<select id="entryStatusFilter"><option value="all">Todos</option><option value="checked">Check-in realizado</option><option value="waiting">Aguardando entrada</option></select></label><div class="filter-actions"><button id="clearParticipantFiltersMenu" class="filter-clear-button" type="button" data-clear-participant-filters>Limpar filtros</button><button id="applyParticipantFilters" class="filter-apply-button" type="button">Aplicar filtros</button></div></div></details><button class="view-all-button" data-open="allSalesModal">Ver todas</button></div><span id="filterCount" class="filter-count">0 vendidos • 0 disponíveis</span></div></div>
           <div class="participant-search-row"><label class="participant-search"><span class="search-glyph" aria-hidden="true"></span><span class="sr-only">Buscar participante por nome ou telefone</span><input id="participantSearch" type="search" inputmode="search" autocomplete="off" placeholder="Buscar por nome ou telefone" /></label><button id="clearParticipantFilters" class="clear-participant-filters" type="button" data-clear-participant-filters hidden>Limpar</button></div>
-          <div class="table-wrap"><table><thead><tr><th>Participante</th><th>Tipo</th><th>Observação</th><th>Valor</th><th>Pagamento</th><th>Entrada</th><th>Ações</th></tr></thead><tbody id="salesList"></tbody></table></div>
+          <div class="table-wrap"><table><thead><tr><th>Participante</th><th>Tipo</th><th>Observação</th><th class="financial-column">Valor</th><th class="financial-column">Pagamento</th><th>Entrada</th><th>Ações</th></tr></thead><tbody id="salesList"></tbody></table></div>
         </article>
       </section>
       </div>
@@ -136,9 +144,9 @@
       </section>
     </main>
 
-    <footer class="site-footer">Le Beef | Versão: 3.1.0</footer>
+    <footer class="site-footer">Le Beef | Versão: 3.2.0</footer>
 
-    <button class="fab" data-open="saleModal" aria-label="Registrar venda">+</button>
+    <button class="fab" data-open="saleModal" data-roles="admin,seller" aria-label="Registrar venda">+</button>
 
     <dialog id="eventModal">
       <form id="eventForm" method="dialog">
@@ -166,8 +174,22 @@
     </dialog>
 
     <dialog id="allSalesModal" class="all-sales-modal">
-      <div class="modal-heading"><div><p class="eyebrow">HISTÓRICO</p><h2 id="allSalesTitle">Todas as vendas</h2><p class="export-hint">Participantes do evento selecionado.</p><div class="all-sales-total" aria-live="polite"><span id="allSalesTotalLabel">Total vendido — Todos</span><strong id="allSalesTotal">R$ 0,00</strong></div></div><div class="modal-actions"><button class="close" type="button" data-close="allSalesModal" aria-label="Fechar">×</button></div></div>
-      <div class="table-wrap"><table class="all-sales-table"><thead><tr><th>Participante</th><th>Tipo</th><th>Telefone / observação</th><th>Evento</th><th>Valor</th><th>Pagamento</th><th>Entrada</th><th>Ações</th></tr></thead><tbody id="allSalesList"></tbody></table></div>
+      <div class="modal-heading"><div><p class="eyebrow">HISTÓRICO</p><h2 id="allSalesTitle">Todas as vendas</h2><p class="export-hint">Participantes do evento selecionado.</p><div class="all-sales-total" data-roles="admin,seller" aria-live="polite"><span id="allSalesTotalLabel">Total vendido — Todos</span><strong id="allSalesTotal">R$ 0,00</strong></div></div><div class="modal-actions"><button class="close" type="button" data-close="allSalesModal" aria-label="Fechar">×</button></div></div>
+      <div class="table-wrap"><table class="all-sales-table"><thead><tr><th>Participante</th><th>Tipo</th><th>Telefone / observação</th><th>Evento</th><th class="financial-column">Valor</th><th class="financial-column">Pagamento</th><th>Entrada</th><th>Ações</th></tr></thead><tbody id="allSalesList"></tbody></table></div>
+    </dialog>
+
+    <dialog id="userManagementModal" class="user-management-modal">
+      <div class="user-management-shell">
+        <div class="modal-heading"><div><p class="eyebrow">ACESSOS</p><h2>Gerenciar usuários</h2><p>Crie contas individuais e defina o que cada pessoa pode fazer.</p></div><button class="close" type="button" data-close="userManagementModal" aria-label="Fechar">×</button></div>
+        <form id="createUserForm" class="create-user-form">
+          <div class="two-columns"><label>Nome<input name="name" required placeholder="Nome da pessoa" /></label><label>E-mail<input name="email" type="email" required autocomplete="off" placeholder="nome@exemplo.com" /></label></div>
+          <div class="two-columns"><label>Senha inicial<input name="password" type="password" minlength="6" required autocomplete="new-password" placeholder="Mínimo de 6 caracteres" /></label><label>Perfil<select name="role" required><option value="seller">Vendedor</option><option value="door">Portaria</option><option value="admin">Administrador</option></select></label></div>
+          <button id="createUserButton" class="button primary" type="submit">+ Criar usuário</button>
+        </form>
+        <div class="permission-guide"><div><strong>Administrador</strong><span>Acesso completo, eventos, financeiro e usuários.</span></div><div><strong>Vendedor</strong><span>Vendas, pagamentos, check-in e Excel.</span></div><div><strong>Portaria</strong><span>Consulta de participantes e check-in.</span></div></div>
+        <div class="users-section-heading"><div><p class="eyebrow">EQUIPE</p><h3>Usuários cadastrados</h3></div><span id="usersCount">0 usuários</span></div>
+        <div id="usersList" class="users-list"><div class="empty">Carregando usuários...</div></div>
+      </div>
     </dialog>
 
     <dialog id="whatsappModal" class="whatsapp-choice-modal">
