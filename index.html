@@ -28,6 +28,7 @@
     <link rel="stylesheet" href="financial-report.css?v=17" />
     <link rel="stylesheet" href="auth-permissions.css?v=17" />
     <link rel="stylesheet" href="audit-log.css?v=27" />
+    <link rel="stylesheet" href="payment-closing.css?v=28" />
     <link rel="stylesheet" href="event-access.css?v=18" />
     <style id="topbar-critical-styles">
       html { scroll-padding-top: 84px; }
@@ -145,10 +146,12 @@
         </section>
 
         <article class="financial-panel financial-breakdown"><div class="financial-panel-heading"><div><p class="eyebrow">DETALHAMENTO</p><h2>Resultado por tipo de ingresso</h2><p>Compare quantidade, faturamento e situação dos pagamentos.</p></div></div><div class="financial-table-wrap"><table><thead><tr><th>Tipo de ingresso</th><th>Vendidos</th><th>Total</th><th>Recebido</th><th>Pendente</th></tr></thead><tbody id="financialTicketBreakdown"></tbody></table></div></article>
+
+        <article class="financial-panel seller-closing"><div class="financial-panel-heading seller-closing-heading"><div><p class="eyebrow">EQUIPE</p><h2>Fechamento por vendedor</h2><p>Confira vendas, ingressos e recebimentos de cada usuário no período.</p></div><span id="sellerClosingPeriodLabel">Todo o evento</span></div><div class="seller-closing-filters"><label>Data inicial<input id="sellerClosingStart" type="date" /></label><label>Data final<input id="sellerClosingEnd" type="date" /></label><button id="sellerClosingToday" class="button secondary" type="button">Hoje</button><button id="sellerClosingAll" class="button secondary" type="button">Todo o evento</button></div><div class="financial-table-wrap"><table class="seller-closing-table"><thead><tr><th>Vendedor</th><th>Vendas</th><th>Ingressos</th><th>Total vendido</th><th>Recebido</th><th>Pendente</th></tr></thead><tbody id="sellerClosingBreakdown"></tbody></table></div></article>
       </section>
     </main>
 
-    <footer class="site-footer">Le Beef | Versão: 3.4.0</footer>
+    <footer class="site-footer">Le Beef | Versão: 3.5.0</footer>
 
     <button class="fab" data-open="saleModal" data-roles="admin,seller" aria-label="Registrar venda">+</button>
 
@@ -171,9 +174,20 @@
         <label>Telefone<input name="buyerPhone" type="tel" required placeholder="(00) 00000-0000" /></label>
         <label>E-mail (opcional)<input name="buyerEmail" type="email" placeholder="nome@exemplo.com" /></label>
         <label>Quantidade<input name="quantity" type="number" min="1" value="1" required /></label>
-        <label>Pagamento<select name="paymentStatus" required><option value="paid">Pago</option><option value="pending">Pendente</option></select></label>
+        <div class="two-columns payment-status-fields"><label>Pagamento<select name="paymentStatus" required><option value="paid">Pago</option><option value="pending">Pendente</option></select></label><label>Forma de pagamento<select name="paymentMethod"><option value="">Selecione</option><option value="pix">Pix</option><option value="cash">Dinheiro</option><option value="credit_card">Cartão de crédito</option><option value="debit_card">Cartão de débito</option><option value="bank_transfer">Transferência</option><option value="other">Outro</option></select></label></div>
+        <label class="payment-date-field">Data do pagamento<input name="paymentDate" type="date" /></label>
         <label>Observações (opcional)<textarea name="notes" rows="3" placeholder="Ex.: retirada no local, meia-entrada..."></textarea></label>
         <button class="button primary full" id="saleSubmitButton" type="submit">Confirmar venda</button>
+      </form>
+    </dialog>
+
+    <dialog id="paymentConfirmationModal" class="payment-confirmation-modal">
+      <form id="paymentConfirmationForm">
+        <div class="modal-heading"><div><p class="eyebrow">PAGAMENTO</p><h2>Confirmar recebimento</h2><p id="paymentConfirmationParticipant">Participante</p></div><button class="close" type="button" data-close="paymentConfirmationModal" aria-label="Fechar">×</button></div>
+        <input name="saleId" type="hidden" />
+        <label>Forma de pagamento<select name="paymentMethod" required><option value="">Selecione</option><option value="pix">Pix</option><option value="cash">Dinheiro</option><option value="credit_card">Cartão de crédito</option><option value="debit_card">Cartão de débito</option><option value="bank_transfer">Transferência</option><option value="other">Outro</option></select></label>
+        <label>Data do pagamento<input name="paymentDate" type="date" required /></label>
+        <button class="button primary full" type="submit">Confirmar pagamento</button>
       </form>
     </dialog>
 
@@ -222,6 +236,6 @@
     <script src="pwa.js"></script>
     <script src="access.js"></script>
     <script src="excel-export.js"></script>
-    <script type="module" src="app.js?v=27"></script>
+    <script type="module" src="app.js?v=28"></script>
   </body>
 </html>

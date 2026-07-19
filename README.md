@@ -4,7 +4,7 @@ Site estático em HTML, CSS e JavaScript, pronto para publicar no GitHub Pages, 
 
 ## Login individual, permissões e histórico
 
-A versão 3.4.0 registra automaticamente quem criou, editou ou excluiu uma venda, além de alterações de pagamento e check-in, sempre com data e horário. O administrador consulta a linha do tempo pelo botão **Histórico** do evento.
+A versão 3.5.0 adiciona forma e data do pagamento, confirmação guiada de recebimentos pendentes e fechamento por vendedor com filtro de período. O histórico continua registrando automaticamente quem realizou cada alteração.
 
 - **Administrador**: visualiza todos os eventos e controla usuários, eventos, vendas, pagamentos, check-in, Excel e relatório financeiro.
 - **Vendedor**: visualiza somente os eventos marcados pelo administrador; nesses eventos, trabalha com vendas, pagamentos, check-in e Excel.
@@ -21,7 +21,7 @@ As permissões são aplicadas na interface e nas regras do Realtime Database. Co
 
 ## Atualização obrigatória no Firebase
 
-Na atualização para a versão 3.4.0, envie os arquivos ao GitHub Pages e publique o conteúdo de `database.rules.json` em **Realtime Database > Rules**. Essa etapa libera a gravação segura do novo histórico.
+Na atualização para a versão 3.5.0, envie todos os arquivos ao GitHub Pages. As vendas antigas continuam disponíveis e são agrupadas como **Vendas anteriores** quando não possuem identificação do vendedor.
 
 As instruções completas estão em [FIREBASE-SETUP.md](FIREBASE-SETUP.md).
 
@@ -34,7 +34,7 @@ No endereço HTTPS do GitHub Pages, o botão **Instalar app** permite instalar o
 ```text
 users/{uid}       → nome, e-mail, perfil, situação e eventIds permitidos
 events/{eventId}  → evento, data, local e tipos/lotes
-sales/{saleId}    → participante, contato, ingresso, valor, pagamento e check-in
+sales/{saleId}    → participante, contato, ingresso, valor, forma/data do pagamento, vendedor e check-in
 auditLogs/{logId} → ação, venda, participante, usuário, perfil, data e horário
 ```
 
@@ -46,6 +46,8 @@ auditLogs/{logId} → ação, venda, participante, usuário, perfil, data e hor�
 - WhatsApp normal ou Business.
 - Exportação Excel por evento.
 - Relatório financeiro dedicado.
+- Fechamento por vendedor e período.
+- Forma e data do pagamento na tela e na planilha Excel.
 - PWA adaptado ao computador e celular.
 - Login individual e acesso restrito aos eventos escolhidos pelo administrador.
 - Histórico administrativo de criações, edições, exclusões, pagamentos e check-ins.

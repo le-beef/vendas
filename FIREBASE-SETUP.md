@@ -1,10 +1,10 @@
-# Configuração de segurança e histórico — Le Beef 3.4.0
+# Configuração de segurança e financeiro — Le Beef 3.5.0
 
 Os eventos e participantes já cadastrados não serão apagados.
 
 ## 1. Publicar o site e marcar os eventos
 
-1. Publique os arquivos da versão 3.4.0 no GitHub Pages.
+1. Publique os arquivos da versão 3.5.0 no GitHub Pages.
 2. Entre com a conta de administrador.
 3. No menu da conta, abra **Gerenciar usuários**.
 4. Ao criar um vendedor ou usuário da portaria, marque um ou mais **Eventos permitidos**.
@@ -35,7 +35,7 @@ As novas regras garantem que:
 3. Clique em **Histórico** no cabeçalho do evento.
 4. Consulte a ação, o participante, o usuário responsável, o perfil, a data e o horário.
 
-O histórico começa a registrar novas ações depois que os arquivos da versão 3.4.0 e as novas regras forem publicados. Vendas antigas permanecem normalmente, mas ações anteriores à atualização não podem ser recuperadas retroativamente.
+O histórico registra ações realizadas depois da publicação das regras da versão 3.4.0. Na versão 3.5.0, novas vendas também passam a guardar forma/data do pagamento e o usuário que criou a venda. Vendas antigas permanecem normalmente e aparecem no fechamento como **Vendas anteriores** quando não há vendedor identificado.
 
 O perfil é gravado assim:
 

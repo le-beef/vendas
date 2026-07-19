@@ -8,7 +8,7 @@ const demoEvents = [
   { id: "demo-2", name: "Noite de Comédia", date: "2026-08-18", place: "Teatro Central", capacity: 180, ticketTypes: [{ id: "padrão", name: "Ingresso padrão", price: 45, capacity: 180 }] }
 ];
 const demoSales = [
-  { id: "demo-sale", eventId: "demo-1", ticketTypeId: "inteira", ticketTypeName: "Inteira", buyerName: "Marina Alves", buyerPhone: "(11) 98888-1234", buyerEmail: "", notes: "Retirada no local", paid: true, quantity: 2, total: 170, checkedIn: true, createdAt: Date.now() }
+  { id: "demo-sale", eventId: "demo-1", ticketTypeId: "inteira", ticketTypeName: "Inteira", buyerName: "Marina Alves", buyerPhone: "(11) 98888-1234", buyerEmail: "", notes: "Retirada no local", paid: true, paymentMethod: "pix", paymentDate: new Date().toISOString().slice(0, 10), quantity: 2, total: 170, checkedIn: true, createdByUid: "local-demo", createdByName: "Administrador local", createdByEmail: "demo@local", createdAt: Date.now() }
 ];
 let state = { events: [], sales: [], users: [], auditLogs: [] };
 let selectedEventId = localStorage.getItem("ingressa-selected-event") || "";
@@ -27,8 +27,13 @@ let isDemo = !firebaseConfig.apiKey || !firebaseConfig.databaseURL || location.p
 const money = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 const $ = (id) => document.getElementById(id);
 const ROLE_LABELS = { admin: "Administrador", seller: "Vendedor", door: "Portaria" };
+const PAYMENT_METHOD_LABELS = { pix: "Pix", cash: "Dinheiro", credit_card: "Cartão de crédito", debit_card: "Cartão de débito", bank_transfer: "Transferência", other: "Outro" };
 
 function roleLabel(role) { return ROLE_LABELS[role] || "Sem perfil"; }
+function paymentMethodLabel(method) { return PAYMENT_METHOD_LABELS[method] || "Forma não informada"; }
+function todayInputValue() { const now = new Date(); now.setMinutes(now.getMinutes() - now.getTimezoneOffset()); return now.toISOString().slice(0, 10); }
+function paymentDateLabel(value) { return value ? new Date(`${value}T12:00:00`).toLocaleDateString("pt-BR") : "Data não informada"; }
+function paymentDetailsHtml(sale) { return sale.paid ? `<small class="payment-details">${escapeHtml(paymentMethodLabel(sale.paymentMethod))} · ${escapeHtml(paymentDateLabel(sale.paymentDate))}</small>` : ""; }
 function hasRole(...roles) { return Boolean(currentUserProfile?.active && roles.includes(currentUserProfile.role)); }
 function allowedEventIds(profile = currentUserProfile) { return Object.entries(profile?.eventIds || {}).filter(([, allowed]) => allowed === true).map(([eventId]) => eventId).sort(); }
 function eventAccessSignature(profile) { return allowedEventIds(profile).join("|"); }
@@ -184,7 +189,7 @@ function auditChangeSummary(previous, next) {
   const fields = [
     ["buyerName", "nome"], ["buyerPhone", "telefone"], ["buyerEmail", "e-mail"],
     ["ticketTypeId", "tipo de ingresso"], ["quantity", "quantidade"],
-    ["paid", "pagamento"], ["notes", "observação"]
+    ["paid", "situação do pagamento"], ["paymentMethod", "forma de pagamento"], ["paymentDate", "data do pagamento"], ["notes", "observação"]
   ];
   const changed = fields.filter(([key]) => String(previous?.[key] ?? "") !== String(next?.[key] ?? "")).map(([, label]) => label);
   return changed.length ? `Atualizou: ${changed.join(", ")}.` : "Salvou a venda sem alterações nos dados.";
@@ -338,6 +343,43 @@ async function updateManagedUserEvents(uid, eventIds) {
 async function toggleManagedUser(uid) { if (!requireRole(["admin"]) || uid === currentUser?.uid) return; const user = state.users.find((item) => item.id === uid); if (!user) return; const active = !user.active; if (!confirm(`${active ? "Ativar" : "Bloquear"} o acesso de ${user.name || user.email}?`)) return; await update(ref(db, `users/${uid}`), { active, updatedAt: Date.now(), updatedBy: currentUser.uid }); toast(active ? "Acesso ativado." : "Acesso bloqueado."); }
 async function resetManagedUserPassword(uid) { if (!requireRole(["admin"])) return; const user = state.users.find((item) => item.id === uid); if (!user?.email) return; await sendPasswordResetEmail(auth, user.email); toast("E-mail para redefinição de senha enviado."); }
 
+function sellerForSale(sale) {
+  const creationLog = state.auditLogs.find((log) => log.saleId === sale.id && log.action === "created");
+  const creatorId = sale.createdByUid || creationLog?.actorUid || "legacy-sales";
+  const profile = state.users.find((user) => user.id === creatorId);
+  return {
+    id: creatorId,
+    name: profile?.name || sale.createdByName || creationLog?.actorName || "Vendas anteriores",
+    email: profile?.email || sale.createdByEmail || creationLog?.actorEmail || "Sem vendedor identificado"
+  };
+}
+function saleCreatedDate(sale) {
+  const timestamp = Number(sale.createdAt);
+  if (!Number.isFinite(timestamp)) return "";
+  const date = new Date(timestamp);
+  date.setMinutes(date.getMinutes() - date.getTimezoneOffset());
+  return date.toISOString().slice(0, 10);
+}
+function renderSellerClosing(eventSales) {
+  const start = $("sellerClosingStart").value;
+  const end = $("sellerClosingEnd").value;
+  const periodSales = eventSales.filter((sale) => { const date = saleCreatedDate(sale); return (!start || (date && date >= start)) && (!end || (date && date <= end)); });
+  const groups = new Map();
+  periodSales.forEach((sale) => {
+    const seller = sellerForSale(sale);
+    const current = groups.get(seller.id) || { ...seller, sales: 0, tickets: 0, total: 0, received: 0, pending: 0 };
+    current.sales += 1;
+    current.tickets += Number(sale.quantity || 0);
+    current.total += Number(sale.total || 0);
+    if (sale.paid) current.received += Number(sale.total || 0); else current.pending += Number(sale.total || 0);
+    groups.set(seller.id, current);
+  });
+  const rows = [...groups.values()].sort((a, b) => b.total - a.total || a.name.localeCompare(b.name, "pt-BR"));
+  const totals = rows.reduce((sum, row) => ({ sales: sum.sales + row.sales, tickets: sum.tickets + row.tickets, total: sum.total + row.total, received: sum.received + row.received, pending: sum.pending + row.pending }), { sales: 0, tickets: 0, total: 0, received: 0, pending: 0 });
+  $("sellerClosingPeriodLabel").textContent = start || end ? `${start ? paymentDateLabel(start) : "Início"} até ${end ? paymentDateLabel(end) : "hoje"}` : "Todo o evento";
+  $("sellerClosingBreakdown").innerHTML = rows.length ? `${rows.map((row) => `<tr><td data-label="Vendedor"><strong>${escapeHtml(row.name)}</strong><small>${escapeHtml(row.email)}</small></td><td data-label="Vendas">${row.sales}</td><td data-label="Ingressos">${row.tickets}</td><td data-label="Total vendido">${money.format(row.total)}</td><td data-label="Recebido">${money.format(row.received)}</td><td data-label="Pendente">${money.format(row.pending)}</td></tr>`).join("")}<tr class="seller-closing-total"><td data-label="Vendedor"><strong>Total do período</strong></td><td data-label="Vendas">${totals.sales}</td><td data-label="Ingressos">${totals.tickets}</td><td data-label="Total vendido">${money.format(totals.total)}</td><td data-label="Recebido">${money.format(totals.received)}</td><td data-label="Pendente">${money.format(totals.pending)}</td></tr>` : `<tr><td class="financial-empty" colspan="6">Nenhuma venda registrada neste período.</td></tr>`;
+}
+
 function renderFinancialReport(event, eventSales) {
   const totalSold = eventSales.reduce((sum, sale) => sum + Number(sale.total || 0), 0);
   const totalReceived = eventSales.filter((sale) => sale.paid).reduce((sum, sale) => sum + Number(sale.total || 0), 0);
@@ -370,6 +412,7 @@ function renderFinancialReport(event, eventSales) {
     const received = typeSales.filter((sale) => sale.paid).reduce((sum, sale) => sum + Number(sale.total || 0), 0);
     return `<tr><td data-label="Tipo de ingresso">${escapeHtml(type.name)}</td><td data-label="Vendidos">${quantity}</td><td data-label="Total">${money.format(total)}</td><td data-label="Recebido">${money.format(received)}</td><td data-label="Pendente">${money.format(total - received)}</td></tr>`;
   }).join("") : `<tr><td class="financial-empty" colspan="5">Nenhum tipo de ingresso disponível.</td></tr>`;
+  renderSellerClosing(eventSales);
 }
 
 function syncApplicationPage() {
@@ -429,7 +472,7 @@ function render() {
     return `<div class="event-card ${event.id === selectedEventId ? "is-selected" : ""}" data-select-event="${event.id}" role="button" tabindex="0" aria-pressed="${event.id === selectedEventId}"><span class="calendar"><b>${new Date(`${event.date}T12:00:00`).getDate()}</b><small>${new Date(`${event.date}T12:00:00`).toLocaleDateString("pt-BR", { month: "short" }).replace(".", "")}</small></span><span class="event-info"><strong>${escapeHtml(event.name)}</strong><small>${escapeHtml(event.place)}${hasRole("door") ? "" : ` · ${priceLabel(event)}`}</small></span><span class="event-count">${eventSold}/${eventCapacity(event)}</span></div>`;
   }).join("") : `<div class="empty">Nenhum evento cadastrado ainda.</div>`;
   const canManageSales = hasRole("admin", "seller");
-  const paymentControl = (sale) => canManageSales ? `<button class="payment ${sale.paid ? "paid" : ""}" data-paid="${sale.id}">${sale.paid ? "✓ Pago" : "Pendente"}</button>` : `<span class="payment ${sale.paid ? "paid" : ""}">${sale.paid ? "✓ Pago" : "Pendente"}</span>`;
+  const paymentControl = (sale) => `<span class="payment-display">${canManageSales ? `<button class="payment ${sale.paid ? "paid" : ""}" data-paid="${sale.id}">${sale.paid ? "✓ Pago" : "Pendente"}</button>` : `<span class="payment ${sale.paid ? "paid" : ""}">${sale.paid ? "✓ Pago" : "Pendente"}</span>`}${paymentDetailsHtml(sale)}</span>`;
   const checkinControl = (sale) => `<button class="status ${sale.checkedIn ? "checked" : ""}" data-checkin="${sale.id}">${sale.checkedIn ? "✓ Check-in" : "Fazer check-in"}</button>`;
   const actionControl = (sale) => canManageSales ? `<button class="delete-button" data-delete-sale="${sale.id}">Excluir</button>` : `<span class="role-readonly">Somente consulta</span>`;
   $("salesList").innerHTML = visibleSales.length ? visibleSales.slice(0, 7).map((sale) => `<tr class="sales-row" data-sale-row="${sale.id}"><td><span class="desktop-participant-content"><strong>${escapeHtml(sale.buyerName)}</strong><small>${sale.quantity} ingresso${sale.quantity > 1 ? "s" : ""}</small>${participantContactHtml(sale, selectedEvent?.name)}</span><span class="mobile-card-overview"><span class="mobile-overview-participant"><small class="mobile-field-label">Participante</small><strong>${escapeHtml(sale.buyerName)}</strong><small>${sale.quantity} ingresso${sale.quantity > 1 ? "s" : ""}</small></span><span class="mobile-overview-value mobile-financial"><small class="mobile-field-label">Valor</small><strong>${money.format(sale.total)}</strong></span><span class="mobile-overview-contact"><span>${escapeHtml(formatPhoneDisplay(sale.buyerPhone) || "Sem telefone")}</span>${whatsappButtonHtml(sale, selectedEvent?.name)}</span><span class="mobile-overview-payment mobile-financial"><small class="mobile-field-label">Pagamento</small>${paymentControl(sale)}</span><span class="mobile-overview-entry"><small class="mobile-field-label">Entrada</small>${checkinControl(sale)}</span></span></td><td>${escapeHtml(sale.ticketTypeName || "Ingresso padrão")}</td><td class="sale-observation">${escapeHtml(sale.notes || "Sem observação")}</td><td class="financial-column mobile-detail-original">${money.format(sale.total)}</td><td class="financial-column mobile-detail-original">${paymentControl(sale)}</td><td class="mobile-detail-original">${checkinControl(sale)}</td><td>${actionControl(sale)}</td></tr>`).join("") : `<tr><td colspan="7" class="empty">${participantSearchQuery || activeFilterCount ? "Nenhum participante encontrado com esses filtros." : "Nenhuma venda neste evento."}</td></tr>`;
@@ -467,26 +510,31 @@ async function saveSale(data, id = "") {
   const remaining = Math.max(0, Number(ticketType.capacity) - soldForType);
   if (quantity > remaining) throw new Error(`Restam apenas ${remaining} ingressos do tipo “${ticketType.name}”.`);
   const current = state.sales.find((sale) => sale.id === id);
+  const paid = data.paymentStatus === "paid";
+  const paymentMethod = paid ? String(data.paymentMethod || "") : "";
+  const paymentDate = paid ? String(data.paymentDate || "") : "";
+  if (paid && !PAYMENT_METHOD_LABELS[paymentMethod]) throw new Error("Selecione a forma de pagamento.");
+  if (paid && !paymentDate) throw new Error("Informe a data do pagamento.");
   const timestamp = isDemo ? Date.now() : serverTimestamp();
-  const saleData = { eventId: event.id, ticketTypeId: ticketType.id, ticketTypeName: ticketType.name, buyerName: data.buyerName.trim(), buyerPhone: data.buyerPhone.trim(), buyerEmail: data.buyerEmail.trim(), notes: data.notes.trim(), paid: data.paymentStatus === "paid", quantity, total: Number(ticketType.price) * quantity, checkedIn: current?.checkedIn || false, updatedAt: timestamp };
+  const saleData = { eventId: event.id, ticketTypeId: ticketType.id, ticketTypeName: ticketType.name, buyerName: data.buyerName.trim(), buyerPhone: data.buyerPhone.trim(), buyerEmail: data.buyerEmail.trim(), notes: data.notes.trim(), paid, paymentMethod, paymentDate, quantity, total: Number(ticketType.price) * quantity, checkedIn: current?.checkedIn || false, updatedAt: timestamp };
   if (isDemo) {
     if (id) {
       const updatedSale = { ...current, ...saleData };
       state.sales = state.sales.map((item) => item.id === id ? updatedSale : item);
       appendDemoAudit("edited", updatedSale, auditChangeSummary(current, updatedSale));
     } else {
-      const createdSale = { id: crypto.randomUUID(), ...saleData, createdAt: timestamp };
+      const createdSale = { id: crypto.randomUUID(), ...saleData, createdByUid: currentUser.uid, createdByName: currentUserProfile.name || currentUser.email, createdByEmail: currentUser.email || currentUserProfile.email || "", createdAt: timestamp };
       state.sales.push(createdSale);
-      appendDemoAudit("created", createdSale, `Criou a venda com ${quantity} ${quantity === 1 ? "ingresso" : "ingressos"}, pagamento ${createdSale.paid ? "confirmado" : "pendente"}.`);
+      appendDemoAudit("created", createdSale, `Criou a venda com ${quantity} ${quantity === 1 ? "ingresso" : "ingressos"}, pagamento ${createdSale.paid ? `${paymentMethodLabel(createdSale.paymentMethod)} em ${paymentDateLabel(createdSale.paymentDate)}` : "pendente"}.`);
     }
     persistDemo(); render();
   } else {
     const saleId = id || push(ref(db, "sales")).key;
     const storedSale = { ...current, id: saleId, ...saleData };
-    if (!id) storedSale.createdAt = timestamp;
+    if (!id) Object.assign(storedSale, { createdByUid: currentUser.uid, createdByName: currentUserProfile.name || currentUser.email, createdByEmail: currentUser.email || currentUserProfile.email || "", createdAt: timestamp });
     const logId = push(ref(db, "auditLogs")).key;
     const action = id ? "edited" : "created";
-    const details = id ? auditChangeSummary(current, storedSale) : `Criou a venda com ${quantity} ${quantity === 1 ? "ingresso" : "ingressos"}, pagamento ${storedSale.paid ? "confirmado" : "pendente"}.`;
+    const details = id ? auditChangeSummary(current, storedSale) : `Criou a venda com ${quantity} ${quantity === 1 ? "ingresso" : "ingressos"}, pagamento ${storedSale.paid ? `${paymentMethodLabel(storedSale.paymentMethod)} em ${paymentDateLabel(storedSale.paymentDate)}` : "pendente"}.`;
     await update(ref(db), { [`sales/${saleId}`]: Object.fromEntries(Object.entries(storedSale).filter(([key]) => key !== "id")), [`auditLogs/${logId}`]: auditLogData(action, storedSale, details, timestamp) });
   }
   toast(id ? "Participante atualizado." : "Venda registrada.");
@@ -502,10 +550,28 @@ async function toggleCheckin(id) {
 async function togglePayment(id) {
   if (!requireRole(["admin", "seller"])) return;
   const sale = state.sales.find((item) => item.id === id); if (!sale) return;
-  const value = !sale.paid;
-  const details = `Alterou o pagamento para ${value ? "pago" : "pendente"}.`;
-  if (isDemo) { sale.paid = value; appendDemoAudit("payment", sale, details); persistDemo(); render(); }
-  else { const logId = push(ref(db, "auditLogs")).key; await update(ref(db), { [`sales/${id}/paid`]: value, [`auditLogs/${logId}`]: auditLogData("payment", sale, details) }); }
+  if (!sale.paid) {
+    const form = $("paymentConfirmationForm");
+    form.reset();
+    form.elements.saleId.value = id;
+    form.elements.paymentDate.value = todayInputValue();
+    $("paymentConfirmationParticipant").textContent = sale.buyerName;
+    $("paymentConfirmationModal").showModal();
+    return;
+  }
+  if (!confirm(`Marcar o pagamento de ${sale.buyerName} como pendente? A forma e a data do pagamento serão removidas.`)) return;
+  const details = "Alterou o pagamento para pendente.";
+  if (isDemo) { sale.paid = false; sale.paymentMethod = ""; sale.paymentDate = ""; sale.updatedAt = Date.now(); appendDemoAudit("payment", sale, details); persistDemo(); render(); }
+  else { const logId = push(ref(db, "auditLogs")).key; await update(ref(db), { [`sales/${id}/paid`]: false, [`sales/${id}/paymentMethod`]: null, [`sales/${id}/paymentDate`]: null, [`sales/${id}/updatedAt`]: serverTimestamp(), [`auditLogs/${logId}`]: auditLogData("payment", sale, details) }); }
+}
+async function confirmSalePayment(data) {
+  if (!requireRole(["admin", "seller"])) return;
+  const sale = state.sales.find((item) => item.id === data.saleId); if (!sale) throw new Error("Venda não encontrada.");
+  if (!PAYMENT_METHOD_LABELS[data.paymentMethod]) throw new Error("Selecione a forma de pagamento.");
+  if (!data.paymentDate) throw new Error("Informe a data do pagamento.");
+  const details = `Confirmou o pagamento por ${paymentMethodLabel(data.paymentMethod)} em ${paymentDateLabel(data.paymentDate)}.`;
+  if (isDemo) { sale.paid = true; sale.paymentMethod = data.paymentMethod; sale.paymentDate = data.paymentDate; sale.updatedAt = Date.now(); appendDemoAudit("payment", sale, details); persistDemo(); render(); }
+  else { const logId = push(ref(db, "auditLogs")).key; await update(ref(db), { [`sales/${sale.id}/paid`]: true, [`sales/${sale.id}/paymentMethod`]: data.paymentMethod, [`sales/${sale.id}/paymentDate`]: data.paymentDate, [`sales/${sale.id}/updatedAt`]: serverTimestamp(), [`auditLogs/${logId}`]: auditLogData("payment", sale, details) }); }
 }
 async function deleteSale(id) {
   if (!requireRole(["admin", "seller"])) return;
@@ -517,20 +583,36 @@ async function deleteSale(id) {
 }
 async function deleteEvent(id) { if (!requireRole(["admin"], "Somente administradores podem excluir eventos.")) return; const event = state.events.find((item) => item.id === id); if (!event || !confirm(`Excluir o evento “${event.name}” e todas as vendas e históricos dele? Esta ação não pode ser desfeita.`)) return; const changes = { [`events/${id}`]: null }; state.sales.filter((sale) => sale.eventId === id).forEach((sale) => { changes[`sales/${sale.id}`] = null; }); state.auditLogs.filter((log) => log.eventId === id).forEach((log) => { changes[`auditLogs/${log.id}`] = null; }); if (isDemo) { state.events = state.events.filter((item) => item.id !== id); state.sales = state.sales.filter((sale) => sale.eventId !== id); state.auditLogs = state.auditLogs.filter((log) => log.eventId !== id); persistDemo(); render(); } else { await update(ref(db), changes); } toast("Evento, vendas e históricos vinculados excluídos."); }
 function toast(message) { const el = $("toast"); el.textContent = message; el.classList.add("visible"); setTimeout(() => el.classList.remove("visible"), 3200); }
+function syncSalePaymentFields(useToday = false) {
+  const form = $("saleForm");
+  const paid = form.elements.paymentStatus.value === "paid";
+  const method = form.elements.paymentMethod;
+  const date = form.elements.paymentDate;
+  method.disabled = !paid; date.disabled = !paid;
+  method.required = paid; date.required = paid;
+  form.classList.toggle("payment-is-pending", !paid);
+  if (!paid) { method.value = ""; date.value = ""; }
+  else if (useToday && !date.value) date.value = todayInputValue();
+}
 
 function openNewEvent() { if (!requireRole(["admin"], "Somente administradores podem criar eventos.")) return; const form = $("eventForm"); form.reset(); form.dataset.editId = ""; $("eventModalTitle").textContent = "Novo evento"; $("eventSubmitButton").textContent = "Criar evento"; resetTicketTypes(); $("eventModal").showModal(); }
 function openEditEvent(id) { if (!requireRole(["admin"], "Somente administradores podem editar eventos.")) return; const item = state.events.find((event) => event.id === id); if (!item) return; const form = $("eventForm"); form.dataset.editId = id; form.elements.name.value = item.name || ""; form.elements.date.value = item.date || ""; form.elements.place.value = item.place || ""; $("ticketTypesList").innerHTML = ""; ticketTypesFor(item).forEach((type) => addTicketTypeRow(type.name, type.price, type.capacity, type.id)); $("eventModalTitle").textContent = "Editar evento"; $("eventSubmitButton").textContent = "Salvar alterações"; $("eventModal").showModal(); }
-function openNewSale(eventId = "") { if (!requireRole(["admin", "seller"])) return; if (!state.events.length) return toast("Cadastre um evento antes de registrar uma venda."); const form = $("saleForm"); form.reset(); form.dataset.editId = ""; $("saleModalTitle").textContent = "Registrar ingresso"; $("saleSubmitButton").textContent = "Confirmar venda"; $("saleEvent").value = eventId; populateTicketTypes(eventId); $("saleModal").showModal(); }
-function openEditSale(id) { if (!requireRole(["admin", "seller"])) return; const sale = state.sales.find((item) => item.id === id); if (!sale) return; if ($("allSalesModal").open) $("allSalesModal").close(); const form = $("saleForm"); form.reset(); form.dataset.editId = id; $("saleEvent").value = sale.eventId; populateTicketTypes(sale.eventId); form.elements.ticketTypeId.value = sale.ticketTypeId || ""; form.elements.buyerName.value = sale.buyerName || ""; form.elements.buyerPhone.value = sale.buyerPhone || ""; form.elements.buyerEmail.value = sale.buyerEmail || ""; form.elements.quantity.value = sale.quantity || 1; form.elements.paymentStatus.value = sale.paid ? "paid" : "pending"; form.elements.notes.value = sale.notes || ""; $("saleModalTitle").textContent = "Editar participante"; $("saleSubmitButton").textContent = "Salvar alterações"; $("saleModal").showModal(); }
+function openNewSale(eventId = "") { if (!requireRole(["admin", "seller"])) return; if (!state.events.length) return toast("Cadastre um evento antes de registrar uma venda."); const form = $("saleForm"); form.reset(); form.dataset.editId = ""; $("saleModalTitle").textContent = "Registrar ingresso"; $("saleSubmitButton").textContent = "Confirmar venda"; $("saleEvent").value = eventId; populateTicketTypes(eventId); syncSalePaymentFields(true); $("saleModal").showModal(); }
+function openEditSale(id) { if (!requireRole(["admin", "seller"])) return; const sale = state.sales.find((item) => item.id === id); if (!sale) return; if ($("allSalesModal").open) $("allSalesModal").close(); const form = $("saleForm"); form.reset(); form.dataset.editId = id; $("saleEvent").value = sale.eventId; populateTicketTypes(sale.eventId); form.elements.ticketTypeId.value = sale.ticketTypeId || ""; form.elements.buyerName.value = sale.buyerName || ""; form.elements.buyerPhone.value = sale.buyerPhone || ""; form.elements.buyerEmail.value = sale.buyerEmail || ""; form.elements.quantity.value = sale.quantity || 1; form.elements.paymentStatus.value = sale.paid ? "paid" : "pending"; form.elements.paymentMethod.value = sale.paymentMethod || ""; form.elements.paymentDate.value = sale.paymentDate || ""; form.elements.notes.value = sale.notes || ""; syncSalePaymentFields(false); $("saleModalTitle").textContent = "Editar participante"; $("saleSubmitButton").textContent = "Salvar alterações"; $("saleModal").showModal(); }
 
 document.querySelectorAll("[data-open]").forEach((button) => button.addEventListener("click", () => { if (button.dataset.open === "eventModal") return openNewEvent(); if (button.dataset.open === "saleModal") return openNewSale(selectedEventId); $(button.dataset.open).showModal(); }));
 document.querySelectorAll("[data-close]").forEach((button) => button.addEventListener("click", () => $(button.dataset.close).close()));
 $("addTicketType").addEventListener("click", () => addTicketTypeRow());
 $("saleEvent").addEventListener("change", () => populateTicketTypes($("saleEvent").value));
+$("saleForm").elements.paymentStatus.addEventListener("change", () => syncSalePaymentFields(true));
 $("saleForm").elements.buyerPhone.addEventListener("blur", (event) => { event.currentTarget.value = formatPhoneDisplay(event.currentTarget.value); });
 $("applyParticipantFilters").addEventListener("click", () => { selectedTicketTypeFilter = $("ticketTypeFilter").value; selectedPaymentFilter = $("paymentStatusFilter").value; selectedEntryFilter = $("entryStatusFilter").value; document.querySelector(".ticket-filter").open = false; render(); });
 $("openFinancialReport").addEventListener("click", () => { if (!requireRole(["admin"], "O relatório financeiro é exclusivo para administradores.")) return; if (!selectedEventId) return toast("Selecione um evento para abrir o relatório financeiro."); location.hash = "relatorio-financeiro"; });
 $("backToDashboard").addEventListener("click", () => { history.replaceState(null, "", location.href.split("#")[0]); syncApplicationPage(); window.scrollTo({ top: 0, behavior: "smooth" }); });
+$("sellerClosingStart").addEventListener("change", render);
+$("sellerClosingEnd").addEventListener("change", render);
+$("sellerClosingToday").addEventListener("click", () => { const today = todayInputValue(); $("sellerClosingStart").value = today; $("sellerClosingEnd").value = today; render(); });
+$("sellerClosingAll").addEventListener("click", () => { $("sellerClosingStart").value = ""; $("sellerClosingEnd").value = ""; render(); });
 $("accessModal").addEventListener("cancel", (event) => event.preventDefault());
 $("accessForm").addEventListener("submit", async (event) => { event.preventDefault(); if (!auth) return; const button = $("accessSubmitButton"); button.disabled = true; button.textContent = "Entrando..."; $("accessError").textContent = ""; try { await signInWithEmailAndPassword(auth, $("accessEmail").value.trim(), $("accessPassword").value); $("accessPassword").value = ""; } catch (error) { $("accessError").textContent = authErrorMessage(error); } finally { button.disabled = false; button.textContent = "Entrar no painel"; } });
 $("resetPasswordButton").addEventListener("click", async () => { const email = $("accessEmail").value.trim(); if (!auth) { $("accessError").textContent = "O Firebase ainda está carregando. Tente novamente."; return; } if (!email) { $("accessError").textContent = "Digite seu e-mail para redefinir a senha."; $("accessEmail").focus(); return; } try { await sendPasswordResetEmail(auth, email); $("accessError").textContent = "Enviamos as instruções para o seu e-mail."; } catch (error) { $("accessError").textContent = authErrorMessage(error); } });
@@ -557,6 +639,7 @@ document.querySelectorAll("[data-clear-participant-filters]").forEach((button) =
 $("eventsList").addEventListener("click", (event) => { if (event.target.closest("[data-select-event]")) resetParticipantFilters(); });
 $("eventForm").addEventListener("submit", async (event) => { event.preventDefault(); const form = event.currentTarget; try { const data = Object.fromEntries(new FormData(form)); data.ticketTypes = getTicketTypes(); if (!data.ticketTypes.length) throw new Error("Informe ao menos um tipo ou lote com valor e quantidade."); await saveEvent(data, form.dataset.editId); form.reset(); resetTicketTypes(); $("eventModal").close(); } catch (error) { toast(error.message); } });
 $("saleForm").addEventListener("submit", async (event) => { event.preventDefault(); const form = event.currentTarget; try { await saveSale(Object.fromEntries(new FormData(form)), form.dataset.editId); form.reset(); $("saleModal").close(); } catch (error) { toast(error.message); } });
+$("paymentConfirmationForm").addEventListener("submit", async (event) => { event.preventDefault(); const form = event.currentTarget; const button = form.querySelector('[type="submit"]'); button.disabled = true; try { await confirmSalePayment(Object.fromEntries(new FormData(form))); form.reset(); $("paymentConfirmationModal").close(); toast("Pagamento confirmado."); } catch (error) { toast(error.message); } finally { button.disabled = false; } });
 document.addEventListener("click", (event) => { const whatsappTrigger = event.target.closest("[data-whatsapp]"); if (whatsappTrigger) { event.preventDefault(); openWhatsappChooser(whatsappTrigger); return; } const whatsappApp = event.target.closest("[data-whatsapp-app]"); if (whatsappApp) { launchWhatsapp(whatsappApp.dataset.whatsappApp); return; } const removeTicket = event.target.closest("[data-remove-ticket]"); if (removeTicket) { if (document.querySelectorAll(".ticket-type-row").length === 1) return toast("O evento precisa de pelo menos um tipo de ingresso."); removeTicket.closest(".ticket-type-row").remove(); return; } const selectedAction = event.target.closest("[data-selected-action]"); if (selectedAction) { const action = selectedAction.dataset.selectedAction; if (action === "sale") openNewSale(selectedEventId); if (action === "edit") openEditEvent(selectedEventId); if (action === "history") openAuditHistory(selectedEventId); if (action === "export" && requireRole(["admin", "seller"])) window.exportSalesXlsx(state.sales, state.events, selectedEventId); if (action === "delete") deleteEvent(selectedEventId); return; } const selectEvent = event.target.closest("[data-select-event]"); if (selectEvent) { selectedEventId = selectEvent.dataset.selectEvent; render(); return; } const editSaleButton = event.target.closest("[data-edit-sale]"); if (editSaleButton) { openEditSale(editSaleButton.dataset.editSale); return; } const deleteSaleButton = event.target.closest("[data-delete-sale]"); if (deleteSaleButton) { deleteSale(deleteSaleButton.dataset.deleteSale); return; } const checkin = event.target.closest("[data-checkin]"); if (checkin) { toggleCheckin(checkin.dataset.checkin); return; } const paid = event.target.closest("[data-paid]"); if (paid) { togglePayment(paid.dataset.paid); return; } const saleRow = event.target.closest("[data-sale-row]"); if (saleRow && hasRole("admin", "seller")) { openEditSale(saleRow.dataset.saleRow); return; } });
 // O cartão do participante é somente informativo; edição acontece apenas pelo botão Editar.
 document.addEventListener("click", (event) => { const row = event.target.closest?.("[data-sale-row]"); if (row && !event.target.closest("button, a, input, select, textarea")) event.stopImmediatePropagation(); }, true);
@@ -565,3 +648,4 @@ window.addEventListener("hashchange", () => { syncApplicationPage(); window.scro
 window.addEventListener("popstate", syncApplicationPage);
 start();
 resetTicketTypes();
+syncSalePaymentFields(true);
