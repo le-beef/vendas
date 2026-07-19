@@ -1,4 +1,4 @@
-# Ingressa — painel de vendas de ingressos
+# Le Beef — painel de vendas de ingressos
 
 Site estático em HTML, CSS e JavaScript, pronto para publicar no GitHub Pages e usar o Firebase Realtime Database.
 
