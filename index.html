@@ -19,10 +19,10 @@
     <link rel="stylesheet" href="layout.css" />
     <link rel="stylesheet" href="dashboard.css" />
     <link rel="stylesheet" href="mobile-participants.css" />
-    <link rel="stylesheet" href="participant-filter.css" />
-    <link rel="stylesheet" href="filter-counter.css" />
+    <link rel="stylesheet" href="participant-filter.css?v=9" />
+    <link rel="stylesheet" href="filter-counter.css?v=9" />
     <link rel="stylesheet" href="branding.css?v=6" />
-    <link rel="stylesheet" href="whatsapp.css" />
+    <link rel="stylesheet" href="whatsapp.css?v=8" />
     <link rel="stylesheet" href="pwa.css?v=7" />
     <style id="topbar-critical-styles">
       html { scroll-padding-top: 84px; }
@@ -105,7 +105,7 @@
         </section>
 
         <article class="panel sales-panel">
-          <div class="panel-heading"><div><p class="eyebrow">PARTICIPANTES</p><h2 id="salesPanelTitle">Vendas recentes</h2><p>Somente as vendas deste evento, atualizadas em tempo real.</p></div><div class="participant-tools"><div class="participant-tool-row"><details class="ticket-filter"><summary aria-label="Filtrar por tipo de ingresso"><span class="filter-glyph" aria-hidden="true"></span><span id="filterLabel">Todos</span></summary><div class="filter-menu"><label>Tipo de ingresso<select id="ticketTypeFilter"><option value="all">Todos</option></select></label></div></details><button class="text-button" data-open="allSalesModal">Ver todas</button></div><span id="filterCount" class="filter-count">0 ingressos vendidos</span></div></div>
+          <div class="panel-heading"><div><p class="eyebrow">PARTICIPANTES</p><h2 id="salesPanelTitle">Vendas recentes</h2><p>Somente as vendas deste evento, atualizadas em tempo real.</p></div><div class="participant-tools"><div class="participant-tool-row"><details class="ticket-filter"><summary aria-label="Filtrar por tipo de ingresso"><span class="filter-glyph" aria-hidden="true"></span><span id="filterLabel">Todos</span></summary><div class="filter-menu"><label>Tipo de ingresso<select id="ticketTypeFilter"><option value="all">Todos</option></select></label></div></details><button class="view-all-button" data-open="allSalesModal">Ver todas</button></div><span id="filterCount" class="filter-count">0 vendidos • 0 disponíveis</span></div></div>
           <div class="table-wrap"><table><thead><tr><th>Participante</th><th>Tipo</th><th>Observação</th><th>Valor</th><th>Pagamento</th><th>Entrada</th><th>Ações</th></tr></thead><tbody id="salesList"></tbody></table></div>
         </article>
       </section>
@@ -141,6 +141,19 @@
     <dialog id="allSalesModal" class="all-sales-modal">
       <div class="modal-heading"><div><p class="eyebrow">HISTÓRICO</p><h2 id="allSalesTitle">Todas as vendas</h2><p class="export-hint">Participantes do evento selecionado.</p></div><div class="modal-actions"><button class="close" type="button" data-close="allSalesModal" aria-label="Fechar">×</button></div></div>
       <div class="table-wrap"><table class="all-sales-table"><thead><tr><th>Participante</th><th>Tipo</th><th>Telefone / observação</th><th>Evento</th><th>Valor</th><th>Pagamento</th><th>Entrada</th><th>Ações</th></tr></thead><tbody id="allSalesList"></tbody></table></div>
+    </dialog>
+
+    <dialog id="whatsappModal" class="whatsapp-choice-modal">
+      <form method="dialog">
+        <div class="modal-heading"><div><p class="eyebrow">CONTATO</p><h2>Escolha o WhatsApp</h2></div><button class="close" type="button" data-close="whatsappModal" aria-label="Fechar">×</button></div>
+        <div class="whatsapp-contact-card"><strong id="whatsappContactName">Participante</strong><span id="whatsappContactPhone">Telefone</span></div>
+        <div class="whatsapp-options">
+          <button class="whatsapp-option business" type="button" data-whatsapp-app="business"><span class="whatsapp-option-badge" aria-hidden="true">B</span><span><strong>WhatsApp Business</strong><small>Abrir no aplicativo Business</small></span></button>
+          <button class="whatsapp-option personal" type="button" data-whatsapp-app="personal"><span class="whatsapp-option-badge" aria-hidden="true">W</span><span><strong>WhatsApp normal</strong><small>Abrir no aplicativo pessoal</small></span></button>
+        </div>
+        <p id="whatsappPlatformHint" class="whatsapp-platform-hint"></p>
+        <button class="button secondary full" type="button" data-close="whatsappModal">Cancelar</button>
+      </form>
     </dialog>
 
     <div id="toast" role="status" aria-live="polite"></div>
