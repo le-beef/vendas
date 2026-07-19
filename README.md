@@ -2,9 +2,9 @@
 
 Site estático em HTML, CSS e JavaScript, pronto para publicar no GitHub Pages, com Firebase Authentication e Realtime Database.
 
-## Login individual, permissões e eventos permitidos
+## Login individual, permissões e histórico
 
-A versão 3.3.7 usa contas individuais com e-mail e senha, destaca o cabeçalho da área de participantes, apresenta o relatório financeiro como botão e mantém a edição de participantes exclusivamente na ação “Editar”.
+A versão 3.4.0 registra automaticamente quem criou, editou ou excluiu uma venda, além de alterações de pagamento e check-in, sempre com data e horário. O administrador consulta a linha do tempo pelo botão **Histórico** do evento.
 
 - **Administrador**: visualiza todos os eventos e controla usuários, eventos, vendas, pagamentos, check-in, Excel e relatório financeiro.
 - **Vendedor**: visualiza somente os eventos marcados pelo administrador; nesses eventos, trabalha com vendas, pagamentos, check-in e Excel.
@@ -21,7 +21,7 @@ As permissões são aplicadas na interface e nas regras do Realtime Database. Co
 
 ## Atualização obrigatória no Firebase
 
-Na atualização para a versão 3.3.7, envie primeiro os arquivos ao GitHub Pages, entre como administrador e marque os eventos permitidos. Em seguida, publique o conteúdo de `database.rules.json` em **Realtime Database > Rules**.
+Na atualização para a versão 3.4.0, envie os arquivos ao GitHub Pages e publique o conteúdo de `database.rules.json` em **Realtime Database > Rules**. Essa etapa libera a gravação segura do novo histórico.
 
 As instruções completas estão em [FIREBASE-SETUP.md](FIREBASE-SETUP.md).
 
@@ -35,6 +35,7 @@ No endereço HTTPS do GitHub Pages, o botão **Instalar app** permite instalar o
 users/{uid}       → nome, e-mail, perfil, situação e eventIds permitidos
 events/{eventId}  → evento, data, local e tipos/lotes
 sales/{saleId}    → participante, contato, ingresso, valor, pagamento e check-in
+auditLogs/{logId} → ação, venda, participante, usuário, perfil, data e horário
 ```
 
 ## Recursos principais
@@ -47,5 +48,6 @@ sales/{saleId}    → participante, contato, ingresso, valor, pagamento e check-
 - Relatório financeiro dedicado.
 - PWA adaptado ao computador e celular.
 - Login individual e acesso restrito aos eventos escolhidos pelo administrador.
+- Histórico administrativo de criações, edições, exclusões, pagamentos e check-ins.
 
 Ao abrir `index.html` diretamente no computador, o painel usa o modo local de demonstração. O login seguro e o banco compartilhado funcionam no site hospedado.

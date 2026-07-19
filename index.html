@@ -27,6 +27,7 @@
     <link rel="stylesheet" href="pwa.css?v=7" />
     <link rel="stylesheet" href="financial-report.css?v=17" />
     <link rel="stylesheet" href="auth-permissions.css?v=17" />
+    <link rel="stylesheet" href="audit-log.css?v=27" />
     <link rel="stylesheet" href="event-access.css?v=18" />
     <style id="topbar-critical-styles">
       html { scroll-padding-top: 84px; }
@@ -105,6 +106,7 @@
           <div class="event-actions">
             <button class="button primary" type="button" data-selected-action="sale" data-roles="admin,seller">+ Nova venda</button>
             <button class="button secondary" type="button" data-selected-action="edit" data-roles="admin">Editar</button>
+            <button class="button secondary history-button" type="button" data-selected-action="history" data-roles="admin"><span aria-hidden="true">◷</span> Histórico</button>
             <button class="button secondary" type="button" data-selected-action="export" data-roles="admin,seller">Excel</button>
             <button class="button danger" type="button" data-selected-action="delete" data-roles="admin">Excluir</button>
           </div>
@@ -146,7 +148,7 @@
       </section>
     </main>
 
-    <footer class="site-footer">Le Beef | Versão: 3.3.7</footer>
+    <footer class="site-footer">Le Beef | Versão: 3.4.0</footer>
 
     <button class="fab" data-open="saleModal" data-roles="admin,seller" aria-label="Registrar venda">+</button>
 
@@ -195,6 +197,14 @@
       </div>
     </dialog>
 
+    <dialog id="auditLogModal" class="audit-log-modal">
+      <div class="audit-log-shell">
+        <div class="modal-heading audit-log-heading"><div><p class="eyebrow">AUDITORIA</p><h2 id="auditLogTitle">Histórico de alterações</h2><p>Criações, edições, exclusões, pagamentos e check-ins das vendas.</p></div><button class="close" type="button" data-close="auditLogModal" aria-label="Fechar">×</button></div>
+        <div class="audit-log-summary"><span>Linha do tempo do evento</span><strong id="auditLogCount">0 registros</strong></div>
+        <div id="auditLogList" class="audit-log-list" aria-live="polite"><div class="audit-empty">Carregando histórico...</div></div>
+      </div>
+    </dialog>
+
     <dialog id="whatsappModal" class="whatsapp-choice-modal">
       <form method="dialog">
         <div class="modal-heading"><div><p class="eyebrow">CONTATO</p><h2>Escolha o WhatsApp</h2></div><button class="close" type="button" data-close="whatsappModal" aria-label="Fechar">×</button></div>
@@ -212,6 +222,6 @@
     <script src="pwa.js"></script>
     <script src="access.js"></script>
     <script src="excel-export.js"></script>
-    <script type="module" src="app.js?v=26"></script>
+    <script type="module" src="app.js?v=27"></script>
   </body>
 </html>

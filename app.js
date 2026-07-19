@@ -1,6 +1,6 @@
 import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js";
 import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged, browserLocalPersistence, inMemoryPersistence, setPersistence, createUserWithEmailAndPassword, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js";
-import { getDatabase, ref, push, set, update, onValue, get, query, orderByChild, equalTo } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-database.js";
+import { getDatabase, ref, push, set, update, onValue, get, query, orderByChild, equalTo, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-database.js";
 import { firebaseConfig } from "./firebase-config.js";
 
 const demoEvents = [
@@ -10,7 +10,7 @@ const demoEvents = [
 const demoSales = [
   { id: "demo-sale", eventId: "demo-1", ticketTypeId: "inteira", ticketTypeName: "Inteira", buyerName: "Marina Alves", buyerPhone: "(11) 98888-1234", buyerEmail: "", notes: "Retirada no local", paid: true, quantity: 2, total: 170, checkedIn: true, createdAt: Date.now() }
 ];
-let state = { events: [], sales: [], users: [] };
+let state = { events: [], sales: [], users: [], auditLogs: [] };
 let selectedEventId = localStorage.getItem("ingressa-selected-event") || "";
 let selectedTicketTypeFilter = "all";
 let selectedPaymentFilter = "all";
@@ -77,6 +77,7 @@ function attachRealtimeListeners() {
     dataSubscriptions.push(onValue(ref(db, "events"), (snapshot) => { state.events = objectToArray(snapshot.val()); render(); }, readError));
     dataSubscriptions.push(onValue(ref(db, "sales"), (snapshot) => { state.sales = objectToArray(snapshot.val()); render(); }, readError));
     dataSubscriptions.push(onValue(ref(db, "users"), (snapshot) => { state.users = objectToArray(snapshot.val()); renderUsers(); }, readError));
+    dataSubscriptions.push(onValue(ref(db, "auditLogs"), (snapshot) => { state.auditLogs = objectToArray(snapshot.val()); renderAuditHistory(); }, readError));
     return;
   }
 
@@ -85,6 +86,7 @@ function attachRealtimeListeners() {
   state.events = [];
   state.sales = [];
   state.users = currentUserProfile ? [{ id: currentUser.uid, ...currentUserProfile }] : [];
+  state.auditLogs = [];
   render();
   allowedEventIds().forEach((eventId) => {
     dataSubscriptions.push(onValue(ref(db, `events/${eventId}`), (snapshot) => {
@@ -103,7 +105,7 @@ function attachRealtimeListeners() {
 async function handleAuthenticatedUser(user) {
   clearDataSubscriptions();
   if (!user) {
-    currentUser = null; currentUserProfile = null; state = { events: [], sales: [], users: [] }; $("connectionDot").classList.remove("online"); $("connectionText").textContent = "Aguardando login"; if ($("userManagementModal").open) $("userManagementModal").close(); applyRolePermissions(); render(); showAccessModal(); return;
+    currentUser = null; currentUserProfile = null; state = { events: [], sales: [], users: [], auditLogs: [] }; $("connectionDot").classList.remove("online"); $("connectionText").textContent = "Aguardando login"; if ($("userManagementModal").open) $("userManagementModal").close(); applyRolePermissions(); render(); showAccessModal(); return;
   }
   try {
     const profileSnapshot = await get(ref(db, `users/${user.uid}`));
@@ -117,7 +119,7 @@ async function handleAuthenticatedUser(user) {
 async function start() {
   if (isDemo) {
     currentUser = { uid: "local-demo", email: "demo@local" }; currentUserProfile = { name: "Administrador local", email: "demo@local", role: "admin", active: true };
-    state = { events: JSON.parse(localStorage.getItem("ingressa-events") || "null") || demoEvents, sales: JSON.parse(localStorage.getItem("ingressa-sales") || "null") || demoSales, users: [{ id: "local-demo", ...currentUserProfile }] };
+    state = { events: JSON.parse(localStorage.getItem("ingressa-events") || "null") || demoEvents, sales: JSON.parse(localStorage.getItem("ingressa-sales") || "null") || demoSales, users: [{ id: "local-demo", ...currentUserProfile }], auditLogs: JSON.parse(localStorage.getItem("ingressa-audit-logs") || "null") || [] };
     $("connectionText").textContent = "Modo local — dados neste navegador"; applyRolePermissions(); render(); return;
   }
   try {
@@ -144,9 +146,65 @@ function soldForTicket(eventId, ticketType, excludedSaleId = "") {
   return state.sales.filter((sale) => sale.eventId === eventId && sale.id !== excludedSaleId && (sale.ticketTypeId === ticketType.id || (!sale.ticketTypeId && sale.ticketTypeName === ticketType.name))).reduce((sum, sale) => sum + Number(sale.quantity || 0), 0);
 }
 function priceLabel(event) { const prices = ticketTypesFor(event).map((item) => Number(item.price)); return prices.length > 1 ? `a partir de ${money.format(Math.min(...prices))}` : money.format(prices[0]); }
-function persistDemo() { localStorage.setItem("ingressa-events", JSON.stringify(state.events)); localStorage.setItem("ingressa-sales", JSON.stringify(state.sales)); }
+function persistDemo() { localStorage.setItem("ingressa-events", JSON.stringify(state.events)); localStorage.setItem("ingressa-sales", JSON.stringify(state.sales)); localStorage.setItem("ingressa-audit-logs", JSON.stringify(state.auditLogs)); }
 function dateText(value) { return new Date(`${value}T12:00:00`).toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" }); }
 function escapeHtml(value) { const node = document.createElement("span"); node.textContent = value || ""; return node.innerHTML; }
+function auditTimestampText(value) {
+  const timestamp = Number(value);
+  if (!Number.isFinite(timestamp)) return "Data em processamento";
+  return new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(new Date(timestamp));
+}
+function auditActor() {
+  return {
+    actorUid: currentUser?.uid || "unknown",
+    actorName: currentUserProfile?.name || currentUser?.email || "Usuário",
+    actorEmail: currentUser?.email || currentUserProfile?.email || "",
+    actorRole: currentUserProfile?.role || "unknown"
+  };
+}
+function auditLogData(action, sale, details, timestamp = isDemo ? Date.now() : serverTimestamp()) {
+  const event = state.events.find((item) => item.id === sale.eventId);
+  return {
+    eventId: sale.eventId,
+    eventName: event?.name || "Evento",
+    saleId: sale.id,
+    participantName: sale.buyerName || "Participante",
+    ticketTypeName: sale.ticketTypeName || "Ingresso padrão",
+    quantity: Number(sale.quantity || 0),
+    action,
+    details,
+    timestamp,
+    ...auditActor()
+  };
+}
+function appendDemoAudit(action, sale, details) {
+  state.auditLogs.push({ id: crypto.randomUUID(), ...auditLogData(action, sale, details) });
+}
+function auditChangeSummary(previous, next) {
+  const fields = [
+    ["buyerName", "nome"], ["buyerPhone", "telefone"], ["buyerEmail", "e-mail"],
+    ["ticketTypeId", "tipo de ingresso"], ["quantity", "quantidade"],
+    ["paid", "pagamento"], ["notes", "observação"]
+  ];
+  const changed = fields.filter(([key]) => String(previous?.[key] ?? "") !== String(next?.[key] ?? "")).map(([, label]) => label);
+  return changed.length ? `Atualizou: ${changed.join(", ")}.` : "Salvou a venda sem alterações nos dados.";
+}
+function renderAuditHistory() {
+  const list = $("auditLogList");
+  if (!list) return;
+  const event = state.events.find((item) => item.id === selectedEventId);
+  const logs = state.auditLogs.filter((item) => item.eventId === selectedEventId).sort((a, b) => Number(b.timestamp || 0) - Number(a.timestamp || 0));
+  $("auditLogTitle").textContent = event ? `Histórico — ${event.name}` : "Histórico de alterações";
+  $("auditLogCount").textContent = `${logs.length} ${logs.length === 1 ? "registro" : "registros"}`;
+  const actionLabels = { created: "Venda criada", edited: "Venda editada", deleted: "Venda excluída", payment: "Pagamento alterado", checkin: "Entrada alterada" };
+  list.innerHTML = logs.length ? logs.map((log) => `<article class="audit-entry audit-${escapeHtml(log.action)}"><div class="audit-entry-marker" aria-hidden="true"></div><div class="audit-entry-content"><div class="audit-entry-heading"><span class="audit-action">${escapeHtml(actionLabels[log.action] || "Alteração")}</span><time>${escapeHtml(auditTimestampText(log.timestamp))}</time></div><strong>${escapeHtml(log.participantName || "Participante")}</strong><p>${escapeHtml(log.details || "Alteração registrada.")}</p><div class="audit-entry-meta"><span>Por <b>${escapeHtml(log.actorName || log.actorEmail || "Usuário")}</b></span><span>${escapeHtml(roleLabel(log.actorRole))}</span></div></div></article>`).join("") : `<div class="audit-empty"><span aria-hidden="true">◷</span><strong>Nenhuma alteração registrada</strong><p>As próximas ações realizadas nas vendas deste evento aparecerão aqui.</p></div>`;
+}
+function openAuditHistory(eventId) {
+  if (!requireRole(["admin"], "O histórico é exclusivo para administradores.")) return;
+  selectedEventId = eventId;
+  renderAuditHistory();
+  if (!$("auditLogModal").open) $("auditLogModal").showModal();
+}
 function normalizedSearch(value) { return String(value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("pt-BR").replace(/\s+/g, " ").trim(); }
 function matchesParticipantSearch(sale) {
   const query = participantSearchQuery.trim();
@@ -378,6 +436,7 @@ function render() {
   $("allSalesList").innerHTML = visibleSales.length ? visibleSales.map((sale) => `<tr class="sales-row" data-sale-row="${sale.id}"><td><strong>${escapeHtml(sale.buyerName)}</strong><small>${sale.quantity} ingresso${sale.quantity > 1 ? "s" : ""}</small></td><td>${escapeHtml(sale.ticketTypeName || "Ingresso padrão")}</td><td class="sale-note"><span class="phone-line"><strong>${escapeHtml(formatPhoneDisplay(sale.buyerPhone) || "Não informado")}</strong>${whatsappButtonHtml(sale, selectedEvent?.name)}</span>${sale.notes ? `<small>${escapeHtml(sale.notes)}</small>` : ""}</td><td>${escapeHtml(selectedEvent?.name || "Evento removido")}</td><td class="financial-column">${money.format(sale.total)}</td><td class="financial-column">${paymentControl(sale)}</td><td><button class="status ${sale.checkedIn ? "checked" : ""}" data-checkin="${sale.id}">${sale.checkedIn ? "✓ Check-in" : "Fazer check-in"}</button></td><td>${actionControl(sale)}</td></tr>`).join("") : `<tr><td colspan="8" class="empty">${participantSearchQuery || activeFilterCount ? "Nenhum participante encontrado com esses filtros." : "Nenhum participante neste evento."}</td></tr>`;
   addSaleEditButtons();
   const currentEvent = $("saleEvent").value; $("saleEvent").innerHTML = `<option value="">Selecione o evento</option>${events.map((event) => `<option value="${event.id}">${escapeHtml(event.name)} — ${priceLabel(event)}</option>`).join("")}`; if (events.some((event) => event.id === currentEvent)) $("saleEvent").value = currentEvent; populateTicketTypes($("saleEvent").value);
+  renderAuditHistory();
   syncApplicationPage();
 }
 
@@ -408,15 +467,55 @@ async function saveSale(data, id = "") {
   const remaining = Math.max(0, Number(ticketType.capacity) - soldForType);
   if (quantity > remaining) throw new Error(`Restam apenas ${remaining} ingressos do tipo “${ticketType.name}”.`);
   const current = state.sales.find((sale) => sale.id === id);
-  const saleData = { eventId: event.id, ticketTypeId: ticketType.id, ticketTypeName: ticketType.name, buyerName: data.buyerName.trim(), buyerPhone: data.buyerPhone.trim(), buyerEmail: data.buyerEmail.trim(), notes: data.notes.trim(), paid: data.paymentStatus === "paid", quantity, total: Number(ticketType.price) * quantity, checkedIn: current?.checkedIn || false, updatedAt: Date.now() };
-  if (isDemo) { if (id) state.sales = state.sales.map((item) => item.id === id ? { ...item, ...saleData } : item); else state.sales.push({ id: crypto.randomUUID(), ...saleData, createdAt: Date.now() }); persistDemo(); render(); }
-  else if (id) await update(ref(db, `sales/${id}`), saleData); else await set(push(ref(db, "sales")), { ...saleData, createdAt: Date.now() });
+  const timestamp = isDemo ? Date.now() : serverTimestamp();
+  const saleData = { eventId: event.id, ticketTypeId: ticketType.id, ticketTypeName: ticketType.name, buyerName: data.buyerName.trim(), buyerPhone: data.buyerPhone.trim(), buyerEmail: data.buyerEmail.trim(), notes: data.notes.trim(), paid: data.paymentStatus === "paid", quantity, total: Number(ticketType.price) * quantity, checkedIn: current?.checkedIn || false, updatedAt: timestamp };
+  if (isDemo) {
+    if (id) {
+      const updatedSale = { ...current, ...saleData };
+      state.sales = state.sales.map((item) => item.id === id ? updatedSale : item);
+      appendDemoAudit("edited", updatedSale, auditChangeSummary(current, updatedSale));
+    } else {
+      const createdSale = { id: crypto.randomUUID(), ...saleData, createdAt: timestamp };
+      state.sales.push(createdSale);
+      appendDemoAudit("created", createdSale, `Criou a venda com ${quantity} ${quantity === 1 ? "ingresso" : "ingressos"}, pagamento ${createdSale.paid ? "confirmado" : "pendente"}.`);
+    }
+    persistDemo(); render();
+  } else {
+    const saleId = id || push(ref(db, "sales")).key;
+    const storedSale = { ...current, id: saleId, ...saleData };
+    if (!id) storedSale.createdAt = timestamp;
+    const logId = push(ref(db, "auditLogs")).key;
+    const action = id ? "edited" : "created";
+    const details = id ? auditChangeSummary(current, storedSale) : `Criou a venda com ${quantity} ${quantity === 1 ? "ingresso" : "ingressos"}, pagamento ${storedSale.paid ? "confirmado" : "pendente"}.`;
+    await update(ref(db), { [`sales/${saleId}`]: Object.fromEntries(Object.entries(storedSale).filter(([key]) => key !== "id")), [`auditLogs/${logId}`]: auditLogData(action, storedSale, details, timestamp) });
+  }
   toast(id ? "Participante atualizado." : "Venda registrada.");
 }
-async function toggleCheckin(id) { if (!requireRole(["admin", "seller", "door"])) return; const sale = state.sales.find((item) => item.id === id); if (!sale) return; const value = !sale.checkedIn; if (isDemo) { sale.checkedIn = value; persistDemo(); render(); } else { await set(ref(db, `sales/${id}/checkedIn`), value); } }
-async function togglePayment(id) { if (!requireRole(["admin", "seller"])) return; const sale = state.sales.find((item) => item.id === id); if (!sale) return; const value = !sale.paid; if (isDemo) { sale.paid = value; persistDemo(); render(); } else { await update(ref(db, `sales/${id}`), { paid: value }); } }
-async function deleteSale(id) { if (!requireRole(["admin", "seller"])) return; const sale = state.sales.find((item) => item.id === id); if (!sale || !confirm(`Excluir a venda de ${sale.buyerName}?`)) return; if (isDemo) { state.sales = state.sales.filter((item) => item.id !== id); persistDemo(); render(); } else { await update(ref(db), { [`sales/${id}`]: null }); } toast("Venda excluída."); }
-async function deleteEvent(id) { if (!requireRole(["admin"], "Somente administradores podem excluir eventos.")) return; const event = state.events.find((item) => item.id === id); if (!event || !confirm(`Excluir o evento “${event.name}” e todas as vendas dele? Esta ação não pode ser desfeita.`)) return; const changes = { [`events/${id}`]: null }; state.sales.filter((sale) => sale.eventId === id).forEach((sale) => { changes[`sales/${sale.id}`] = null; }); if (isDemo) { state.events = state.events.filter((item) => item.id !== id); state.sales = state.sales.filter((sale) => sale.eventId !== id); persistDemo(); render(); } else { await update(ref(db), changes); } toast("Evento e vendas vinculadas excluídos."); }
+async function toggleCheckin(id) {
+  if (!requireRole(["admin", "seller", "door"])) return;
+  const sale = state.sales.find((item) => item.id === id); if (!sale) return;
+  const value = !sale.checkedIn;
+  const details = value ? "Realizou o check-in do participante." : "Desfez o check-in do participante.";
+  if (isDemo) { sale.checkedIn = value; appendDemoAudit("checkin", sale, details); persistDemo(); render(); }
+  else { const logId = push(ref(db, "auditLogs")).key; await update(ref(db), { [`sales/${id}/checkedIn`]: value, [`auditLogs/${logId}`]: auditLogData("checkin", sale, details) }); }
+}
+async function togglePayment(id) {
+  if (!requireRole(["admin", "seller"])) return;
+  const sale = state.sales.find((item) => item.id === id); if (!sale) return;
+  const value = !sale.paid;
+  const details = `Alterou o pagamento para ${value ? "pago" : "pendente"}.`;
+  if (isDemo) { sale.paid = value; appendDemoAudit("payment", sale, details); persistDemo(); render(); }
+  else { const logId = push(ref(db, "auditLogs")).key; await update(ref(db), { [`sales/${id}/paid`]: value, [`auditLogs/${logId}`]: auditLogData("payment", sale, details) }); }
+}
+async function deleteSale(id) {
+  if (!requireRole(["admin", "seller"])) return;
+  const sale = state.sales.find((item) => item.id === id); if (!sale || !confirm(`Excluir a venda de ${sale.buyerName}?`)) return;
+  const details = `Excluiu a venda com ${Number(sale.quantity || 0)} ${Number(sale.quantity || 0) === 1 ? "ingresso" : "ingressos"}.`;
+  if (isDemo) { appendDemoAudit("deleted", sale, details); state.sales = state.sales.filter((item) => item.id !== id); persistDemo(); render(); }
+  else { const logId = push(ref(db, "auditLogs")).key; await update(ref(db), { [`sales/${id}`]: null, [`auditLogs/${logId}`]: auditLogData("deleted", sale, details) }); }
+  toast("Venda excluída.");
+}
+async function deleteEvent(id) { if (!requireRole(["admin"], "Somente administradores podem excluir eventos.")) return; const event = state.events.find((item) => item.id === id); if (!event || !confirm(`Excluir o evento “${event.name}” e todas as vendas e históricos dele? Esta ação não pode ser desfeita.`)) return; const changes = { [`events/${id}`]: null }; state.sales.filter((sale) => sale.eventId === id).forEach((sale) => { changes[`sales/${sale.id}`] = null; }); state.auditLogs.filter((log) => log.eventId === id).forEach((log) => { changes[`auditLogs/${log.id}`] = null; }); if (isDemo) { state.events = state.events.filter((item) => item.id !== id); state.sales = state.sales.filter((sale) => sale.eventId !== id); state.auditLogs = state.auditLogs.filter((log) => log.eventId !== id); persistDemo(); render(); } else { await update(ref(db), changes); } toast("Evento, vendas e históricos vinculados excluídos."); }
 function toast(message) { const el = $("toast"); el.textContent = message; el.classList.add("visible"); setTimeout(() => el.classList.remove("visible"), 3200); }
 
 function openNewEvent() { if (!requireRole(["admin"], "Somente administradores podem criar eventos.")) return; const form = $("eventForm"); form.reset(); form.dataset.editId = ""; $("eventModalTitle").textContent = "Novo evento"; $("eventSubmitButton").textContent = "Criar evento"; resetTicketTypes(); $("eventModal").showModal(); }
@@ -458,7 +557,7 @@ document.querySelectorAll("[data-clear-participant-filters]").forEach((button) =
 $("eventsList").addEventListener("click", (event) => { if (event.target.closest("[data-select-event]")) resetParticipantFilters(); });
 $("eventForm").addEventListener("submit", async (event) => { event.preventDefault(); const form = event.currentTarget; try { const data = Object.fromEntries(new FormData(form)); data.ticketTypes = getTicketTypes(); if (!data.ticketTypes.length) throw new Error("Informe ao menos um tipo ou lote com valor e quantidade."); await saveEvent(data, form.dataset.editId); form.reset(); resetTicketTypes(); $("eventModal").close(); } catch (error) { toast(error.message); } });
 $("saleForm").addEventListener("submit", async (event) => { event.preventDefault(); const form = event.currentTarget; try { await saveSale(Object.fromEntries(new FormData(form)), form.dataset.editId); form.reset(); $("saleModal").close(); } catch (error) { toast(error.message); } });
-document.addEventListener("click", (event) => { const whatsappTrigger = event.target.closest("[data-whatsapp]"); if (whatsappTrigger) { event.preventDefault(); openWhatsappChooser(whatsappTrigger); return; } const whatsappApp = event.target.closest("[data-whatsapp-app]"); if (whatsappApp) { launchWhatsapp(whatsappApp.dataset.whatsappApp); return; } const removeTicket = event.target.closest("[data-remove-ticket]"); if (removeTicket) { if (document.querySelectorAll(".ticket-type-row").length === 1) return toast("O evento precisa de pelo menos um tipo de ingresso."); removeTicket.closest(".ticket-type-row").remove(); return; } const selectedAction = event.target.closest("[data-selected-action]"); if (selectedAction) { const action = selectedAction.dataset.selectedAction; if (action === "sale") openNewSale(selectedEventId); if (action === "edit") openEditEvent(selectedEventId); if (action === "export" && requireRole(["admin", "seller"])) window.exportSalesXlsx(state.sales, state.events, selectedEventId); if (action === "delete") deleteEvent(selectedEventId); return; } const selectEvent = event.target.closest("[data-select-event]"); if (selectEvent) { selectedEventId = selectEvent.dataset.selectEvent; render(); return; } const editSaleButton = event.target.closest("[data-edit-sale]"); if (editSaleButton) { openEditSale(editSaleButton.dataset.editSale); return; } const deleteSaleButton = event.target.closest("[data-delete-sale]"); if (deleteSaleButton) { deleteSale(deleteSaleButton.dataset.deleteSale); return; } const checkin = event.target.closest("[data-checkin]"); if (checkin) { toggleCheckin(checkin.dataset.checkin); return; } const paid = event.target.closest("[data-paid]"); if (paid) { togglePayment(paid.dataset.paid); return; } const saleRow = event.target.closest("[data-sale-row]"); if (saleRow && hasRole("admin", "seller")) { openEditSale(saleRow.dataset.saleRow); return; } });
+document.addEventListener("click", (event) => { const whatsappTrigger = event.target.closest("[data-whatsapp]"); if (whatsappTrigger) { event.preventDefault(); openWhatsappChooser(whatsappTrigger); return; } const whatsappApp = event.target.closest("[data-whatsapp-app]"); if (whatsappApp) { launchWhatsapp(whatsappApp.dataset.whatsappApp); return; } const removeTicket = event.target.closest("[data-remove-ticket]"); if (removeTicket) { if (document.querySelectorAll(".ticket-type-row").length === 1) return toast("O evento precisa de pelo menos um tipo de ingresso."); removeTicket.closest(".ticket-type-row").remove(); return; } const selectedAction = event.target.closest("[data-selected-action]"); if (selectedAction) { const action = selectedAction.dataset.selectedAction; if (action === "sale") openNewSale(selectedEventId); if (action === "edit") openEditEvent(selectedEventId); if (action === "history") openAuditHistory(selectedEventId); if (action === "export" && requireRole(["admin", "seller"])) window.exportSalesXlsx(state.sales, state.events, selectedEventId); if (action === "delete") deleteEvent(selectedEventId); return; } const selectEvent = event.target.closest("[data-select-event]"); if (selectEvent) { selectedEventId = selectEvent.dataset.selectEvent; render(); return; } const editSaleButton = event.target.closest("[data-edit-sale]"); if (editSaleButton) { openEditSale(editSaleButton.dataset.editSale); return; } const deleteSaleButton = event.target.closest("[data-delete-sale]"); if (deleteSaleButton) { deleteSale(deleteSaleButton.dataset.deleteSale); return; } const checkin = event.target.closest("[data-checkin]"); if (checkin) { toggleCheckin(checkin.dataset.checkin); return; } const paid = event.target.closest("[data-paid]"); if (paid) { togglePayment(paid.dataset.paid); return; } const saleRow = event.target.closest("[data-sale-row]"); if (saleRow && hasRole("admin", "seller")) { openEditSale(saleRow.dataset.saleRow); return; } });
 // O cartão do participante é somente informativo; edição acontece apenas pelo botão Editar.
 document.addEventListener("click", (event) => { const row = event.target.closest?.("[data-sale-row]"); if (row && !event.target.closest("button, a, input, select, textarea")) event.stopImmediatePropagation(); }, true);
 document.addEventListener("keydown", (event) => { const card = event.target.closest?.("[data-select-event]"); if (card && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); selectedEventId = card.dataset.selectEvent; resetParticipantFilters(); render(); } });

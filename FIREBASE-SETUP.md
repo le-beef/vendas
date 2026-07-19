@@ -1,10 +1,10 @@
-# Configuração de acesso por evento — Le Beef 3.3.0
+# Configuração de segurança e histórico — Le Beef 3.4.0
 
 Os eventos e participantes já cadastrados não serão apagados.
 
 ## 1. Publicar o site e marcar os eventos
 
-1. Publique os arquivos da versão 3.3.0 no GitHub Pages.
+1. Publique os arquivos da versão 3.4.0 no GitHub Pages.
 2. Entre com a conta de administrador.
 3. No menu da conta, abra **Gerenciar usuários**.
 4. Ao criar um vendedor ou usuário da portaria, marque um ou mais **Eventos permitidos**.
@@ -24,6 +24,18 @@ As novas regras garantem que:
 - as vendas sejam consultadas por evento;
 - vendedor altere somente vendas dos eventos permitidos;
 - portaria faça check-in somente nos eventos permitidos.
+- cada alteração de venda crie um registro imutável em `auditLogs`;
+- somente o administrador consiga consultar o histórico completo;
+- vendedor e portaria gravem no histórico apenas ações permitidas por seus perfis.
+
+## 3. Como consultar o histórico
+
+1. Entre no painel com uma conta de administrador.
+2. Selecione o evento.
+3. Clique em **Histórico** no cabeçalho do evento.
+4. Consulte a ação, o participante, o usuário responsável, o perfil, a data e o horário.
+
+O histórico começa a registrar novas ações depois que os arquivos da versão 3.4.0 e as novas regras forem publicados. Vendas antigas permanecem normalmente, mas ações anteriores à atualização não podem ser recuperadas retroativamente.
 
 O perfil é gravado assim:
 
@@ -40,7 +52,7 @@ O perfil é gravado assim:
 }
 ```
 
-## 3. Contas já existentes
+## 4. Contas já existentes
 
 Vendedores e usuários da portaria criados na versão anterior não possuem `eventIds`. Por segurança, eles não verão nenhum evento até o administrador marcar e salvar os eventos permitidos. A conta de administrador continua vendo tudo.
 
