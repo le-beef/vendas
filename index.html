@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#2563eb" />
+    <title>Ingressa | Controle de ingressos</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="access.css" />
+    <link rel="stylesheet" href="sales.css" />
+  </head>
+  <body>
+    <dialog id="accessModal" class="access-modal">
+      <form id="accessForm">
+        <div class="access-brand">ingressa<span>.</span></div>
+        <p class="eyebrow">ÁREA RESTRITA</p>
+        <h1>Bem-vindo de volta.</h1>
+        <p>Digite a senha para acessar o controle de ingressos.</p>
+        <label>Senha de acesso<input id="accessPassword" type="password" inputmode="numeric" required autofocus placeholder="••••••" /></label>
+        <p id="accessError" class="access-error" aria-live="polite"></p>
+        <button class="button primary full" type="submit">Entrar no painel</button>
+      </form>
+    </dialog>
+    <header class="topbar">
+      <a class="brand" href="#">ingressa<span>.</span></a>
+      <div class="connection"><i id="connectionDot"></i><span id="connectionText">Modo demonstração</span></div>
+    </header>
+
+    <main>
+      <section class="hero">
+        <div>
+          <p class="eyebrow">PAINEL DE CONTROLE</p>
+          <h1>Vendas organizadas.<br /><em>Entrada sem filas.</em></h1>
+          <p class="subtitle">Cadastre eventos, acompanhe as vendas e faça o check-in dos participantes em um só lugar.</p>
+        </div>
+        <button class="button primary" data-open="eventModal">+ Novo evento</button>
+      </section>
+
+      <section class="metrics" aria-label="Resumo de vendas">
+        <article><span>Faturamento</span><strong id="revenue">R$ 0,00</strong><small>vendas confirmadas</small></article>
+        <article><span>Ingressos vendidos</span><strong id="sold">0</strong><small>de <b id="capacity">0</b> disponíveis</small></article>
+        <article><span>Check-ins</span><strong id="checkins">0</strong><small>participantes presentes</small></article>
+      </section>
+
+      <section class="content-grid">
+        <article class="panel events-panel">
+          <div class="panel-heading"><div><h2>Seus eventos</h2><p>Escolha um evento para registrar uma venda.</p></div><button class="text-button" data-open="eventModal">Adicionar</button></div>
+          <div id="eventsList" class="events-list"></div>
+        </article>
+        <article class="panel sales-panel">
+          <div class="panel-heading"><div><h2>Vendas recentes</h2><p>Atualizado em tempo real.</p></div><button class="text-button" data-open="allSalesModal">Ver todas</button></div>
+          <div class="table-wrap"><table><thead><tr><th>Participante</th><th>Evento</th><th>Valor</th><th>Pagamento</th><th>Entrada</th></tr></thead><tbody id="salesList"></tbody></table></div>
+        </article>
+      </section>
+    </main>
+
+    <button class="fab" data-open="saleModal" aria-label="Registrar venda">+</button>
+
+    <dialog id="eventModal">
+      <form id="eventForm" method="dialog">
+        <div class="modal-heading"><div><p class="eyebrow">CADASTRO</p><h2>Novo evento</h2></div><button class="close" type="button" data-close="eventModal" aria-label="Fechar">×</button></div>
+        <label>Nome do evento<input name="name" required placeholder="Ex.: Festival de Inverno" /></label>
+        <div class="two-columns"><label>Data<input name="date" type="date" required /></label><label>Local<input name="place" required placeholder="Ex.: Auditório" /></label></div>
+        <div class="two-columns"><label>Capacidade<input name="capacity" type="number" min="1" required placeholder="200" /></label><label>Valor do ingresso<input name="price" type="number" min="0" step="0.01" required placeholder="75,00" /></label></div>
+        <button class="button primary full" type="submit">Criar evento</button>
+      </form>
+    </dialog>
+
+    <dialog id="saleModal">
+      <form id="saleForm" method="dialog">
+        <div class="modal-heading"><div><p class="eyebrow">NOVA VENDA</p><h2>Registrar ingresso</h2></div><button class="close" type="button" data-close="saleModal" aria-label="Fechar">×</button></div>
+        <label>Evento<select id="saleEvent" name="eventId" required></select></label>
+        <label>Nome do participante<input name="buyerName" required placeholder="Nome completo" /></label>
+        <label>Telefone<input name="buyerPhone" type="tel" required placeholder="(00) 00000-0000" /></label>
+        <label>E-mail (opcional)<input name="buyerEmail" type="email" placeholder="nome@exemplo.com" /></label>
+        <label>Quantidade<input name="quantity" type="number" min="1" value="1" required /></label>
+        <label>Pagamento<select name="paymentStatus" required><option value="paid">Pago</option><option value="pending">Pendente</option></select></label>
+        <label>Observações (opcional)<textarea name="notes" rows="3" placeholder="Ex.: retirada no local, meia-entrada..."></textarea></label>
+        <button class="button primary full" type="submit">Confirmar venda</button>
+      </form>
+    </dialog>
+
+    <dialog id="allSalesModal" class="all-sales-modal">
+      <div class="modal-heading"><div><p class="eyebrow">HISTÓRICO</p><h2>Todas as vendas</h2></div><div class="modal-actions"><button class="button primary download-button" type="button" data-export-sales>Baixar Excel</button><button class="close" type="button" data-close="allSalesModal" aria-label="Fechar">×</button></div></div>
+      <div class="table-wrap"><table class="all-sales-table"><thead><tr><th>Participante</th><th>Telefone / observação</th><th>Evento</th><th>Valor</th><th>Pagamento</th><th>Entrada</th></tr></thead><tbody id="allSalesList"></tbody></table></div>
+    </dialog>
+
+    <div id="toast" role="status" aria-live="polite"></div>
+    <script src="access.js"></script>
+    <script src="excel-export.js"></script>
+    <script type="module" src="app.js"></script>
+  </body>
+</html>
