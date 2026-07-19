@@ -15,13 +15,13 @@
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@600;700&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="styles.css" />
     <link rel="stylesheet" href="access.css" />
-    <link rel="stylesheet" href="sales.css" />
+    <link rel="stylesheet" href="sales.css?v=11" />
     <link rel="stylesheet" href="layout.css" />
     <link rel="stylesheet" href="dashboard.css" />
     <link rel="stylesheet" href="mobile-participants.css" />
     <link rel="stylesheet" href="participant-filter.css?v=9" />
     <link rel="stylesheet" href="filter-counter.css?v=9" />
-    <link rel="stylesheet" href="branding.css?v=6" />
+    <link rel="stylesheet" href="branding.css?v=10" />
     <link rel="stylesheet" href="whatsapp.css?v=8" />
     <link rel="stylesheet" href="pwa.css?v=7" />
     <style id="topbar-critical-styles">
@@ -111,6 +111,8 @@
       </section>
     </main>
 
+    <footer class="site-footer">Le Beef | Versão: 3.0.2</footer>
+
     <button class="fab" data-open="saleModal" aria-label="Registrar venda">+</button>
 
     <dialog id="eventModal">
@@ -139,7 +141,7 @@
     </dialog>
 
     <dialog id="allSalesModal" class="all-sales-modal">
-      <div class="modal-heading"><div><p class="eyebrow">HISTÓRICO</p><h2 id="allSalesTitle">Todas as vendas</h2><p class="export-hint">Participantes do evento selecionado.</p></div><div class="modal-actions"><button class="close" type="button" data-close="allSalesModal" aria-label="Fechar">×</button></div></div>
+      <div class="modal-heading"><div><p class="eyebrow">HISTÓRICO</p><h2 id="allSalesTitle">Todas as vendas</h2><p class="export-hint">Participantes do evento selecionado.</p><div class="all-sales-total" aria-live="polite"><span id="allSalesTotalLabel">Total vendido — Todos</span><strong id="allSalesTotal">R$ 0,00</strong></div></div><div class="modal-actions"><button class="close" type="button" data-close="allSalesModal" aria-label="Fechar">×</button></div></div>
       <div class="table-wrap"><table class="all-sales-table"><thead><tr><th>Participante</th><th>Tipo</th><th>Telefone / observação</th><th>Evento</th><th>Valor</th><th>Pagamento</th><th>Entrada</th><th>Ações</th></tr></thead><tbody id="allSalesList"></tbody></table></div>
     </dialog>
 

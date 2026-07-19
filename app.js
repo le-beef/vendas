@@ -122,6 +122,7 @@ function render() {
   const selectedTypeName = availableTicketTypes.find((type) => type.id === selectedTicketTypeFilter)?.name;
   const visibleSales = selectedTicketTypeFilter === "all" ? selectedSales : selectedSales.filter((sale) => sale.ticketTypeId === selectedTicketTypeFilter || sale.ticketTypeName === selectedTypeName);
   const visibleSold = visibleSales.reduce((sum, sale) => sum + Number(sale.quantity || 0), 0);
+  const visibleSalesTotal = visibleSales.reduce((sum, sale) => sum + Number(sale.total || 0), 0);
   const visibleCapacity = selectedTicketTypeFilter === "all" ? eventCapacity(selectedEvent) : Number(availableTicketTypes.find((type) => type.id === selectedTicketTypeFilter)?.capacity || 0);
   const sold = selectedSales.reduce((sum, sale) => sum + Number(sale.quantity || 0), 0);
   const revenuePaid = selectedSales.filter((sale) => sale.paid).reduce((sum, sale) => sum + Number(sale.total || 0), 0);
@@ -133,6 +134,8 @@ function render() {
   $("ticketTypeFilter").value = selectedTicketTypeFilter;
   $("filterLabel").textContent = selectedTicketTypeFilter === "all" ? "Todos" : availableTicketTypes.find((type) => type.id === selectedTicketTypeFilter)?.name || "Todos";
   $("filterCount").textContent = `${visibleSold} ${visibleSold === 1 ? "vendido" : "vendidos"} • ${visibleCapacity} ${visibleCapacity === 1 ? "disponível" : "disponíveis"}`;
+  $("allSalesTotalLabel").textContent = selectedTicketTypeFilter === "all" ? "Total vendido — Todos" : `Total vendido — ${selectedTypeName || "Filtro selecionado"}`;
+  $("allSalesTotal").textContent = money.format(visibleSalesTotal);
   $("revenue").textContent = money.format(revenueTotal); $("revenuePaid").textContent = money.format(revenuePaid); $("revenuePending").textContent = money.format(revenuePending); $("sold").textContent = sold; $("capacity").textContent = eventCapacity(selectedEvent); $("checkins").textContent = checkins;
   if (selectedEvent) { $("selectedEventName").textContent = selectedEvent.name; $("selectedEventMeta").textContent = `${selectedEvent.place} · ${dateText(selectedEvent.date)} · ${priceLabel(selectedEvent)}`; $("salesPanelTitle").textContent = `Vendas de ${selectedEvent.name}`; $("allSalesTitle").textContent = `Participantes — ${selectedEvent.name}`; }
   $("eventsList").innerHTML = events.length ? events.map((event) => {

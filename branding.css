@@ -48,6 +48,18 @@ body {
   height: auto;
 }
 
+.site-footer {
+  margin-top: 8px;
+  padding: 18px 24px 22px;
+  border-top: 1px solid #e2e8f0;
+  background: #f7f9fc;
+  color: #7b879a;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.4;
+  text-align: center;
+}
+
 @media (max-width: 600px) {
   body {
     padding-top: 72px;
@@ -70,5 +82,10 @@ body {
 
   .access-brand {
     width: 235px;
+  }
+
+  .site-footer {
+    padding: 16px 18px 20px;
+    font-size: 10px;
   }
 }
