@@ -1,3 +1,15 @@
+.edit-button {
+  margin-right: 6px;
+  border: 0;
+  border-radius: 7px;
+  padding: 7px 9px;
+  background: #eff6ff;
+  color: #2563eb;
+  font: 600 11px "DM Sans";
+  cursor: pointer;
+  white-space: nowrap;
+}
+
 @media (max-width: 700px) {
   .sales-panel .table-wrap,
   .all-sales-modal .table-wrap {
@@ -106,9 +118,17 @@
 
   .sales-panel tr.sales-row td:last-child,
   .all-sales-modal tr.sales-row td:last-child {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
     grid-column: 1 / -1;
+    gap: 9px;
     padding-top: 12px;
     border-top: 1px solid #edf0f5;
+  }
+
+  .sales-panel tr.sales-row td:last-child::before,
+  .all-sales-modal tr.sales-row td:last-child::before {
+    grid-column: 1 / -1;
   }
 
   .sales-panel .payment,
@@ -120,9 +140,22 @@
   }
 
   .sales-panel .delete-button,
-  .all-sales-modal .delete-button {
+  .all-sales-modal .delete-button,
+  .sales-panel .edit-button,
+  .all-sales-modal .edit-button {
     width: 100%;
     min-height: 39px;
+  }
+
+  .sales-panel .edit-button,
+  .all-sales-modal .edit-button {
+    margin-right: 0;
+    border: 0;
+    border-radius: 7px;
+    background: #eff6ff;
+    color: #2563eb;
+    font: 600 11px "DM Sans";
+    cursor: pointer;
   }
 
   .all-sales-modal {
