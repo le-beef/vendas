@@ -2,17 +2,15 @@
 
 Site estático em HTML, CSS e JavaScript, pronto para publicar no GitHub Pages, com Firebase Authentication e Realtime Database.
 
-## Login individual e permissões
+## Login individual, permissões e eventos permitidos
 
-A versão 3.2.0 usa contas individuais com e-mail e senha. A antiga senha compartilhada foi removida.
+A versão 3.3.0 usa contas individuais com e-mail e senha.
 
-Perfis disponíveis:
+- **Administrador**: visualiza todos os eventos e controla usuários, eventos, vendas, pagamentos, check-in, Excel e relatório financeiro.
+- **Vendedor**: visualiza somente os eventos marcados pelo administrador; nesses eventos, trabalha com vendas, pagamentos, check-in e Excel.
+- **Portaria**: visualiza somente os eventos marcados pelo administrador; nesses eventos, consulta participantes e realiza check-in.
 
-- **Administrador**: usuários, eventos, vendas, pagamentos, check-in, Excel e relatório financeiro.
-- **Vendedor**: vendas, pagamentos, check-in e Excel.
-- **Portaria**: consulta de participantes e check-in.
-
-As permissões são aplicadas na interface e também pelo arquivo `database.rules.json` no Realtime Database. Consulte [FIREBASE-SETUP.md](FIREBASE-SETUP.md) antes de publicar esta versão.
+As permissões são aplicadas na interface e nas regras do Realtime Database. Consulte [FIREBASE-SETUP.md](FIREBASE-SETUP.md) antes de publicar esta versão.
 
 ## Publicar no GitHub Pages
 
@@ -21,16 +19,9 @@ As permissões são aplicadas na interface e também pelo arquivo `database.rule
 3. Em **Build and deployment**, selecione **Deploy from a branch**, a branch `main` e a pasta `/(root)`.
 4. Salve e aguarde a atualização do endereço público.
 
-## Configuração do Firebase
+## Atualização obrigatória no Firebase
 
-O arquivo `firebase-config.js` contém a configuração do projeto `vendas-76f49`.
-
-Antes de usar a versão 3.2.0:
-
-1. Ative o provedor **E-mail/senha** no Firebase Authentication.
-2. Crie o primeiro usuário administrador.
-3. Cadastre o perfil desse administrador em `users/{uid}`.
-4. Publique o conteúdo de `database.rules.json` nas regras do Realtime Database.
+Na atualização para a versão 3.3.0, envie primeiro os arquivos ao GitHub Pages, entre como administrador e marque os eventos permitidos. Em seguida, publique o conteúdo de `database.rules.json` em **Realtime Database > Rules**.
 
 As instruções completas estão em [FIREBASE-SETUP.md](FIREBASE-SETUP.md).
 
@@ -41,7 +32,7 @@ No endereço HTTPS do GitHub Pages, o botão **Instalar app** permite instalar o
 ## Estrutura de dados
 
 ```text
-users/{uid}       → nome, e-mail, perfil e situação do acesso
+users/{uid}       → nome, e-mail, perfil, situação e eventIds permitidos
 events/{eventId}  → evento, data, local e tipos/lotes
 sales/{saleId}    → participante, contato, ingresso, valor, pagamento e check-in
 ```
@@ -55,6 +46,6 @@ sales/{saleId}    → participante, contato, ingresso, valor, pagamento e check-
 - Exportação Excel por evento.
 - Relatório financeiro dedicado.
 - PWA adaptado ao computador e celular.
-- Login individual, gerenciamento de usuários e permissões por função.
+- Login individual e acesso restrito aos eventos escolhidos pelo administrador.
 
 Ao abrir `index.html` diretamente no computador, o painel usa o modo local de demonstração. O login seguro e o banco compartilhado funcionam no site hospedado.

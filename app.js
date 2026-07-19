@@ -1,6 +1,6 @@
 import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js";
 import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged, browserLocalPersistence, inMemoryPersistence, setPersistence, createUserWithEmailAndPassword, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js";
-import { getDatabase, ref, push, set, update, onValue, get } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-database.js";
+import { getDatabase, ref, push, set, update, onValue, get, query, orderByChild, equalTo } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-database.js";
 import { firebaseConfig } from "./firebase-config.js";
 
 const demoEvents = [
@@ -30,6 +30,8 @@ const ROLE_LABELS = { admin: "Administrador", seller: "Vendedor", door: "Portari
 
 function roleLabel(role) { return ROLE_LABELS[role] || "Sem perfil"; }
 function hasRole(...roles) { return Boolean(currentUserProfile?.active && roles.includes(currentUserProfile.role)); }
+function allowedEventIds(profile = currentUserProfile) { return Object.entries(profile?.eventIds || {}).filter(([, allowed]) => allowed === true).map(([eventId]) => eventId).sort(); }
+function eventAccessSignature(profile) { return allowedEventIds(profile).join("|"); }
 function requireRole(roles, message = "Seu perfil não permite realizar esta ação.") { if (hasRole(...roles)) return true; toast(message); return false; }
 function userInitials(name, email = "") { const source = String(name || email || "U").trim(); const parts = source.split(/\s+/).filter(Boolean); return (parts.length > 1 ? `${parts[0][0]}${parts.at(-1)[0]}` : source.slice(0, 2)).toLocaleUpperCase("pt-BR"); }
 function clearDataSubscriptions() { dataSubscriptions.forEach((unsubscribe) => unsubscribe()); dataSubscriptions = []; }
@@ -61,11 +63,42 @@ function applyRolePermissions() {
 function attachRealtimeListeners() {
   clearDataSubscriptions();
   const readError = async (error) => { toast(`Acesso ao Firebase bloqueado: ${error.code || error.message}`); if (error.code === "PERMISSION_DENIED" || error.code === "permission_denied") await signOut(auth); };
-  dataSubscriptions.push(onValue(ref(db, `users/${currentUser.uid}`), async (snapshot) => { const profile = snapshot.val(); if (!profile?.active || !ROLE_LABELS[profile.role]) { await signOut(auth); return; } const roleChanged = currentUserProfile?.role !== profile.role; currentUserProfile = { ...profile, active: true }; applyRolePermissions(); if (roleChanged) attachRealtimeListeners(); else render(); }, readError));
-  dataSubscriptions.push(onValue(ref(db, "events"), (snapshot) => { state.events = objectToArray(snapshot.val()); render(); }, readError));
-  dataSubscriptions.push(onValue(ref(db, "sales"), (snapshot) => { state.sales = objectToArray(snapshot.val()); render(); }, readError));
-  if (hasRole("admin")) dataSubscriptions.push(onValue(ref(db, "users"), (snapshot) => { state.users = objectToArray(snapshot.val()); renderUsers(); }, readError));
-  else { state.users = currentUserProfile ? [{ id: currentUser.uid, ...currentUserProfile }] : []; renderUsers(); }
+  dataSubscriptions.push(onValue(ref(db, `users/${currentUser.uid}`), async (snapshot) => {
+    const profile = snapshot.val();
+    if (!profile?.active || !ROLE_LABELS[profile.role]) { await signOut(auth); return; }
+    const roleChanged = currentUserProfile?.role !== profile.role;
+    const eventAccessChanged = eventAccessSignature(currentUserProfile) !== eventAccessSignature(profile);
+    currentUserProfile = { ...profile, active: true };
+    applyRolePermissions();
+    if (roleChanged || eventAccessChanged) attachRealtimeListeners(); else render();
+  }, readError));
+
+  if (hasRole("admin")) {
+    dataSubscriptions.push(onValue(ref(db, "events"), (snapshot) => { state.events = objectToArray(snapshot.val()); render(); }, readError));
+    dataSubscriptions.push(onValue(ref(db, "sales"), (snapshot) => { state.sales = objectToArray(snapshot.val()); render(); }, readError));
+    dataSubscriptions.push(onValue(ref(db, "users"), (snapshot) => { state.users = objectToArray(snapshot.val()); renderUsers(); }, readError));
+    return;
+  }
+
+  const eventMap = new Map();
+  const salesByEvent = new Map();
+  state.events = [];
+  state.sales = [];
+  state.users = currentUserProfile ? [{ id: currentUser.uid, ...currentUserProfile }] : [];
+  render();
+  allowedEventIds().forEach((eventId) => {
+    dataSubscriptions.push(onValue(ref(db, `events/${eventId}`), (snapshot) => {
+      if (snapshot.exists()) eventMap.set(eventId, { id: eventId, ...snapshot.val() }); else eventMap.delete(eventId);
+      state.events = [...eventMap.values()];
+      render();
+    }, readError));
+    const eventSalesQuery = query(ref(db, "sales"), orderByChild("eventId"), equalTo(eventId));
+    dataSubscriptions.push(onValue(eventSalesQuery, (snapshot) => {
+      salesByEvent.set(eventId, objectToArray(snapshot.val()));
+      state.sales = [...salesByEvent.values()].flat();
+      render();
+    }, readError));
+  });
 }
 async function handleAuthenticatedUser(user) {
   clearDataSubscriptions();
@@ -179,26 +212,63 @@ function populateTicketTypes(eventId) {
 }
 function addSaleEditButtons() { if (!hasRole("admin", "seller")) return; document.querySelectorAll("[data-sale-row]").forEach((row) => { const actions = row.lastElementChild; if (!actions?.querySelector("[data-edit-sale]")) { const button = document.createElement("button"); button.type = "button"; button.className = "edit-button"; button.dataset.editSale = row.dataset.saleRow; button.textContent = "Editar"; actions.prepend(button); } }); }
 
+function eventAccessCheckboxes(selectedIds = []) {
+  const selected = new Set(selectedIds);
+  if (!state.events.length) return `<p class="user-events-empty">Nenhum evento cadastrado.</p>`;
+  return [...state.events].sort((a, b) => String(a.name).localeCompare(String(b.name), "pt-BR")).map((event) => `<label class="user-event-option"><input type="checkbox" value="${event.id}" ${selected.has(event.id) ? "checked" : ""} /><span><strong>${escapeHtml(event.name)}</strong><small>${escapeHtml(event.place || "Local não informado")} · ${dateText(event.date)}</small></span></label>`).join("");
+}
+function renderCreateUserEventOptions() {
+  const container = $("createUserEvents");
+  if (!container) return;
+  container.innerHTML = eventAccessCheckboxes();
+  container.querySelectorAll("input").forEach((input) => { input.name = "eventIds"; });
+  syncCreateUserEventAccess();
+}
+function syncCreateUserEventAccess() {
+  const field = $("createUserEventAccess");
+  if (!field) return;
+  const isAdmin = document.querySelector('#createUserForm [name="role"]').value === "admin";
+  field.classList.toggle("is-admin", isAdmin);
+  field.querySelectorAll("input").forEach((input) => { input.disabled = isAdmin; });
+  $("createUserEventHint").textContent = isAdmin ? "Administradores visualizam todos os eventos." : "Marque um ou mais eventos que esta pessoa poderá acessar.";
+}
 function renderUsers() {
+  renderCreateUserEventOptions();
   const users = [...state.users].sort((a, b) => String(a.name || a.email).localeCompare(String(b.name || b.email), "pt-BR"));
   $("usersCount").textContent = `${users.length} ${users.length === 1 ? "usuário" : "usuários"}`;
   $("usersList").innerHTML = users.length ? users.map((user) => {
     const isCurrent = user.id === currentUser?.uid;
-    return `<article class="managed-user ${user.active ? "" : "is-inactive"}"><div class="managed-user-main"><span class="managed-user-avatar">${escapeHtml(userInitials(user.name, user.email))}</span><div class="managed-user-copy"><strong>${escapeHtml(user.name || "Sem nome")}${isCurrent ? " (você)" : ""}</strong><small>${escapeHtml(user.email || "E-mail não informado")}</small><em>${user.active ? "Acesso ativo" : "Acesso bloqueado"}</em></div></div><select data-user-role="${user.id}" aria-label="Perfil de ${escapeHtml(user.name || user.email)}" ${isCurrent ? "disabled" : ""}><option value="admin" ${user.role === "admin" ? "selected" : ""}>Administrador</option><option value="seller" ${user.role === "seller" ? "selected" : ""}>Vendedor</option><option value="door" ${user.role === "door" ? "selected" : ""}>Portaria</option></select><div class="managed-user-actions"><button type="button" data-reset-user="${user.id}">Redefinir senha</button>${isCurrent ? `<button type="button" disabled>Conta atual</button>` : `<button class="deactivate" type="button" data-toggle-user="${user.id}">${user.active ? "Bloquear" : "Ativar"}</button>`}</div></article>`;
+    const selectedIds = allowedEventIds(user).filter((eventId) => state.events.some((event) => event.id === eventId));
+    const eventSummary = user.role === "admin" ? "Todos os eventos" : `${selectedIds.length} ${selectedIds.length === 1 ? "evento permitido" : "eventos permitidos"}`;
+    const accessEditor = user.role === "admin" ? `<div class="user-event-access admin-access"><strong>Acesso aos eventos</strong><span>Administrador visualiza todos.</span></div>` : `<details class="user-event-access" data-event-access-user="${user.id}"><summary><span>Acesso aos eventos</span><strong>${eventSummary}</strong></summary><div class="user-event-options">${eventAccessCheckboxes(selectedIds)}</div><button class="save-user-events" type="button" data-save-user-events="${user.id}">Salvar eventos permitidos</button></details>`;
+    return `<article class="managed-user ${user.active ? "" : "is-inactive"}"><div class="managed-user-main"><span class="managed-user-avatar">${escapeHtml(userInitials(user.name, user.email))}</span><div class="managed-user-copy"><strong>${escapeHtml(user.name || "Sem nome")}${isCurrent ? " (você)" : ""}</strong><small>${escapeHtml(user.email || "E-mail não informado")}</small><em>${user.active ? "Acesso ativo" : "Acesso bloqueado"}</em></div></div><select data-user-role="${user.id}" aria-label="Perfil de ${escapeHtml(user.name || user.email)}" ${isCurrent ? "disabled" : ""}><option value="admin" ${user.role === "admin" ? "selected" : ""}>Administrador</option><option value="seller" ${user.role === "seller" ? "selected" : ""}>Vendedor</option><option value="door" ${user.role === "door" ? "selected" : ""}>Portaria</option></select><div class="managed-user-actions"><button type="button" data-reset-user="${user.id}">Redefinir senha</button>${isCurrent ? `<button type="button" disabled>Conta atual</button>` : `<button class="deactivate" type="button" data-toggle-user="${user.id}">${user.active ? "Bloquear" : "Ativar"}</button>`}</div>${accessEditor}</article>`;
   }).join("") : `<div class="empty">Nenhum usuário cadastrado.</div>`;
 }
 async function createManagedUser(data) {
   if (!requireRole(["admin"])) return;
+  const selectedEventIds = [...document.querySelectorAll("#createUserEvents input:checked")].map((input) => input.value);
+  if (data.role !== "admin" && !selectedEventIds.length) throw new Error("Selecione pelo menos um evento para este usuário.");
   if (isDemo) throw new Error("A criação de contas funciona somente no site conectado ao Firebase.");
   const secondaryApp = initializeApp(firebaseConfig, `create-user-${Date.now()}`);
   const secondaryAuth = getAuth(secondaryApp);
   try {
     await setPersistence(secondaryAuth, inMemoryPersistence);
     const credential = await createUserWithEmailAndPassword(secondaryAuth, data.email.trim(), data.password);
-    await set(ref(db, `users/${credential.user.uid}`), { name: data.name.trim(), email: data.email.trim().toLocaleLowerCase("pt-BR"), role: data.role, active: true, createdAt: Date.now(), createdBy: currentUser.uid });
+    const profile = { name: data.name.trim(), email: data.email.trim().toLocaleLowerCase("pt-BR"), role: data.role, active: true, createdAt: Date.now(), createdBy: currentUser.uid };
+    if (data.role !== "admin") profile.eventIds = Object.fromEntries(selectedEventIds.map((eventId) => [eventId, true]));
+    await set(ref(db, `users/${credential.user.uid}`), profile);
   } finally { try { await signOut(secondaryAuth); } catch {} await deleteApp(secondaryApp); }
 }
 async function updateManagedUserRole(uid, role) { if (!requireRole(["admin"]) || uid === currentUser?.uid) return; await update(ref(db, `users/${uid}`), { role, updatedAt: Date.now(), updatedBy: currentUser.uid }); toast("Perfil atualizado."); }
+async function updateManagedUserEvents(uid, eventIds) {
+  if (!requireRole(["admin"])) return;
+  const user = state.users.find((item) => item.id === uid);
+  if (!user || user.role === "admin") return;
+  if (!eventIds.length && state.events.length) throw new Error("Selecione pelo menos um evento.");
+  const eventAccess = eventIds.length ? Object.fromEntries(eventIds.map((eventId) => [eventId, true])) : null;
+  await update(ref(db, `users/${uid}`), { eventIds: eventAccess, updatedAt: Date.now(), updatedBy: currentUser.uid });
+  toast("Eventos permitidos atualizados.");
+}
 async function toggleManagedUser(uid) { if (!requireRole(["admin"]) || uid === currentUser?.uid) return; const user = state.users.find((item) => item.id === uid); if (!user) return; const active = !user.active; if (!confirm(`${active ? "Ativar" : "Bloquear"} o acesso de ${user.name || user.email}?`)) return; await update(ref(db, `users/${uid}`), { active, updatedAt: Date.now(), updatedBy: currentUser.uid }); toast(active ? "Acesso ativado." : "Acesso bloqueado."); }
 async function resetManagedUserPassword(uid) { if (!requireRole(["admin"])) return; const user = state.users.find((item) => item.id === uid); if (!user?.email) return; await sendPasswordResetEmail(auth, user.email); toast("E-mail para redefinição de senha enviado."); }
 
@@ -357,9 +427,21 @@ $("accessForm").addEventListener("submit", async (event) => { event.preventDefau
 $("resetPasswordButton").addEventListener("click", async () => { const email = $("accessEmail").value.trim(); if (!auth) { $("accessError").textContent = "O Firebase ainda está carregando. Tente novamente."; return; } if (!email) { $("accessError").textContent = "Digite seu e-mail para redefinir a senha."; $("accessEmail").focus(); return; } try { await sendPasswordResetEmail(auth, email); $("accessError").textContent = "Enviamos as instruções para o seu e-mail."; } catch (error) { $("accessError").textContent = authErrorMessage(error); } });
 $("logoutButton").addEventListener("click", async () => { $("userMenu").open = false; if (isDemo) { toast("O modo local usa um perfil de demonstração."); return; } await signOut(auth); });
 $("manageUsersButton").addEventListener("click", () => { if (!requireRole(["admin"])) return; $("userMenu").open = false; renderUsers(); $("userManagementModal").showModal(); });
+document.querySelector('#createUserForm [name="role"]').addEventListener("change", syncCreateUserEventAccess);
+$("createUserForm").addEventListener("reset", () => setTimeout(renderCreateUserEventOptions));
 $("createUserForm").addEventListener("submit", async (event) => { event.preventDefault(); const form = event.currentTarget; const button = $("createUserButton"); button.disabled = true; button.textContent = "Criando..."; try { await createManagedUser(Object.fromEntries(new FormData(form))); form.reset(); toast("Usuário criado com sucesso."); } catch (error) { toast(authErrorMessage(error)); } finally { button.disabled = false; button.textContent = "+ Criar usuário"; } });
 $("usersList").addEventListener("change", async (event) => { const select = event.target.closest("[data-user-role]"); if (!select) return; try { await updateManagedUserRole(select.dataset.userRole, select.value); } catch (error) { toast(error.message); renderUsers(); } });
 $("usersList").addEventListener("click", async (event) => { const toggle = event.target.closest("[data-toggle-user]"); const reset = event.target.closest("[data-reset-user]"); try { if (toggle) await toggleManagedUser(toggle.dataset.toggleUser); if (reset) await resetManagedUserPassword(reset.dataset.resetUser); } catch (error) { toast(authErrorMessage(error)); } });
+$("usersList").addEventListener("click", async (event) => {
+  const save = event.target.closest("[data-save-user-events]");
+  if (!save) return;
+  const editor = save.closest("[data-event-access-user]");
+  const eventIds = [...editor.querySelectorAll("input:checked")].map((input) => input.value);
+  save.disabled = true;
+  try { await updateManagedUserEvents(save.dataset.saveUserEvents, eventIds); }
+  catch (error) { toast(error.message); }
+  finally { save.disabled = false; }
+});
 $("participantSearch").addEventListener("input", (event) => { participantSearchQuery = event.currentTarget.value; render(); });
 $("participantSearch").addEventListener("keydown", (event) => { if (event.key === "Escape") { participantSearchQuery = ""; render(); event.currentTarget.focus(); } });
 document.querySelectorAll("[data-clear-participant-filters]").forEach((button) => button.addEventListener("click", () => { resetParticipantFilters(); document.querySelector(".ticket-filter").open = false; render(); $("participantSearch").focus(); }));

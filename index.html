@@ -26,6 +26,7 @@
     <link rel="stylesheet" href="pwa.css?v=7" />
     <link rel="stylesheet" href="financial-report.css?v=16" />
     <link rel="stylesheet" href="auth-permissions.css?v=17" />
+    <link rel="stylesheet" href="event-access.css?v=18" />
     <style id="topbar-critical-styles">
       html { scroll-padding-top: 84px; }
       body { padding-top: 84px !important; }
@@ -144,7 +145,7 @@
       </section>
     </main>
 
-    <footer class="site-footer">Le Beef | Versão: 3.2.0</footer>
+    <footer class="site-footer">Le Beef | Versão: 3.3.0</footer>
 
     <button class="fab" data-open="saleModal" data-roles="admin,seller" aria-label="Registrar venda">+</button>
 
@@ -182,6 +183,7 @@
       <div class="user-management-shell">
         <div class="modal-heading"><div><p class="eyebrow">ACESSOS</p><h2>Gerenciar usuários</h2><p>Crie contas individuais e defina o que cada pessoa pode fazer.</p></div><button class="close" type="button" data-close="userManagementModal" aria-label="Fechar">×</button></div>
         <form id="createUserForm" class="create-user-form">
+          <fieldset id="createUserEventAccess" class="create-user-event-access"><legend>Eventos permitidos</legend><p id="createUserEventHint">Marque um ou mais eventos que esta pessoa poderá acessar.</p><div id="createUserEvents" class="user-event-options"></div></fieldset>
           <div class="two-columns"><label>Nome<input name="name" required placeholder="Nome da pessoa" /></label><label>E-mail<input name="email" type="email" required autocomplete="off" placeholder="nome@exemplo.com" /></label></div>
           <div class="two-columns"><label>Senha inicial<input name="password" type="password" minlength="6" required autocomplete="new-password" placeholder="Mínimo de 6 caracteres" /></label><label>Perfil<select name="role" required><option value="seller">Vendedor</option><option value="door">Portaria</option><option value="admin">Administrador</option></select></label></div>
           <button id="createUserButton" class="button primary" type="submit">+ Criar usuário</button>

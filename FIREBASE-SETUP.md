@@ -1,22 +1,52 @@
-# Configuração do login individual — Le Beef 3.2.0
+# Configuração de acesso por evento — Le Beef 3.3.0
 
-Siga esta ordem para não perder o acesso ao banco. Os eventos e participantes já cadastrados não serão apagados.
+Os eventos e participantes já cadastrados não serão apagados.
 
-## 1. Ativar login por e-mail e senha
+## 1. Publicar o site e marcar os eventos
+
+1. Publique os arquivos da versão 3.3.0 no GitHub Pages.
+2. Entre com a conta de administrador.
+3. No menu da conta, abra **Gerenciar usuários**.
+4. Ao criar um vendedor ou usuário da portaria, marque um ou mais **Eventos permitidos**.
+5. Para uma conta já existente, abra **Acesso aos eventos**, marque os eventos e clique em **Salvar eventos permitidos**.
+
+## 2. Publicar as novas regras
 
 1. Abra o projeto `vendas-76f49` no Firebase Console.
-2. Entre em **Build > Authentication > Sign-in method**.
-3. Ative **E-mail/senha** e salve.
-4. O login **Anônimo** pode ser desativado depois que o primeiro administrador estiver funcionando.
+2. Entre em **Realtime Database > Rules**.
+3. Copie todo o conteúdo do arquivo `database.rules.json` desta versão.
+4. Substitua as regras antigas e clique em **Publish**.
 
-## 2. Criar o primeiro administrador
+As novas regras garantem que:
 
-1. Ainda em **Authentication**, abra **Users** e clique em **Add user**.
-2. Informe o seu e-mail e uma senha segura.
-3. Copie o **User UID** criado pelo Firebase.
-4. Abra **Realtime Database > Data**.
-5. Crie o nó `users`, depois crie dentro dele um nó com o UID copiado.
-6. Dentro de `users/SEU_UID`, grave exatamente estes campos:
+- o administrador tenha acesso a todos os eventos;
+- vendedor e portaria leiam somente eventos marcados em seus perfis;
+- as vendas sejam consultadas por evento;
+- vendedor altere somente vendas dos eventos permitidos;
+- portaria faça check-in somente nos eventos permitidos.
+
+O perfil é gravado assim:
+
+```json
+{
+  "name": "Nome da pessoa",
+  "email": "pessoa@email.com",
+  "role": "seller",
+  "active": true,
+  "eventIds": {
+    "ID_DO_EVENTO_1": true,
+    "ID_DO_EVENTO_2": true
+  }
+}
+```
+
+## 3. Contas já existentes
+
+Vendedores e usuários da portaria criados na versão anterior não possuem `eventIds`. Por segurança, eles não verão nenhum evento até o administrador marcar e salvar os eventos permitidos. A conta de administrador continua vendo tudo.
+
+## Primeiro administrador
+
+Se ainda precisar criar o primeiro administrador, ative **E-mail/senha** em **Authentication > Sign-in method**, crie o usuário e grave em `users/SEU_UID`:
 
 ```json
 {
@@ -27,29 +57,11 @@ Siga esta ordem para não perder o acesso ao banco. Os eventos e participantes j
 }
 ```
 
-Use `true` como valor booleano, sem aspas.
-
-## 3. Publicar as regras de segurança
-
-1. Abra **Realtime Database > Rules**.
-2. Copie todo o conteúdo do arquivo `database.rules.json` entregue com o site.
-3. Substitua as regras antigas e clique em **Publish**.
-
-As regras permitem:
-
-- **Administrador (`admin`)**: controle completo de usuários, eventos, vendas, pagamentos e check-in.
-- **Vendedor (`seller`)**: vendas, pagamentos, check-in e exportação; não administra eventos nem usuários.
-- **Portaria (`door`)**: leitura dos participantes e alteração somente do campo de check-in.
-
-## 4. Publicar o site
-
-Envie os arquivos da versão 3.2.0 para o GitHub Pages. Entre com a conta de administrador criada no passo 2.
-
-Depois do primeiro acesso, abra o menu da conta no topo e escolha **Gerenciar usuários**. Por essa tela você poderá criar vendedores e usuários da portaria, alterar perfis, bloquear acessos e enviar redefinição de senha.
+Administradores não precisam do campo `eventIds`.
 
 ## Recomendações
 
-- Configure uma política de senha forte em **Authentication > Settings > Password policy**.
 - Não compartilhe contas entre funcionários.
-- Bloqueie imediatamente o usuário de alguém que não faça mais parte da equipe.
-- Teste os três perfis antes do primeiro evento em produção.
+- Bloqueie imediatamente quem não fizer mais parte da equipe.
+- Ao criar um novo evento, lembre-se de liberá-lo para os usuários que trabalharão nele.
+- Teste uma conta de vendedor e uma de portaria antes do evento.

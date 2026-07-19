@@ -11,23 +11,27 @@
         "name": { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 100" },
         "email": { ".validate": "newData.isString() && newData.val().length > 3 && newData.val().length <= 160" },
         "role": { ".validate": "newData.val() === 'admin' || newData.val() === 'seller' || newData.val() === 'door'" },
-        "active": { ".validate": "newData.isBoolean()" }
+        "active": { ".validate": "newData.isBoolean()" },
+        "eventIds": {
+          "$eventId": { ".validate": "newData.val() === true && root.child('events').child($eventId).exists()" }
+        }
       }
     },
     "events": {
-      ".read": "auth != null && root.child('users').child(auth.uid).child('active').val() === true",
+      ".read": "auth != null && root.child('users').child(auth.uid).child('active').val() === true && root.child('users').child(auth.uid).child('role').val() === 'admin'",
       ".indexOn": ["date"],
       "$eventId": {
+        ".read": "auth != null && root.child('users').child(auth.uid).child('active').val() === true && (root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('eventIds').child($eventId).val() === true)",
         ".write": "auth != null && root.child('users').child(auth.uid).child('active').val() === true && root.child('users').child(auth.uid).child('role').val() === 'admin'"
       }
     },
     "sales": {
-      ".read": "auth != null && root.child('users').child(auth.uid).child('active').val() === true",
+      ".read": "auth != null && root.child('users').child(auth.uid).child('active').val() === true && (root.child('users').child(auth.uid).child('role').val() === 'admin' || ((root.child('users').child(auth.uid).child('role').val() === 'seller' || root.child('users').child(auth.uid).child('role').val() === 'door') && query.orderByChild === 'eventId' && query.equalTo != null && root.child('users').child(auth.uid).child('eventIds').child(query.equalTo).val() === true))",
       ".indexOn": ["eventId", "ticketTypeId", "paid", "checkedIn"],
       "$saleId": {
-        ".write": "auth != null && root.child('users').child(auth.uid).child('active').val() === true && (root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('role').val() === 'seller')",
+        ".write": "auth != null && root.child('users').child(auth.uid).child('active').val() === true && (root.child('users').child(auth.uid).child('role').val() === 'admin' || (root.child('users').child(auth.uid).child('role').val() === 'seller' && (!data.exists() || root.child('users').child(auth.uid).child('eventIds').child(data.child('eventId').val()).val() === true) && (!newData.exists() || root.child('users').child(auth.uid).child('eventIds').child(newData.child('eventId').val()).val() === true)))",
         "checkedIn": {
-          ".write": "auth != null && root.child('users').child(auth.uid).child('active').val() === true && root.child('users').child(auth.uid).child('role').val() === 'door'",
+          ".write": "auth != null && root.child('users').child(auth.uid).child('active').val() === true && root.child('users').child(auth.uid).child('role').val() === 'door' && root.child('users').child(auth.uid).child('eventIds').child(root.child('sales').child($saleId).child('eventId').val()).val() === true",
           ".validate": "newData.isBoolean()"
         }
       }
