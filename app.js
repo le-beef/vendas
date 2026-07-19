@@ -65,6 +65,7 @@ function render() {
   if (selectedTicketTypeFilter !== "all" && !availableTicketTypes.some((type) => type.id === selectedTicketTypeFilter)) selectedTicketTypeFilter = "all";
   const selectedTypeName = availableTicketTypes.find((type) => type.id === selectedTicketTypeFilter)?.name;
   const visibleSales = selectedTicketTypeFilter === "all" ? selectedSales : selectedSales.filter((sale) => sale.ticketTypeId === selectedTicketTypeFilter || sale.ticketTypeName === selectedTypeName);
+  const visibleSold = visibleSales.reduce((sum, sale) => sum + Number(sale.quantity || 0), 0);
   const sold = selectedSales.reduce((sum, sale) => sum + Number(sale.quantity || 0), 0);
   const revenue = selectedSales.filter((sale) => sale.paid).reduce((sum, sale) => sum + Number(sale.total || 0), 0);
   const checkins = selectedSales.filter((sale) => sale.checkedIn).reduce((sum, sale) => sum + Number(sale.quantity || 0), 0);
@@ -72,6 +73,7 @@ function render() {
   $("ticketTypeFilter").innerHTML = `<option value="all">Todos</option>${availableTicketTypes.map((type) => `<option value="${type.id}">${escapeHtml(type.name)}</option>`).join("")}`;
   $("ticketTypeFilter").value = selectedTicketTypeFilter;
   $("filterLabel").textContent = selectedTicketTypeFilter === "all" ? "Todos" : availableTicketTypes.find((type) => type.id === selectedTicketTypeFilter)?.name || "Todos";
+  $("filterCount").textContent = `${visibleSold} ${visibleSold === 1 ? "ingresso vendido" : "ingressos vendidos"}`;
   $("revenue").textContent = money.format(revenue); $("sold").textContent = sold; $("capacity").textContent = Number(selectedEvent?.capacity || 0); $("checkins").textContent = checkins;
   if (selectedEvent) { $("selectedEventName").textContent = selectedEvent.name; $("selectedEventMeta").textContent = `${selectedEvent.place} · ${dateText(selectedEvent.date)} · ${priceLabel(selectedEvent)}`; $("salesPanelTitle").textContent = `Vendas de ${selectedEvent.name}`; $("allSalesTitle").textContent = `Participantes — ${selectedEvent.name}`; }
   $("eventsList").innerHTML = events.length ? events.map((event) => {
