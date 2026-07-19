@@ -4,8 +4,8 @@ import { getDatabase, ref, push, set, update, onValue } from "https://www.gstati
 import { firebaseConfig } from "./firebase-config.js";
 
 const demoEvents = [
-  { id: "demo-1", name: "Festival de Inverno", date: "2026-08-02", place: "Espaço Aurora", capacity: 300, ticketTypes: [{ id: "inteira", name: "Inteira", price: 85 }, { id: "meia", name: "Meia-entrada", price: 42.5 }] },
-  { id: "demo-2", name: "Noite de Comédia", date: "2026-08-18", place: "Teatro Central", capacity: 180, ticketTypes: [{ id: "padrão", name: "Ingresso padrão", price: 45 }] }
+  { id: "demo-1", name: "Festival de Inverno", date: "2026-08-02", place: "Espaço Aurora", capacity: 300, ticketTypes: [{ id: "inteira", name: "Inteira", price: 85, capacity: 200 }, { id: "meia", name: "Meia-entrada", price: 42.5, capacity: 100 }] },
+  { id: "demo-2", name: "Noite de Comédia", date: "2026-08-18", place: "Teatro Central", capacity: 180, ticketTypes: [{ id: "padrão", name: "Ingresso padrão", price: 45, capacity: 180 }] }
 ];
 const demoSales = [
   { id: "demo-sale", eventId: "demo-1", ticketTypeId: "inteira", ticketTypeName: "Inteira", buyerName: "Marina Alves", buyerPhone: "(11) 98888-1234", buyerEmail: "", notes: "Retirada no local", paid: true, quantity: 2, total: 170, checkedIn: true, createdAt: Date.now() }
@@ -43,7 +43,19 @@ async function start() {
 }
 
 function objectToArray(value) { return Object.entries(value || {}).map(([id, item]) => ({ id, ...item })); }
-function ticketTypesFor(event) { return event?.ticketTypes?.length ? event.ticketTypes : [{ id: "padrão", name: "Ingresso padrão", price: Number(event?.price || 0) }]; }
+function ticketTypesFor(event) {
+  const original = event?.ticketTypes?.length ? event.ticketTypes : [{ id: "padrão", name: "Ingresso padrão", price: Number(event?.price || 0) }];
+  const hasPerTypeCapacity = original.every((item) => item.capacity !== undefined && item.capacity !== null && item.capacity !== "");
+  if (hasPerTypeCapacity) return original.map((item) => ({ ...item, price: Number(item.price || 0), capacity: Math.max(0, Number(item.capacity || 0)) }));
+  const previousTotal = Math.max(0, Number(event?.capacity || 0));
+  const base = Math.floor(previousTotal / original.length);
+  const remainder = previousTotal % original.length;
+  return original.map((item, index) => ({ ...item, price: Number(item.price || 0), capacity: base + (index < remainder ? 1 : 0) }));
+}
+function eventCapacity(event) { return ticketTypesFor(event).reduce((sum, item) => sum + Number(item.capacity || 0), 0); }
+function soldForTicket(eventId, ticketType, excludedSaleId = "") {
+  return state.sales.filter((sale) => sale.eventId === eventId && sale.id !== excludedSaleId && (sale.ticketTypeId === ticketType.id || (!sale.ticketTypeId && sale.ticketTypeName === ticketType.name))).reduce((sum, sale) => sum + Number(sale.quantity || 0), 0);
+}
 function priceLabel(event) { const prices = ticketTypesFor(event).map((item) => Number(item.price)); return prices.length > 1 ? `a partir de ${money.format(Math.min(...prices))}` : money.format(prices[0]); }
 function persistDemo() { localStorage.setItem("ingressa-events", JSON.stringify(state.events)); localStorage.setItem("ingressa-sales", JSON.stringify(state.sales)); }
 function dateText(value) { return new Date(`${value}T12:00:00`).toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" }); }
@@ -64,10 +76,15 @@ function participantContactHtml(sale, eventName) {
   if (!sale.buyerPhone) return "";
   return `<span class="participant-contact"><span>${escapeHtml(sale.buyerPhone)}</span>${whatsappButtonHtml(sale, eventName)}</span>`;
 }
-function addTicketTypeRow(name = "", price = "", id = "") { const row = document.createElement("div"); row.className = "ticket-type-row"; row.dataset.ticketId = id; row.innerHTML = `<input class="ticket-name" required placeholder="Ex.: Meia-entrada" value="${escapeHtml(name)}" /><input class="ticket-price" type="number" min="0" step="0.01" required placeholder="Valor" value="${price}" /><button class="close" type="button" data-remove-ticket aria-label="Remover tipo">×</button>`; $("ticketTypesList").append(row); }
-function resetTicketTypes() { $("ticketTypesList").innerHTML = ""; addTicketTypeRow("Ingresso padrão", ""); }
-function getTicketTypes() { return [...document.querySelectorAll(".ticket-type-row")].map((row, index) => ({ id: row.dataset.ticketId || `tipo-${Date.now()}-${index}`, name: row.querySelector(".ticket-name").value.trim(), price: Number(row.querySelector(".ticket-price").value) })).filter((item) => item.name && Number.isFinite(item.price)); }
-function populateTicketTypes(eventId) { const event = state.events.find((item) => item.id === eventId); const select = $("saleTicketType"); select.innerHTML = event ? `<option value="">Selecione o tipo</option>${ticketTypesFor(event).map((item) => `<option value="${item.id}">${escapeHtml(item.name)} — ${money.format(item.price)}</option>`).join("")}` : `<option value="">Selecione primeiro o evento</option>`; }
+function addTicketTypeRow(name = "", price = "", capacity = "", id = "") { const row = document.createElement("div"); row.className = "ticket-type-row"; row.dataset.ticketId = id; row.innerHTML = `<input class="ticket-name" required aria-label="Nome do tipo ou lote" placeholder="Ex.: 1º lote" value="${escapeHtml(name)}" /><input class="ticket-price" type="number" min="0" step="0.01" required aria-label="Valor do ingresso" placeholder="Valor" value="${price}" /><input class="ticket-capacity" type="number" min="1" step="1" required aria-label="Quantidade disponível" placeholder="Quantidade" value="${capacity}" /><button class="close" type="button" data-remove-ticket aria-label="Remover tipo">×</button>`; $("ticketTypesList").append(row); }
+function resetTicketTypes() { $("ticketTypesList").innerHTML = ""; addTicketTypeRow("Ingresso padrão", "", ""); }
+function getTicketTypes() { return [...document.querySelectorAll(".ticket-type-row")].map((row, index) => ({ id: row.dataset.ticketId || `tipo-${Date.now()}-${index}`, name: row.querySelector(".ticket-name").value.trim(), price: Number(row.querySelector(".ticket-price").value), capacity: Number(row.querySelector(".ticket-capacity").value) })).filter((item) => item.name && Number.isFinite(item.price) && Number.isInteger(item.capacity) && item.capacity > 0); }
+function populateTicketTypes(eventId) {
+  const event = state.events.find((item) => item.id === eventId);
+  const select = $("saleTicketType");
+  const excludedSaleId = $("saleForm").dataset.editId || "";
+  select.innerHTML = event ? `<option value="">Selecione o tipo</option>${ticketTypesFor(event).map((item) => { const remaining = Math.max(0, Number(item.capacity) - soldForTicket(event.id, item, excludedSaleId)); return `<option value="${item.id}" ${remaining === 0 ? "disabled" : ""}>${escapeHtml(item.name)} — ${money.format(item.price)} — ${remaining} disponíveis</option>`; }).join("")}` : `<option value="">Selecione primeiro o evento</option>`;
+}
 function addSaleEditButtons() { document.querySelectorAll("[data-sale-row]").forEach((row) => { const actions = row.lastElementChild; if (!actions?.querySelector("[data-edit-sale]")) { const button = document.createElement("button"); button.type = "button"; button.className = "edit-button"; button.dataset.editSale = row.dataset.saleRow; button.textContent = "Editar"; actions.prepend(button); } }); }
 
 function render() {
@@ -82,6 +99,7 @@ function render() {
   const selectedTypeName = availableTicketTypes.find((type) => type.id === selectedTicketTypeFilter)?.name;
   const visibleSales = selectedTicketTypeFilter === "all" ? selectedSales : selectedSales.filter((sale) => sale.ticketTypeId === selectedTicketTypeFilter || sale.ticketTypeName === selectedTypeName);
   const visibleSold = visibleSales.reduce((sum, sale) => sum + Number(sale.quantity || 0), 0);
+  const visibleCapacity = selectedTicketTypeFilter === "all" ? eventCapacity(selectedEvent) : Number(availableTicketTypes.find((type) => type.id === selectedTicketTypeFilter)?.capacity || 0);
   const sold = selectedSales.reduce((sum, sale) => sum + Number(sale.quantity || 0), 0);
   const revenue = selectedSales.filter((sale) => sale.paid).reduce((sum, sale) => sum + Number(sale.total || 0), 0);
   const checkins = selectedSales.filter((sale) => sale.checkedIn).reduce((sum, sale) => sum + Number(sale.quantity || 0), 0);
@@ -89,12 +107,12 @@ function render() {
   $("ticketTypeFilter").innerHTML = `<option value="all">Todos</option>${availableTicketTypes.map((type) => `<option value="${type.id}">${escapeHtml(type.name)}</option>`).join("")}`;
   $("ticketTypeFilter").value = selectedTicketTypeFilter;
   $("filterLabel").textContent = selectedTicketTypeFilter === "all" ? "Todos" : availableTicketTypes.find((type) => type.id === selectedTicketTypeFilter)?.name || "Todos";
-  $("filterCount").textContent = `${visibleSold} ${visibleSold === 1 ? "ingresso vendido" : "ingressos vendidos"}`;
-  $("revenue").textContent = money.format(revenue); $("sold").textContent = sold; $("capacity").textContent = Number(selectedEvent?.capacity || 0); $("checkins").textContent = checkins;
+  $("filterCount").textContent = `${visibleSold} de ${visibleCapacity} ${visibleSold === 1 ? "vendido" : "vendidos"}`;
+  $("revenue").textContent = money.format(revenue); $("sold").textContent = sold; $("capacity").textContent = eventCapacity(selectedEvent); $("checkins").textContent = checkins;
   if (selectedEvent) { $("selectedEventName").textContent = selectedEvent.name; $("selectedEventMeta").textContent = `${selectedEvent.place} · ${dateText(selectedEvent.date)} · ${priceLabel(selectedEvent)}`; $("salesPanelTitle").textContent = `Vendas de ${selectedEvent.name}`; $("allSalesTitle").textContent = `Participantes — ${selectedEvent.name}`; }
   $("eventsList").innerHTML = events.length ? events.map((event) => {
     const eventSold = sales.filter((sale) => sale.eventId === event.id).reduce((sum, sale) => sum + Number(sale.quantity), 0);
-    return `<div class="event-card ${event.id === selectedEventId ? "is-selected" : ""}" data-select-event="${event.id}" role="button" tabindex="0" aria-pressed="${event.id === selectedEventId}"><span class="calendar"><b>${new Date(`${event.date}T12:00:00`).getDate()}</b><small>${new Date(`${event.date}T12:00:00`).toLocaleDateString("pt-BR", { month: "short" }).replace(".", "")}</small></span><span class="event-info"><strong>${escapeHtml(event.name)}</strong><small>${escapeHtml(event.place)} · ${priceLabel(event)}</small></span><span class="event-count">${eventSold}/${event.capacity}</span></div>`;
+    return `<div class="event-card ${event.id === selectedEventId ? "is-selected" : ""}" data-select-event="${event.id}" role="button" tabindex="0" aria-pressed="${event.id === selectedEventId}"><span class="calendar"><b>${new Date(`${event.date}T12:00:00`).getDate()}</b><small>${new Date(`${event.date}T12:00:00`).toLocaleDateString("pt-BR", { month: "short" }).replace(".", "")}</small></span><span class="event-info"><strong>${escapeHtml(event.name)}</strong><small>${escapeHtml(event.place)} · ${priceLabel(event)}</small></span><span class="event-count">${eventSold}/${eventCapacity(event)}</span></div>`;
   }).join("") : `<div class="empty">Nenhum evento cadastrado ainda.</div>`;
   $("salesList").innerHTML = visibleSales.length ? visibleSales.slice(0, 7).map((sale) => `<tr class="sales-row" data-sale-row="${sale.id}"><td><strong>${escapeHtml(sale.buyerName)}</strong><small>${sale.quantity} ingresso${sale.quantity > 1 ? "s" : ""}</small>${participantContactHtml(sale, selectedEvent?.name)}</td><td>${escapeHtml(sale.ticketTypeName || "Ingresso padrão")}</td><td class="sale-observation">${escapeHtml(sale.notes || "Sem observação")}</td><td>${money.format(sale.total)}</td><td><button class="payment ${sale.paid ? "paid" : ""}" data-paid="${sale.id}">${sale.paid ? "✓ Pago" : "Pendente"}</button></td><td><button class="status ${sale.checkedIn ? "checked" : ""}" data-checkin="${sale.id}">${sale.checkedIn ? "✓ Check-in" : "Fazer check-in"}</button></td><td><button class="delete-button" data-delete-sale="${sale.id}">Excluir</button></td></tr>`).join("") : `<tr><td colspan="7" class="empty">${selectedTicketTypeFilter === "all" ? "Nenhuma venda neste evento." : "Nenhum participante com este tipo de ingresso."}</td></tr>`;
   $("allSalesList").innerHTML = visibleSales.length ? visibleSales.map((sale) => `<tr class="sales-row" data-sale-row="${sale.id}"><td><strong>${escapeHtml(sale.buyerName)}</strong><small>${sale.quantity} ingresso${sale.quantity > 1 ? "s" : ""}</small></td><td>${escapeHtml(sale.ticketTypeName || "Ingresso padrão")}</td><td class="sale-note"><span class="phone-line"><strong>${escapeHtml(sale.buyerPhone || "Não informado")}</strong>${whatsappButtonHtml(sale, selectedEvent?.name)}</span>${sale.notes ? `<small>${escapeHtml(sale.notes)}</small>` : ""}</td><td>${escapeHtml(selectedEvent?.name || "Evento removido")}</td><td>${money.format(sale.total)}</td><td><button class="payment ${sale.paid ? "paid" : ""}" data-paid="${sale.id}">${sale.paid ? "✓ Pago" : "Pendente"}</button></td><td><button class="status ${sale.checkedIn ? "checked" : ""}" data-checkin="${sale.id}">${sale.checkedIn ? "✓ Check-in" : "Fazer check-in"}</button></td><td><button class="delete-button" data-delete-sale="${sale.id}">Excluir</button></td></tr>`).join("") : `<tr><td colspan="8" class="empty">${selectedTicketTypeFilter === "all" ? "Nenhum participante neste evento." : "Nenhum participante com este tipo de ingresso."}</td></tr>`;
@@ -103,16 +121,29 @@ function render() {
 }
 
 async function saveEvent(data, id = "") {
-  const eventData = { name: data.name.trim(), date: data.date, place: data.place.trim(), capacity: Number(data.capacity), ticketTypes: data.ticketTypes, updatedAt: Date.now() };
+  const eventSales = state.sales.filter((sale) => sale.eventId === id);
+  if (id) {
+    const keptIds = new Set(data.ticketTypes.map((item) => item.id));
+    const removedWithSales = eventSales.find((sale) => sale.ticketTypeId && !keptIds.has(sale.ticketTypeId));
+    if (removedWithSales) throw new Error(`Não é possível remover o tipo “${removedWithSales.ticketTypeName}” porque ele já possui vendas.`);
+    for (const type of data.ticketTypes) {
+      const alreadySold = soldForTicket(id, type);
+      if (alreadySold > type.capacity) throw new Error(`O tipo “${type.name}” já possui ${alreadySold} vendidos. Informe uma quantidade igual ou maior.`);
+    }
+  }
+  const capacity = data.ticketTypes.reduce((sum, item) => sum + Number(item.capacity), 0);
+  const eventData = { name: data.name.trim(), date: data.date, place: data.place.trim(), capacity, ticketTypes: data.ticketTypes, updatedAt: Date.now() };
   if (isDemo) { if (id) state.events = state.events.map((item) => item.id === id ? { ...item, ...eventData } : item); else { selectedEventId = crypto.randomUUID(); state.events.push({ id: selectedEventId, ...eventData, createdAt: Date.now() }); } persistDemo(); render(); }
   else if (id) await update(ref(db, `events/${id}`), eventData); else { const eventRef = push(ref(db, "events")); selectedEventId = eventRef.key; await set(eventRef, { ...eventData, createdAt: Date.now() }); }
   toast(id ? "Evento atualizado." : "Evento criado com sucesso.");
 }
 async function saveSale(data, id = "") {
   const event = state.events.find((item) => item.id === data.eventId); if (!event) throw new Error("Selecione um evento.");
-  const soldForEvent = state.sales.filter((sale) => sale.eventId === event.id && sale.id !== id).reduce((sum, sale) => sum + Number(sale.quantity), 0);
   const ticketType = ticketTypesFor(event).find((item) => item.id === data.ticketTypeId); if (!ticketType) throw new Error("Selecione o tipo de ingresso.");
-  const quantity = Number(data.quantity); if (soldForEvent + quantity > event.capacity) throw new Error("A quantidade ultrapassa a capacidade disponível.");
+  const quantity = Number(data.quantity); if (!Number.isInteger(quantity) || quantity < 1) throw new Error("Informe uma quantidade válida.");
+  const soldForType = soldForTicket(event.id, ticketType, id);
+  const remaining = Math.max(0, Number(ticketType.capacity) - soldForType);
+  if (quantity > remaining) throw new Error(`Restam apenas ${remaining} ingressos do tipo “${ticketType.name}”.`);
   const current = state.sales.find((sale) => sale.id === id);
   const saleData = { eventId: event.id, ticketTypeId: ticketType.id, ticketTypeName: ticketType.name, buyerName: data.buyerName.trim(), buyerPhone: data.buyerPhone.trim(), buyerEmail: data.buyerEmail.trim(), notes: data.notes.trim(), paid: data.paymentStatus === "paid", quantity, total: Number(ticketType.price) * quantity, checkedIn: current?.checkedIn || false, updatedAt: Date.now() };
   if (isDemo) { if (id) state.sales = state.sales.map((item) => item.id === id ? { ...item, ...saleData } : item); else state.sales.push({ id: crypto.randomUUID(), ...saleData, createdAt: Date.now() }); persistDemo(); render(); }
@@ -126,7 +157,7 @@ async function deleteEvent(id) { const event = state.events.find((item) => item.
 function toast(message) { const el = $("toast"); el.textContent = message; el.classList.add("visible"); setTimeout(() => el.classList.remove("visible"), 3200); }
 
 function openNewEvent() { const form = $("eventForm"); form.reset(); form.dataset.editId = ""; $("eventModalTitle").textContent = "Novo evento"; $("eventSubmitButton").textContent = "Criar evento"; resetTicketTypes(); $("eventModal").showModal(); }
-function openEditEvent(id) { const item = state.events.find((event) => event.id === id); if (!item) return; const form = $("eventForm"); form.dataset.editId = id; form.elements.name.value = item.name || ""; form.elements.date.value = item.date || ""; form.elements.place.value = item.place || ""; form.elements.capacity.value = item.capacity || ""; $("ticketTypesList").innerHTML = ""; ticketTypesFor(item).forEach((type) => addTicketTypeRow(type.name, type.price, type.id)); $("eventModalTitle").textContent = "Editar evento"; $("eventSubmitButton").textContent = "Salvar alterações"; $("eventModal").showModal(); }
+function openEditEvent(id) { const item = state.events.find((event) => event.id === id); if (!item) return; const form = $("eventForm"); form.dataset.editId = id; form.elements.name.value = item.name || ""; form.elements.date.value = item.date || ""; form.elements.place.value = item.place || ""; $("ticketTypesList").innerHTML = ""; ticketTypesFor(item).forEach((type) => addTicketTypeRow(type.name, type.price, type.capacity, type.id)); $("eventModalTitle").textContent = "Editar evento"; $("eventSubmitButton").textContent = "Salvar alterações"; $("eventModal").showModal(); }
 function openNewSale(eventId = "") { if (!state.events.length) return toast("Cadastre um evento antes de registrar uma venda."); const form = $("saleForm"); form.reset(); form.dataset.editId = ""; $("saleModalTitle").textContent = "Registrar ingresso"; $("saleSubmitButton").textContent = "Confirmar venda"; $("saleEvent").value = eventId; populateTicketTypes(eventId); $("saleModal").showModal(); }
 function openEditSale(id) { const sale = state.sales.find((item) => item.id === id); if (!sale) return; if ($("allSalesModal").open) $("allSalesModal").close(); const form = $("saleForm"); form.reset(); form.dataset.editId = id; $("saleEvent").value = sale.eventId; populateTicketTypes(sale.eventId); form.elements.ticketTypeId.value = sale.ticketTypeId || ""; form.elements.buyerName.value = sale.buyerName || ""; form.elements.buyerPhone.value = sale.buyerPhone || ""; form.elements.buyerEmail.value = sale.buyerEmail || ""; form.elements.quantity.value = sale.quantity || 1; form.elements.paymentStatus.value = sale.paid ? "paid" : "pending"; form.elements.notes.value = sale.notes || ""; $("saleModalTitle").textContent = "Editar participante"; $("saleSubmitButton").textContent = "Salvar alterações"; $("saleModal").showModal(); }
 
@@ -136,8 +167,8 @@ $("addTicketType").addEventListener("click", () => addTicketTypeRow());
 $("saleEvent").addEventListener("change", () => populateTicketTypes($("saleEvent").value));
 $("ticketTypeFilter").addEventListener("change", (event) => { selectedTicketTypeFilter = event.currentTarget.value; document.querySelector(".ticket-filter").open = false; render(); });
 $("eventsList").addEventListener("click", (event) => { if (event.target.closest("[data-select-event]")) selectedTicketTypeFilter = "all"; });
-$("eventForm").addEventListener("submit", async (event) => { event.preventDefault(); try { const data = Object.fromEntries(new FormData(event.currentTarget)); data.ticketTypes = getTicketTypes(); if (!data.ticketTypes.length) throw new Error("Informe ao menos um tipo de ingresso com valor."); await saveEvent(data, event.currentTarget.dataset.editId); event.currentTarget.reset(); resetTicketTypes(); $("eventModal").close(); } catch (error) { toast(error.message); } });
-$("saleForm").addEventListener("submit", async (event) => { event.preventDefault(); try { await saveSale(Object.fromEntries(new FormData(event.currentTarget)), event.currentTarget.dataset.editId); event.currentTarget.reset(); $("saleModal").close(); } catch (error) { toast(error.message); } });
+$("eventForm").addEventListener("submit", async (event) => { event.preventDefault(); const form = event.currentTarget; try { const data = Object.fromEntries(new FormData(form)); data.ticketTypes = getTicketTypes(); if (!data.ticketTypes.length) throw new Error("Informe ao menos um tipo ou lote com valor e quantidade."); await saveEvent(data, form.dataset.editId); form.reset(); resetTicketTypes(); $("eventModal").close(); } catch (error) { toast(error.message); } });
+$("saleForm").addEventListener("submit", async (event) => { event.preventDefault(); const form = event.currentTarget; try { await saveSale(Object.fromEntries(new FormData(form)), form.dataset.editId); form.reset(); $("saleModal").close(); } catch (error) { toast(error.message); } });
 document.addEventListener("click", (event) => { if (event.target.closest("[data-whatsapp]")) return; const removeTicket = event.target.closest("[data-remove-ticket]"); if (removeTicket) { if (document.querySelectorAll(".ticket-type-row").length === 1) return toast("O evento precisa de pelo menos um tipo de ingresso."); removeTicket.closest(".ticket-type-row").remove(); return; } const selectedAction = event.target.closest("[data-selected-action]"); if (selectedAction) { const action = selectedAction.dataset.selectedAction; if (action === "sale") openNewSale(selectedEventId); if (action === "edit") openEditEvent(selectedEventId); if (action === "export") window.exportSalesXlsx(state.sales, state.events, selectedEventId); if (action === "delete") deleteEvent(selectedEventId); return; } const selectEvent = event.target.closest("[data-select-event]"); if (selectEvent) { selectedEventId = selectEvent.dataset.selectEvent; render(); return; } const editSaleButton = event.target.closest("[data-edit-sale]"); if (editSaleButton) { openEditSale(editSaleButton.dataset.editSale); return; } const deleteSaleButton = event.target.closest("[data-delete-sale]"); if (deleteSaleButton) { deleteSale(deleteSaleButton.dataset.deleteSale); return; } const checkin = event.target.closest("[data-checkin]"); if (checkin) { toggleCheckin(checkin.dataset.checkin); return; } const paid = event.target.closest("[data-paid]"); if (paid) { togglePayment(paid.dataset.paid); return; } const saleRow = event.target.closest("[data-sale-row]"); if (saleRow) { openEditSale(saleRow.dataset.saleRow); return; } });
 document.addEventListener("keydown", (event) => { const card = event.target.closest?.("[data-select-event]"); if (card && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); selectedEventId = card.dataset.selectEvent; selectedTicketTypeFilter = "all"; render(); } });
 if (localStorage.getItem(ACCESS_KEY) === "granted") start();

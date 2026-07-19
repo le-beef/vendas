@@ -73,7 +73,7 @@
 
         <section class="metrics" aria-label="Resumo do evento selecionado">
           <article><span>Faturamento</span><strong id="revenue">R$ 0,00</strong><small>pagamentos confirmados</small></article>
-          <article><span>Ingressos vendidos</span><strong id="sold">0</strong><small>de <b id="capacity">0</b> disponíveis</small></article>
+          <article><span>Ingressos vendidos</span><strong id="sold">0</strong><small>de <b id="capacity">0</b> no total</small></article>
           <article><span>Check-ins</span><strong id="checkins">0</strong><small>participantes presentes</small></article>
         </section>
 
@@ -91,8 +91,7 @@
         <div class="modal-heading"><div><p class="eyebrow">CADASTRO</p><h2 id="eventModalTitle">Novo evento</h2></div><button class="close" type="button" data-close="eventModal" aria-label="Fechar">×</button></div>
         <label>Nome do evento<input name="name" required placeholder="Ex.: Festival de Inverno" /></label>
         <div class="two-columns"><label>Data<input name="date" type="date" required /></label><label>Local<input name="place" required placeholder="Ex.: Auditório" /></label></div>
-        <label>Capacidade total<input name="capacity" type="number" min="1" required placeholder="200" /></label>
-        <div class="ticket-types-field"><div class="field-label"><span>Tipos de ingresso e valores</span><button class="text-button" type="button" id="addTicketType">+ Adicionar tipo</button></div><div id="ticketTypesList" class="ticket-types-list"></div></div>
+        <div class="ticket-types-field"><div class="field-label"><span>Tipos/lotes, valores e quantidades</span><button class="text-button" type="button" id="addTicketType">+ Adicionar tipo</button></div><p class="field-help">Cada tipo ou lote terá seu próprio limite de vendas.</p><div id="ticketTypesList" class="ticket-types-list"></div></div>
         <button class="button primary full" id="eventSubmitButton" type="submit">Criar evento</button>
       </form>
     </dialog>

@@ -49,7 +49,7 @@ O painel solicita a senha `838726` uma única vez por navegador e mantém a auto
 O sistema grava duas coleções no Realtime Database:
 
 ```
-events/{eventId}  → nome, data, local, capacidade e tipos de ingresso com preços
+events/{eventId}  → nome, data, local e tipos/lotes com preço e quantidade própria
 sales/{saleId}    → evento, tipo de ingresso, participante, contato, quantidade, total, pagamento e check-in
 ```
 
