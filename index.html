@@ -14,6 +14,7 @@
     <link rel="stylesheet" href="layout.css" />
     <link rel="stylesheet" href="dashboard.css" />
     <link rel="stylesheet" href="mobile-participants.css" />
+    <link rel="stylesheet" href="participant-filter.css" />
   </head>
   <body>
     <dialog id="accessModal" class="access-modal">
@@ -65,8 +66,8 @@
         </section>
 
         <article class="panel sales-panel">
-          <div class="panel-heading"><div><p class="eyebrow">PARTICIPANTES</p><h2 id="salesPanelTitle">Vendas recentes</h2><p>Somente as vendas deste evento, atualizadas em tempo real.</p></div><button class="text-button" data-open="allSalesModal">Ver todas</button></div>
-          <div class="table-wrap"><table><thead><tr><th>Participante</th><th>Tipo</th><th>Valor</th><th>Pagamento</th><th>Entrada</th><th>Ações</th></tr></thead><tbody id="salesList"></tbody></table></div>
+          <div class="panel-heading"><div><p class="eyebrow">PARTICIPANTES</p><h2 id="salesPanelTitle">Vendas recentes</h2><p>Somente as vendas deste evento, atualizadas em tempo real.</p></div><div class="participant-tools"><details class="ticket-filter"><summary aria-label="Filtrar por tipo de ingresso"><span class="filter-glyph" aria-hidden="true"></span><span id="filterLabel">Todos</span></summary><div class="filter-menu"><label>Tipo de ingresso<select id="ticketTypeFilter"><option value="all">Todos</option></select></label></div></details><button class="text-button" data-open="allSalesModal">Ver todas</button></div></div>
+          <div class="table-wrap"><table><thead><tr><th>Participante</th><th>Tipo</th><th>Observação</th><th>Valor</th><th>Pagamento</th><th>Entrada</th><th>Ações</th></tr></thead><tbody id="salesList"></tbody></table></div>
         </article>
       </section>
     </main>

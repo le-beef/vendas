@@ -99,10 +99,11 @@
   .all-sales-modal tr.sales-row td:nth-child(1)::before { content: "Participante"; }
   .sales-panel tr.sales-row td:nth-child(2)::before,
   .all-sales-modal tr.sales-row td:nth-child(2)::before { content: "Tipo de ingresso"; }
-  .sales-panel tr.sales-row td:nth-child(3)::before { content: "Valor"; }
-  .sales-panel tr.sales-row td:nth-child(4)::before { content: "Pagamento"; }
-  .sales-panel tr.sales-row td:nth-child(5)::before { content: "Entrada"; }
-  .sales-panel tr.sales-row td:nth-child(6)::before { content: "Ações"; }
+  .sales-panel tr.sales-row td:nth-child(3)::before { content: "Observação"; }
+  .sales-panel tr.sales-row td:nth-child(4)::before { content: "Valor"; }
+  .sales-panel tr.sales-row td:nth-child(5)::before { content: "Pagamento"; }
+  .sales-panel tr.sales-row td:nth-child(6)::before { content: "Entrada"; }
+  .sales-panel tr.sales-row td:nth-child(7)::before { content: "Ações"; }
 
   .all-sales-modal tr.sales-row td:nth-child(3)::before { content: "Contato / observação"; }
   .all-sales-modal tr.sales-row td:nth-child(4)::before { content: "Evento"; }
