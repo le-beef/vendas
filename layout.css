@@ -1,7 +1,0 @@
-.content-grid {
-  grid-template-columns: 1fr;
-}
-
-.event-dashboard[hidden] {
-  display: none;
-}
