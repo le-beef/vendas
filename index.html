@@ -12,6 +12,7 @@
     <link rel="stylesheet" href="access.css" />
     <link rel="stylesheet" href="sales.css" />
     <link rel="stylesheet" href="layout.css" />
+    <link rel="stylesheet" href="dashboard.css" />
   </head>
   <body>
     <dialog id="accessModal" class="access-modal">
@@ -40,20 +41,31 @@
         <button class="button primary" data-open="eventModal">+ Novo evento</button>
       </section>
 
-      <section class="metrics" aria-label="Resumo de vendas">
-        <article><span>Faturamento</span><strong id="revenue">R$ 0,00</strong><small>vendas confirmadas</small></article>
-        <article><span>Ingressos vendidos</span><strong id="sold">0</strong><small>de <b id="capacity">0</b> disponíveis</small></article>
-        <article><span>Check-ins</span><strong id="checkins">0</strong><small>participantes presentes</small></article>
-      </section>
+      <article class="panel events-panel">
+        <div class="panel-heading"><div><p class="eyebrow">MEUS EVENTOS</p><h2>Qual evento você quer acompanhar?</h2><p>Selecione um cartão para abrir o painel exclusivo dele.</p></div><button class="button secondary" data-open="eventModal">+ Adicionar evento</button></div>
+        <div id="eventsList" class="events-list"></div>
+      </article>
 
-      <section class="content-grid">
-        <article class="panel events-panel">
-          <div class="panel-heading"><div><h2>Seus eventos</h2><p>Escolha um evento para registrar uma venda.</p></div><button class="text-button" data-open="eventModal">Adicionar</button></div>
-          <div id="eventsList" class="events-list"></div>
-        </article>
+      <section id="selectedEventArea" class="event-dashboard" hidden>
+        <div class="selected-event-header">
+          <div><p class="eyebrow">EVENTO SELECIONADO</p><h2 id="selectedEventName">Evento</h2><p id="selectedEventMeta"></p></div>
+          <div class="event-actions">
+            <button class="button primary" type="button" data-selected-action="sale">+ Nova venda</button>
+            <button class="button secondary" type="button" data-selected-action="edit">Editar</button>
+            <button class="button secondary" type="button" data-selected-action="export">Excel</button>
+            <button class="button danger" type="button" data-selected-action="delete">Excluir</button>
+          </div>
+        </div>
+
+        <section class="metrics" aria-label="Resumo do evento selecionado">
+          <article><span>Faturamento</span><strong id="revenue">R$ 0,00</strong><small>pagamentos confirmados</small></article>
+          <article><span>Ingressos vendidos</span><strong id="sold">0</strong><small>de <b id="capacity">0</b> disponíveis</small></article>
+          <article><span>Check-ins</span><strong id="checkins">0</strong><small>participantes presentes</small></article>
+        </section>
+
         <article class="panel sales-panel">
-          <div class="panel-heading"><div><h2>Vendas recentes</h2><p>Atualizado em tempo real.</p></div><button class="text-button" data-open="allSalesModal">Ver todas</button></div>
-          <div class="table-wrap"><table><thead><tr><th>Participante</th><th>Evento</th><th>Valor</th><th>Pagamento</th><th>Entrada</th><th>Ações</th></tr></thead><tbody id="salesList"></tbody></table></div>
+          <div class="panel-heading"><div><p class="eyebrow">PARTICIPANTES</p><h2 id="salesPanelTitle">Vendas recentes</h2><p>Somente as vendas deste evento, atualizadas em tempo real.</p></div><button class="text-button" data-open="allSalesModal">Ver todas</button></div>
+          <div class="table-wrap"><table><thead><tr><th>Participante</th><th>Tipo</th><th>Valor</th><th>Pagamento</th><th>Entrada</th><th>Ações</th></tr></thead><tbody id="salesList"></tbody></table></div>
         </article>
       </section>
     </main>
@@ -87,7 +99,7 @@
     </dialog>
 
     <dialog id="allSalesModal" class="all-sales-modal">
-      <div class="modal-heading"><div><p class="eyebrow">HISTÓRICO</p><h2>Todas as vendas</h2><p class="export-hint">Para baixar a planilha, use o botão Excel no evento desejado.</p></div><div class="modal-actions"><button class="close" type="button" data-close="allSalesModal" aria-label="Fechar">×</button></div></div>
+      <div class="modal-heading"><div><p class="eyebrow">HISTÓRICO</p><h2 id="allSalesTitle">Todas as vendas</h2><p class="export-hint">Participantes do evento selecionado.</p></div><div class="modal-actions"><button class="close" type="button" data-close="allSalesModal" aria-label="Fechar">×</button></div></div>
       <div class="table-wrap"><table class="all-sales-table"><thead><tr><th>Participante</th><th>Tipo</th><th>Telefone / observação</th><th>Evento</th><th>Valor</th><th>Pagamento</th><th>Entrada</th><th>Ações</th></tr></thead><tbody id="allSalesList"></tbody></table></div>
     </dialog>
 
