@@ -10,15 +10,8 @@
   white-space: nowrap;
 }
 
-.participant-mobile-actions {
-  display: block;
-  width: 100%;
-}
-
-.mobile-checkin-control,
-.mobile-payment-control {
-  display: none;
-}
+.desktop-participant-content { display: block; }
+.mobile-card-overview { display: none; }
 
 @media (max-width: 700px) {
   .sales-panel .table-wrap,
@@ -37,14 +30,10 @@
   }
 
   .sales-panel thead,
-  .all-sales-modal thead {
-    display: none;
-  }
+  .all-sales-modal thead { display: none; }
 
   .sales-panel tbody,
-  .all-sales-modal tbody {
-    padding: 7px;
-  }
+  .all-sales-modal tbody { padding: 7px; }
 
   .sales-panel tr.sales-row,
   .all-sales-modal tr.sales-row {
@@ -59,6 +48,8 @@
     box-shadow: 0 3px 10px #14213d08;
   }
 
+  .sales-panel tr.sales-row { grid-template-columns: minmax(0, 1fr); }
+
   .sales-panel tr.sales-row:nth-child(even),
   .all-sales-modal tr.sales-row:nth-child(even) {
     border-color: #dbeafe;
@@ -66,14 +57,10 @@
   }
 
   .sales-panel tr.sales-row:last-child,
-  .all-sales-modal tr.sales-row:last-child {
-    margin-bottom: 0;
-  }
+  .all-sales-modal tr.sales-row:last-child { margin-bottom: 0; }
 
   .sales-panel tr.sales-row:hover td,
-  .all-sales-modal tr.sales-row:hover td {
-    background: transparent;
-  }
+  .all-sales-modal tr.sales-row:hover td { background: transparent; }
 
   .sales-panel tr.sales-row td,
   .all-sales-modal tr.sales-row td {
@@ -90,7 +77,8 @@
   }
 
   .sales-panel tr.sales-row td::before,
-  .all-sales-modal tr.sales-row td::before {
+  .all-sales-modal tr.sales-row td::before,
+  .mobile-field-label {
     color: #8490a5;
     font-size: 8px;
     font-weight: 700;
@@ -101,7 +89,7 @@
   .sales-panel tr.sales-row td:first-child,
   .all-sales-modal tr.sales-row td:first-child {
     grid-column: 1 / -1;
-    padding-bottom: 8px;
+    padding-bottom: 9px;
     border-bottom: 1px solid #edf0f5;
   }
 
@@ -112,49 +100,125 @@
     line-height: 1.2;
   }
 
-  .sales-panel tr.sales-row td:nth-child(1)::before,
+  .sales-panel tr.sales-row td:nth-child(1)::before { display: none; }
   .all-sales-modal tr.sales-row td:nth-child(1)::before { content: "Participante"; }
   .sales-panel tr.sales-row td:nth-child(2)::before,
   .all-sales-modal tr.sales-row td:nth-child(2)::before { content: "Tipo de ingresso"; }
   .sales-panel tr.sales-row td:nth-child(3)::before { content: "Observação"; }
-  .sales-panel tr.sales-row td:nth-child(4)::before { content: "Valor"; }
-  .sales-panel tr.sales-row td:nth-child(5)::before { content: "Pagamento"; }
-  .sales-panel tr.sales-row td:nth-child(6)::before { content: "Entrada"; }
-  .sales-panel tr.sales-row td:nth-child(7)::before { content: "Ações"; }
-
-  .sales-panel tr.sales-row td:nth-child(2) {
-    grid-column: 1;
-    grid-row: 2;
-  }
-
-  .sales-panel tr.sales-row td:nth-child(4) {
-    grid-column: 2;
-    grid-row: 2;
-  }
-
-  .sales-panel tr.sales-row td:nth-child(3) {
-    grid-column: 1 / -1;
-    grid-row: 3;
-    padding-top: 7px;
-    border-top: 1px solid #edf0f5;
-  }
-
-  .sales-panel tr.sales-row td.mobile-original-payment,
-  .sales-panel tr.sales-row td.mobile-original-entry {
-    display: none;
-  }
-
   .all-sales-modal tr.sales-row td:nth-child(3)::before { content: "Contato / observação"; }
   .all-sales-modal tr.sales-row td:nth-child(4)::before { content: "Evento"; }
   .all-sales-modal tr.sales-row td:nth-child(5)::before { content: "Valor"; }
   .all-sales-modal tr.sales-row td:nth-child(6)::before { content: "Pagamento"; }
   .all-sales-modal tr.sales-row td:nth-child(7)::before { content: "Entrada"; }
+  .sales-panel tr.sales-row td:nth-child(7)::before,
   .all-sales-modal tr.sales-row td:nth-child(8)::before { content: "Ações"; }
 
-  .all-sales-modal tr.sales-row td:nth-child(3),
-  .all-sales-modal tr.sales-row td:nth-child(4) {
-    grid-column: 1 / -1;
+  .sales-panel .desktop-participant-content { display: none; }
+
+  .sales-panel .mobile-card-overview {
+    display: grid;
+    width: 100%;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    grid-template-areas:
+      "participant participant value"
+      "contact payment entry";
+    align-items: end;
+    gap: 8px 7px;
   }
+
+  .mobile-overview-participant { grid-area: participant; min-width: 0; }
+  .mobile-overview-value { grid-area: value; }
+  .mobile-overview-contact { grid-area: contact; }
+  .mobile-overview-payment { grid-area: payment; }
+  .mobile-overview-entry { grid-area: entry; }
+
+  .mobile-overview-participant,
+  .mobile-overview-value,
+  .mobile-overview-payment,
+  .mobile-overview-entry {
+    display: grid;
+    gap: 3px;
+    align-content: end;
+  }
+
+  .mobile-overview-participant strong,
+  .mobile-overview-participant small,
+  .mobile-overview-value strong { display: block; }
+
+  .mobile-overview-participant > small:last-child {
+    margin-top: 2px;
+    color: #667085;
+    font-size: 11px;
+  }
+
+  .mobile-overview-value strong {
+    font-size: 14px !important;
+    white-space: nowrap;
+  }
+
+  .mobile-overview-contact {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: 5px;
+  }
+
+  .mobile-overview-contact > span:first-child {
+    overflow: hidden;
+    color: #667085;
+    font-size: 10px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .sales-panel .mobile-overview-contact .whatsapp-button {
+    width: 32px;
+    min-width: 32px;
+    min-height: 32px;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: #00c853;
+    color: #fff;
+    font-size: 0;
+  }
+
+  .sales-panel .mobile-overview-contact .whatsapp-button::before {
+    content: "☎";
+    color: #fff;
+    font-size: 18px;
+    line-height: 1;
+  }
+
+  .sales-panel .mobile-overview-contact .whatsapp-button > span { display: none; }
+
+  .mobile-overview-payment .payment,
+  .mobile-overview-entry .status {
+    width: fit-content;
+    min-height: 30px;
+    padding: 6px 8px;
+    font-size: 10px;
+  }
+
+  .role-door .mobile-financial { display: none !important; }
+
+  .sales-panel tr.sales-row td.mobile-detail-original { display: none; }
+
+  .sales-panel tr.sales-row td:nth-child(2) {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    padding: 8px 0 10px;
+    border-bottom: 1px solid #edf0f5;
+  }
+
+  .sales-panel tr.sales-row td:nth-child(3) {
+    grid-column: 1 / -1;
+    grid-row: 3;
+    padding: 8px 0 9px;
+  }
+
+  .all-sales-modal tr.sales-row td:nth-child(3),
+  .all-sales-modal tr.sales-row td:nth-child(4) { grid-column: 1 / -1; }
 
   .sales-panel tr.sales-row td:last-child,
   .all-sales-modal tr.sales-row td:last-child {
@@ -166,14 +230,10 @@
     border-top: 1px solid #edf0f5;
   }
 
-  .sales-panel tr.sales-row td:last-child {
-    grid-row: 4;
-  }
+  .sales-panel tr.sales-row td:last-child { grid-row: 4; }
 
   .sales-panel tr.sales-row td:last-child::before,
-  .all-sales-modal tr.sales-row td:last-child::before {
-    grid-column: 1 / -1;
-  }
+  .all-sales-modal tr.sales-row td:last-child::before { grid-column: 1 / -1; }
 
   .sales-panel .payment,
   .sales-panel .status,
@@ -214,52 +274,26 @@
     padding: 28px 14px;
   }
 
-  .sales-panel .participant-contact,
-  .all-sales-modal .phone-line {
-    margin-top: 2px;
-    gap: 7px;
-  }
-
-  .sales-panel .participant-mobile-actions {
-    display: flex;
-    width: 100%;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 7px;
-    margin-top: 2px;
-  }
-
-  .sales-panel .participant-mobile-actions .participant-contact {
-    width: auto;
-    flex: 0 1 auto;
-    margin-top: 0;
-  }
-
-  .sales-panel .mobile-checkin-control {
-    display: block;
-  }
-
-  .sales-panel .mobile-payment-control {
-    display: grid;
-    gap: 3px;
-    margin-top: 5px;
-  }
-
-  .sales-panel .mobile-payment-control > small {
-    margin: 0;
-    color: #8490a5;
-    font-size: 8px;
-    font-weight: 700;
-    letter-spacing: .65px;
-    text-transform: uppercase;
-  }
-
-  .sales-panel .mobile-payment-control .payment {
-    width: fit-content;
-  }
+  .all-sales-modal .phone-line { margin-top: 2px; gap: 7px; }
 
   .sales-panel tr.sales-row td > small,
-  .all-sales-modal tr.sales-row td > small {
-    margin-top: 1px;
+  .all-sales-modal tr.sales-row td > small { margin-top: 1px; }
+}
+
+@media (max-width: 360px) {
+  .sales-panel tr.sales-row { padding: 11px 10px; }
+  .sales-panel .mobile-card-overview { column-gap: 4px; }
+  .mobile-overview-contact > span:first-child { font-size: 9px; }
+
+  .sales-panel .mobile-overview-contact .whatsapp-button {
+    width: 30px;
+    min-width: 30px;
+    min-height: 30px;
+  }
+
+  .mobile-overview-payment .payment,
+  .mobile-overview-entry .status {
+    padding: 5px 6px;
+    font-size: 9px;
   }
 }
