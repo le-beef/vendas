@@ -14,6 +14,7 @@ let state = { events: [], sales: [] };
 let selectedEventId = localStorage.getItem("ingressa-selected-event") || "";
 let selectedTicketTypeFilter = "all";
 let selectedPaymentFilter = "all";
+let selectedEntryFilter = "all";
 let participantSearchQuery = "";
 let db;
 let isDemo = !firebaseConfig.apiKey || !firebaseConfig.databaseURL || location.protocol === "file:";
@@ -74,6 +75,7 @@ function matchesParticipantSearch(sale) {
 function resetParticipantFilters() {
   selectedTicketTypeFilter = "all";
   selectedPaymentFilter = "all";
+  selectedEntryFilter = "all";
   participantSearchQuery = "";
 }
 function whatsappNumber(phone) {
@@ -139,7 +141,8 @@ function render() {
   const visibleSales = selectedSales.filter((sale) => {
     const matchesTicketType = selectedTicketTypeFilter === "all" || sale.ticketTypeId === selectedTicketTypeFilter || sale.ticketTypeName === selectedTypeName;
     const matchesPayment = selectedPaymentFilter === "all" || (selectedPaymentFilter === "paid" ? sale.paid : !sale.paid);
-    return matchesTicketType && matchesPayment && matchesParticipantSearch(sale);
+    const matchesEntry = selectedEntryFilter === "all" || (selectedEntryFilter === "checked" ? sale.checkedIn : !sale.checkedIn);
+    return matchesTicketType && matchesPayment && matchesEntry && matchesParticipantSearch(sale);
   });
   const visibleSold = visibleSales.reduce((sum, sale) => sum + Number(sale.quantity || 0), 0);
   const visibleSalesTotal = visibleSales.reduce((sum, sale) => sum + Number(sale.total || 0), 0);
@@ -153,11 +156,15 @@ function render() {
   $("ticketTypeFilter").innerHTML = `<option value="all">Todos</option>${availableTicketTypes.map((type) => `<option value="${type.id}">${escapeHtml(type.name)}</option>`).join("")}`;
   $("ticketTypeFilter").value = selectedTicketTypeFilter;
   $("paymentStatusFilter").value = selectedPaymentFilter;
+  $("entryStatusFilter").value = selectedEntryFilter;
   $("participantSearch").value = participantSearchQuery;
-  const activeFilterCount = Number(selectedTicketTypeFilter !== "all") + Number(selectedPaymentFilter !== "all");
-  $("filterLabel").textContent = activeFilterCount > 1 ? `${activeFilterCount} filtros` : selectedPaymentFilter === "paid" ? "Pago" : selectedPaymentFilter === "pending" ? "Pendente" : selectedTicketTypeFilter === "all" ? "Todos" : selectedTypeName || "Todos";
-  $("clearParticipantFilters").hidden = !participantSearchQuery && activeFilterCount === 0;
-  document.querySelectorAll("[data-clear-participant-filters]").forEach((button) => { button.disabled = !participantSearchQuery && activeFilterCount === 0; });
+  const activeFilterCount = Number(selectedTicketTypeFilter !== "all") + Number(selectedPaymentFilter !== "all") + Number(selectedEntryFilter !== "all");
+  const singleFilterLabel = selectedPaymentFilter === "paid" ? "Pago" : selectedPaymentFilter === "pending" ? "Pendente" : selectedEntryFilter === "checked" ? "Entrada feita" : selectedEntryFilter === "waiting" ? "Aguardando" : selectedTicketTypeFilter === "all" ? "Todos" : selectedTypeName || "Todos";
+  $("filterLabel").textContent = activeFilterCount > 1 ? `${activeFilterCount} filtros` : singleFilterLabel;
+  const hasActiveParticipantFilters = Boolean(participantSearchQuery) || activeFilterCount > 0;
+  $("clearParticipantFilters").hidden = !hasActiveParticipantFilters;
+  $("clearParticipantFilters").disabled = !hasActiveParticipantFilters;
+  $("clearParticipantFiltersMenu").disabled = false;
   $("filterCount").textContent = `${visibleSold} ${visibleSold === 1 ? "vendido" : "vendidos"} • ${visibleCapacity} ${visibleCapacity === 1 ? "disponível" : "disponíveis"}`;
   $("allSalesTotalLabel").textContent = participantSearchQuery || activeFilterCount ? "Total vendido — resultados filtrados" : "Total vendido — Todos";
   $("allSalesTotal").textContent = money.format(visibleSalesTotal);
@@ -218,8 +225,7 @@ document.querySelectorAll("[data-open]").forEach((button) => button.addEventList
 document.querySelectorAll("[data-close]").forEach((button) => button.addEventListener("click", () => $(button.dataset.close).close()));
 $("addTicketType").addEventListener("click", () => addTicketTypeRow());
 $("saleEvent").addEventListener("change", () => populateTicketTypes($("saleEvent").value));
-$("ticketTypeFilter").addEventListener("change", (event) => { selectedTicketTypeFilter = event.currentTarget.value; document.querySelector(".ticket-filter").open = false; render(); });
-$("paymentStatusFilter").addEventListener("change", (event) => { selectedPaymentFilter = event.currentTarget.value; document.querySelector(".ticket-filter").open = false; render(); });
+$("applyParticipantFilters").addEventListener("click", () => { selectedTicketTypeFilter = $("ticketTypeFilter").value; selectedPaymentFilter = $("paymentStatusFilter").value; selectedEntryFilter = $("entryStatusFilter").value; document.querySelector(".ticket-filter").open = false; render(); });
 $("participantSearch").addEventListener("input", (event) => { participantSearchQuery = event.currentTarget.value; render(); });
 $("participantSearch").addEventListener("keydown", (event) => { if (event.key === "Escape") { participantSearchQuery = ""; render(); event.currentTarget.focus(); } });
 document.querySelectorAll("[data-clear-participant-filters]").forEach((button) => button.addEventListener("click", () => { resetParticipantFilters(); document.querySelector(".ticket-filter").open = false; render(); $("participantSearch").focus(); }));

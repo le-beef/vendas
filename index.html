@@ -19,7 +19,7 @@
     <link rel="stylesheet" href="layout.css" />
     <link rel="stylesheet" href="dashboard.css" />
     <link rel="stylesheet" href="mobile-participants.css" />
-    <link rel="stylesheet" href="participant-filter.css?v=14" />
+    <link rel="stylesheet" href="participant-filter.css?v=15" />
     <link rel="stylesheet" href="filter-counter.css?v=9" />
     <link rel="stylesheet" href="branding.css?v=10" />
     <link rel="stylesheet" href="whatsapp.css?v=8" />
@@ -105,14 +105,14 @@
         </section>
 
         <article class="panel sales-panel">
-          <div class="panel-heading"><div><p class="eyebrow">PARTICIPANTES</p><h2 id="salesPanelTitle">Vendas recentes</h2><p>Somente as vendas deste evento, atualizadas em tempo real.</p></div><div class="participant-tools"><div class="participant-tool-row"><details class="ticket-filter"><summary aria-label="Filtrar participantes"><span class="filter-glyph" aria-hidden="true"></span><span id="filterLabel">Todos</span></summary><div class="filter-menu"><label>Tipo de ingresso<select id="ticketTypeFilter"><option value="all">Todos</option></select></label><label>Situação do pagamento<select id="paymentStatusFilter"><option value="all">Todos</option><option value="paid">Pago</option><option value="pending">Pendente</option></select></label><button id="clearParticipantFiltersMenu" class="filter-clear-button" type="button" data-clear-participant-filters>Limpar filtros</button></div></details><button class="view-all-button" data-open="allSalesModal">Ver todas</button></div><span id="filterCount" class="filter-count">0 vendidos • 0 disponíveis</span></div></div>
+          <div class="panel-heading"><div><p class="eyebrow">PARTICIPANTES</p><h2 id="salesPanelTitle">Vendas recentes</h2><p>Somente as vendas deste evento, atualizadas em tempo real.</p></div><div class="participant-tools"><div class="participant-tool-row"><details class="ticket-filter"><summary aria-label="Filtrar participantes"><span class="filter-glyph" aria-hidden="true"></span><span id="filterLabel">Todos</span></summary><div class="filter-menu"><label>Tipo de ingresso<select id="ticketTypeFilter"><option value="all">Todos</option></select></label><label>Situação do pagamento<select id="paymentStatusFilter"><option value="all">Todos</option><option value="paid">Pago</option><option value="pending">Pendente</option></select></label><label>Situação da entrada<select id="entryStatusFilter"><option value="all">Todos</option><option value="checked">Check-in realizado</option><option value="waiting">Aguardando entrada</option></select></label><div class="filter-actions"><button id="clearParticipantFiltersMenu" class="filter-clear-button" type="button" data-clear-participant-filters>Limpar filtros</button><button id="applyParticipantFilters" class="filter-apply-button" type="button">Aplicar filtros</button></div></div></details><button class="view-all-button" data-open="allSalesModal">Ver todas</button></div><span id="filterCount" class="filter-count">0 vendidos • 0 disponíveis</span></div></div>
           <div class="participant-search-row"><label class="participant-search"><span class="search-glyph" aria-hidden="true"></span><span class="sr-only">Buscar participante por nome ou telefone</span><input id="participantSearch" type="search" inputmode="search" autocomplete="off" placeholder="Buscar por nome ou telefone" /></label><button id="clearParticipantFilters" class="clear-participant-filters" type="button" data-clear-participant-filters hidden>Limpar</button></div>
           <div class="table-wrap"><table><thead><tr><th>Participante</th><th>Tipo</th><th>Observação</th><th>Valor</th><th>Pagamento</th><th>Entrada</th><th>Ações</th></tr></thead><tbody id="salesList"></tbody></table></div>
         </article>
       </section>
     </main>
 
-    <footer class="site-footer">Le Beef | Versão: 3.0.5</footer>
+    <footer class="site-footer">Le Beef | Versão: 3.0.6</footer>
 
     <button class="fab" data-open="saleModal" aria-label="Registrar venda">+</button>
 
