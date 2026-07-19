@@ -93,6 +93,8 @@
     border-bottom: 1px solid #edf0f5;
   }
 
+  .sales-panel tr.sales-row td:first-child { border-bottom-color: #cbd5e1; }
+
   .sales-panel tr.sales-row td:first-child strong,
   .all-sales-modal tr.sales-row td:first-child strong {
     color: #14213d;
@@ -165,10 +167,16 @@
 
   .mobile-overview-contact > span:first-child {
     overflow: hidden;
-    color: #667085;
+    padding: 3px 4px;
+    border: 1px solid #dbeafe;
+    border-radius: 6px;
+    background: #ffffffb8;
+    color: #14213d;
     font-size: 10px;
+    font-weight: 700;
     text-overflow: ellipsis;
     white-space: nowrap;
+    box-shadow: 0 1px 3px #14213d0a;
   }
 
   .sales-panel .mobile-overview-contact .whatsapp-button {
@@ -178,19 +186,19 @@
     padding: 0;
     border: 0;
     border-radius: 50%;
-    background: #00c853;
-    color: #fff;
+    background: transparent;
     font-size: 0;
+    overflow: hidden;
   }
 
-  .sales-panel .mobile-overview-contact .whatsapp-button::before {
-    content: "☎";
-    color: #fff;
-    font-size: 18px;
-    line-height: 1;
+  .sales-panel .mobile-overview-contact .whatsapp-icon-asset {
+    width: 52px;
+    max-width: none;
+    height: 52px;
+    flex: 0 0 52px;
   }
 
-  .sales-panel .mobile-overview-contact .whatsapp-button > span { display: none; }
+  .sales-panel .mobile-overview-contact .whatsapp-button-label { display: none; }
 
   .mobile-overview-payment .payment,
   .mobile-overview-entry .status {
@@ -208,7 +216,7 @@
     grid-column: 1 / -1;
     grid-row: 2;
     padding: 8px 0 10px;
-    border-bottom: 1px solid #edf0f5;
+    border-bottom: 1px solid #cbd5e1;
   }
 
   .sales-panel tr.sales-row td:nth-child(3) {
@@ -231,6 +239,7 @@
   }
 
   .sales-panel tr.sales-row td:last-child { grid-row: 4; }
+  .sales-panel tr.sales-row td:last-child { border-top-color: #cbd5e1; }
 
   .sales-panel tr.sales-row td:last-child::before,
   .all-sales-modal tr.sales-row td:last-child::before { grid-column: 1 / -1; }
@@ -282,18 +291,29 @@
 
 @media (max-width: 360px) {
   .sales-panel tr.sales-row { padding: 11px 10px; }
-  .sales-panel .mobile-card-overview { column-gap: 4px; }
-  .mobile-overview-contact > span:first-child { font-size: 9px; }
+  .sales-panel .mobile-card-overview { column-gap: 3px; }
+  .mobile-overview-contact { gap: 4px; }
+
+  .mobile-overview-contact > span:first-child {
+    padding: 2px 3px;
+    font-size: 8px;
+  }
 
   .sales-panel .mobile-overview-contact .whatsapp-button {
-    width: 30px;
-    min-width: 30px;
-    min-height: 30px;
+    width: 28px;
+    min-width: 28px;
+    min-height: 28px;
+  }
+
+  .sales-panel .mobile-overview-contact .whatsapp-icon-asset {
+    width: 46px;
+    height: 46px;
+    flex-basis: 46px;
   }
 
   .mobile-overview-payment .payment,
   .mobile-overview-entry .status {
-    padding: 5px 6px;
-    font-size: 9px;
+    padding: 4px 5px;
+    font-size: 8px;
   }
 }

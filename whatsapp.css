@@ -40,10 +40,14 @@
   outline: none;
 }
 
-.whatsapp-button > span {
-  color: #22c55e;
-  font-size: 9px;
+.whatsapp-icon-asset {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 14px;
+  object-fit: contain;
 }
+
+.whatsapp-button-label { line-height: 1; }
 
 .whatsapp-choice-modal {
   width: min(430px, calc(100% - 28px));
