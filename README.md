@@ -37,8 +37,8 @@ O painel solicita a senha `838726` uma única vez por navegador e mantém a auto
 O sistema grava duas coleções no Realtime Database:
 
 ```
-events/{eventId}  → nome, data, local, capacidade e preço
-sales/{saleId}    → evento, participante, quantidade, total e check-in
+events/{eventId}  → nome, data, local, capacidade e tipos de ingresso com preços
+sales/{saleId}    → evento, tipo de ingresso, participante, contato, quantidade, total, pagamento e check-in
 ```
 
 Na tela **Ver todas**, o botão **Baixar Excel** cria uma planilha `.xlsx` com o cabeçalho preto e as linhas alternadas em cinza do modelo fornecido. A exportação funciona no computador e no celular, sem instalar aplicativos extras no site.
