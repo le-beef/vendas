@@ -62,7 +62,7 @@ function priceLabel(event) { const prices = ticketTypesFor(event).map((item) => 
 function persistDemo() { localStorage.setItem("ingressa-events", JSON.stringify(state.events)); localStorage.setItem("ingressa-sales", JSON.stringify(state.sales)); }
 function dateText(value) { return new Date(`${value}T12:00:00`).toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" }); }
 function escapeHtml(value) { const node = document.createElement("span"); node.textContent = value || ""; return node.innerHTML; }
-function normalizedSearch(value) { return String(value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("pt-BR"); }
+function normalizedSearch(value) { return String(value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("pt-BR").replace(/\s+/g, " ").trim(); }
 function matchesParticipantSearch(sale) {
   const query = participantSearchQuery.trim();
   if (!query) return true;
@@ -157,6 +157,7 @@ function render() {
   const activeFilterCount = Number(selectedTicketTypeFilter !== "all") + Number(selectedPaymentFilter !== "all");
   $("filterLabel").textContent = activeFilterCount > 1 ? `${activeFilterCount} filtros` : selectedPaymentFilter === "paid" ? "Pago" : selectedPaymentFilter === "pending" ? "Pendente" : selectedTicketTypeFilter === "all" ? "Todos" : selectedTypeName || "Todos";
   $("clearParticipantFilters").hidden = !participantSearchQuery && activeFilterCount === 0;
+  document.querySelectorAll("[data-clear-participant-filters]").forEach((button) => { button.disabled = !participantSearchQuery && activeFilterCount === 0; });
   $("filterCount").textContent = `${visibleSold} ${visibleSold === 1 ? "vendido" : "vendidos"} • ${visibleCapacity} ${visibleCapacity === 1 ? "disponível" : "disponíveis"}`;
   $("allSalesTotalLabel").textContent = participantSearchQuery || activeFilterCount ? "Total vendido — resultados filtrados" : "Total vendido — Todos";
   $("allSalesTotal").textContent = money.format(visibleSalesTotal);
@@ -221,7 +222,7 @@ $("ticketTypeFilter").addEventListener("change", (event) => { selectedTicketType
 $("paymentStatusFilter").addEventListener("change", (event) => { selectedPaymentFilter = event.currentTarget.value; document.querySelector(".ticket-filter").open = false; render(); });
 $("participantSearch").addEventListener("input", (event) => { participantSearchQuery = event.currentTarget.value; render(); });
 $("participantSearch").addEventListener("keydown", (event) => { if (event.key === "Escape") { participantSearchQuery = ""; render(); event.currentTarget.focus(); } });
-$("clearParticipantFilters").addEventListener("click", () => { resetParticipantFilters(); render(); $("participantSearch").focus(); });
+document.querySelectorAll("[data-clear-participant-filters]").forEach((button) => button.addEventListener("click", () => { resetParticipantFilters(); document.querySelector(".ticket-filter").open = false; render(); $("participantSearch").focus(); }));
 $("eventsList").addEventListener("click", (event) => { if (event.target.closest("[data-select-event]")) resetParticipantFilters(); });
 $("eventForm").addEventListener("submit", async (event) => { event.preventDefault(); const form = event.currentTarget; try { const data = Object.fromEntries(new FormData(form)); data.ticketTypes = getTicketTypes(); if (!data.ticketTypes.length) throw new Error("Informe ao menos um tipo ou lote com valor e quantidade."); await saveEvent(data, form.dataset.editId); form.reset(); resetTicketTypes(); $("eventModal").close(); } catch (error) { toast(error.message); } });
 $("saleForm").addEventListener("submit", async (event) => { event.preventDefault(); const form = event.currentTarget; try { await saveSale(Object.fromEntries(new FormData(form)), form.dataset.editId); form.reset(); $("saleModal").close(); } catch (error) { toast(error.message); } });
