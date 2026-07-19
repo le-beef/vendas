@@ -12,10 +12,10 @@
   gap: 6px;
   min-height: 36px;
   padding: 8px 12px;
-  border: 1px solid #dbe4f3;
+  border: 1px solid #ffffff4a;
   border-radius: 9px;
-  background: #f8fafc;
-  color: #14213d;
+  background: #ffffff14;
+  color: #fff;
   font: 700 12px "DM Sans", sans-serif;
   cursor: pointer;
   white-space: nowrap;
@@ -23,9 +23,9 @@
 
 .install-app-button:hover,
 .install-app-button:focus-visible {
-  border-color: #2563eb;
-  background: #eff6ff;
-  color: #1d4ed8;
+  border-color: #fff;
+  background: #fff;
+  color: #14213d;
   outline: none;
 }
 

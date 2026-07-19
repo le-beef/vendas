@@ -1,5 +1,17 @@
+body {
+  padding-top: 84px;
+}
+
 .topbar {
   height: 84px;
+  position: fixed;
+  top: 0;
+  right: 0;
+  left: 0;
+  z-index: 1000;
+  border-bottom: 0;
+  background: linear-gradient(125deg, #14213d, #1e3a5f);
+  box-shadow: 0 8px 24px #14213d2e;
 }
 
 .brand {
@@ -17,6 +29,14 @@
   object-position: left center;
 }
 
+.topbar .connection {
+  color: #dbeafe;
+}
+
+.topbar .connection i {
+  box-shadow: 0 0 0 3px #ffffff16;
+}
+
 .access-brand {
   width: min(285px, 100%);
   margin: 0 auto 17px;
@@ -29,6 +49,10 @@
 }
 
 @media (max-width: 600px) {
+  body {
+    padding-top: 72px;
+  }
+
   .topbar {
     height: 72px;
   }
