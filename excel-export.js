@@ -21,10 +21,12 @@
   };
   const textCell = (address, value, style) => `<c r="${address}" t="inlineStr" s="${style}"><is><t>${xml(value)}</t></is></c>`;
   const numberCell = (address, value, style) => `<c r="${address}" s="${style}"><v>${Number(value || 0)}</v></c>`;
-  window.exportSalesXlsx = (sales, events) => {
+  window.exportSalesXlsx = (sales, events, eventId) => {
     const eventName = (id) => events.find((event) => event.id === id)?.name || "Evento removido";
+    const selectedEvent = events.find((event) => event.id === eventId);
+    const selectedSales = eventId ? sales.filter((sale) => sale.eventId === eventId) : sales;
     const header = ["EVENTO", "TIPO DE INGRESSO", "PARTICIPANTE / CONTATO", "OBSERVAÇÃO", "QTD.", "VALOR", "PAGAMENTO", "ENTRADA"];
-    const rows = sales.map((sale) => [eventName(sale.eventId), sale.ticketTypeName || "Ingresso padrão", `${sale.buyerName || ""}${sale.buyerPhone ? ` — ${sale.buyerPhone}` : ""}${sale.buyerEmail ? ` / ${sale.buyerEmail}` : ""}`, sale.notes || "", Number(sale.quantity || 0), Number(sale.total || 0), sale.paid ? "PAGO" : "PENDENTE", sale.checkedIn ? "SIM" : "NÃO"]);
+    const rows = selectedSales.map((sale) => [eventName(sale.eventId), sale.ticketTypeName || "Ingresso padrão", `${sale.buyerName || ""}${sale.buyerPhone ? ` — ${sale.buyerPhone}` : ""}${sale.buyerEmail ? ` / ${sale.buyerEmail}` : ""}`, sale.notes || "", Number(sale.quantity || 0), Number(sale.total || 0), sale.paid ? "PAGO" : "PENDENTE", sale.checkedIn ? "SIM" : "NÃO"]);
     const sheetRows = [`<row r="1">${header.map((cell, i) => textCell(`${column(i)}1`, cell, 1)).join("")}</row>`];
     rows.forEach((row, index) => { const r = index + 2, style = index % 2 ? 2 : 0, moneyStyle = index % 2 ? 4 : 3; sheetRows.push(`<row r="${r}">${row.map((cell, i) => i === 4 ? numberCell(`${column(i)}${r}`, cell, style) : i === 5 ? numberCell(`${column(i)}${r}`, cell, moneyStyle) : textCell(`${column(i)}${r}`, cell, style)).join("")}</row>`); });
     const sheet = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><cols><col min="1" max="1" width="25" customWidth="1"/><col min="2" max="2" width="23" customWidth="1"/><col min="3" max="3" width="42" customWidth="1"/><col min="4" max="4" width="34" customWidth="1"/><col min="5" max="5" width="9" customWidth="1"/><col min="6" max="6" width="16" customWidth="1"/><col min="7" max="8" width="18" customWidth="1"/></cols><sheetData>${sheetRows.join("")}</sheetData></worksheet>`;
@@ -36,6 +38,7 @@
       ["xl/_rels/workbook.xml.rels", `<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`],
       ["xl/styles.xml", styles], ["xl/worksheets/sheet1.xml", sheet]
     ];
-    const url = URL.createObjectURL(zip(files)); const link = document.createElement("a"); link.href = url; link.download = "vendas-de-ingressos.xlsx"; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+    const safeName = (selectedEvent?.name || "vendas").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9]+/g, "-").replace(/^-|-$/g, "").toLowerCase();
+    const url = URL.createObjectURL(zip(files)); const link = document.createElement("a"); link.href = url; link.download = `participantes-${safeName}.xlsx`; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
 })();
