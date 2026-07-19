@@ -1,4 +1,4 @@
-const CACHE_NAME = "le-beef-painel-v19";
+const CACHE_NAME = "le-beef-painel-v20";
 const APP_SHELL = [
   "./",
   "./index.html",

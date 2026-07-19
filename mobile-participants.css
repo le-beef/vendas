@@ -3,7 +3,7 @@
   border: 0;
   border-radius: 7px;
   padding: 7px 9px;
-  background: #eff6ff;
+  background: #d6e8ff;
   color: #2563eb;
   font: 600 11px "DM Sans";
   cursor: pointer;
@@ -33,20 +33,26 @@
 
   .sales-panel tbody,
   .all-sales-modal tbody {
-    padding: 10px;
+    padding: 7px;
   }
 
   .sales-panel tr.sales-row,
   .all-sales-modal tr.sales-row {
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    gap: 15px 12px;
-    margin-bottom: 10px;
-    padding: 17px;
+    gap: 9px 10px;
+    margin-bottom: 7px;
+    padding: 12px 13px;
     border: 1px solid #e2e8f0;
-    border-radius: 13px;
+    border-radius: 11px;
     background: #fff;
-    box-shadow: 0 5px 16px #14213d0b;
+    box-shadow: 0 3px 10px #14213d08;
+  }
+
+  .sales-panel tr.sales-row:nth-child(even),
+  .all-sales-modal tr.sales-row:nth-child(even) {
+    border-color: #dbeafe;
+    background: #eff6ff;
   }
 
   .sales-panel tr.sales-row:last-child,
@@ -66,16 +72,17 @@
     flex-direction: column;
     align-items: flex-start;
     justify-content: flex-start;
-    gap: 5px;
+    gap: 3px;
     padding: 0;
     border: 0;
-    line-height: 1.35;
+    font-size: 12px;
+    line-height: 1.25;
   }
 
   .sales-panel tr.sales-row td::before,
   .all-sales-modal tr.sales-row td::before {
     color: #8490a5;
-    font-size: 9px;
+    font-size: 8px;
     font-weight: 700;
     letter-spacing: .65px;
     text-transform: uppercase;
@@ -84,14 +91,14 @@
   .sales-panel tr.sales-row td:first-child,
   .all-sales-modal tr.sales-row td:first-child {
     grid-column: 1 / -1;
-    padding-bottom: 12px;
+    padding-bottom: 8px;
     border-bottom: 1px solid #edf0f5;
   }
 
   .sales-panel tr.sales-row td:first-child strong,
   .all-sales-modal tr.sales-row td:first-child strong {
     color: #14213d;
-    font-size: 16px;
+    font-size: 15px;
     line-height: 1.2;
   }
 
@@ -122,8 +129,8 @@
     display: grid;
     grid-template-columns: 1fr 1fr;
     grid-column: 1 / -1;
-    gap: 9px;
-    padding-top: 12px;
+    gap: 7px;
+    padding-top: 8px;
     border-top: 1px solid #edf0f5;
   }
 
@@ -136,8 +143,8 @@
   .sales-panel .status,
   .all-sales-modal .payment,
   .all-sales-modal .status {
-    min-height: 34px;
-    padding: 8px 11px;
+    min-height: 30px;
+    padding: 6px 9px;
   }
 
   .sales-panel .delete-button,
@@ -145,7 +152,7 @@
   .sales-panel .edit-button,
   .all-sales-modal .edit-button {
     width: 100%;
-    min-height: 39px;
+    min-height: 36px;
   }
 
   .sales-panel .edit-button,
@@ -153,7 +160,7 @@
     margin-right: 0;
     border: 0;
     border-radius: 7px;
-    background: #eff6ff;
+    background: #d6e8ff;
     color: #2563eb;
     font: 600 11px "DM Sans";
     cursor: pointer;
@@ -169,5 +176,16 @@
   .sales-panel tbody .empty {
     display: block;
     padding: 28px 14px;
+  }
+
+  .sales-panel .participant-contact,
+  .all-sales-modal .phone-line {
+    margin-top: 2px;
+    gap: 7px;
+  }
+
+  .sales-panel tr.sales-row td > small,
+  .all-sales-modal tr.sales-row td > small {
+    margin-top: 1px;
   }
 }
