@@ -28,6 +28,8 @@ Site estático em HTML, CSS e JavaScript, pronto para publicar no GitHub Pages e
 
 Após salvar e publicar novamente no GitHub, o indicador no topo mostrará “Firebase conectado”. Sem configuração, a página fica em modo demonstração e salva dados apenas neste navegador.
 
+> Ao abrir `index.html` diretamente no computador, o sistema usa automaticamente o modo local e guarda os dados apenas naquele navegador. Isso evita o bloqueio de segurança do Firebase para arquivos `file://`. Quando o mesmo site estiver no GitHub Pages, ele se conectará ao Firebase normalmente.
+
 ## Senha de acesso
 
 O painel solicita a senha `838726` uma única vez por navegador e mantém a autorização nesse dispositivo. Como o site é estático e publicado no GitHub, essa é uma trava visual simples: ela não substitui um login seguro. Para restringir efetivamente o acesso aos dados em produção, use contas de administrador no Firebase Authentication e regras por usuário.

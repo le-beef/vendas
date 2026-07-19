@@ -12,7 +12,7 @@ const demoSales = [
 ];
 let state = { events: [], sales: [] };
 let db;
-let isDemo = !firebaseConfig.apiKey || !firebaseConfig.databaseURL;
+let isDemo = !firebaseConfig.apiKey || !firebaseConfig.databaseURL || location.protocol === "file:";
 
 const money = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 const $ = (id) => document.getElementById(id);
@@ -21,20 +21,22 @@ const ACCESS_KEY = "ingressa-access-v3";
 async function start() {
   if (isDemo) {
     state = { events: JSON.parse(localStorage.getItem("ingressa-events") || "null") || demoEvents, sales: JSON.parse(localStorage.getItem("ingressa-sales") || "null") || demoSales };
+    if (location.protocol === "file:") $("connectionText").textContent = "Modo local — dados neste navegador";
     render();
     return;
   }
   try {
     const app = initializeApp(firebaseConfig);
     await signInAnonymously(getAuth(app));
-    db = getDatabase(app);
+    db = getDatabase(app, firebaseConfig.databaseURL);
+    if (!db) throw new Error("Banco de dados não inicializado.");
     $("connectionDot").classList.add("online");
     $("connectionText").textContent = "Firebase conectado";
-    onValue(ref(db, "events"), (snapshot) => { state.events = objectToArray(snapshot.val()); render(); });
-    onValue(ref(db, "sales"), (snapshot) => { state.sales = objectToArray(snapshot.val()); render(); });
+    onValue(ref(db, "events"), (snapshot) => { state.events = objectToArray(snapshot.val()); render(); }, (error) => toast(`Firebase bloqueou a leitura: ${error.code || error.message}`));
+    onValue(ref(db, "sales"), (snapshot) => { state.sales = objectToArray(snapshot.val()); render(); }, (error) => toast(`Firebase bloqueou a leitura: ${error.code || error.message}`));
   } catch (error) {
     console.error(error);
-    toast("Não foi possível conectar ao Firebase. Confira a configuração.");
+    toast(error.code === "auth/operation-not-allowed" ? "Ative o login Anônimo no Firebase Authentication." : "Não foi possível conectar ao Firebase. Confira a configuração.");
   }
 }
 
