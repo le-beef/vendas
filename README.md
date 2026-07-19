@@ -2,6 +2,16 @@
 
 Site estático em HTML, CSS e JavaScript, pronto para publicar no GitHub Pages e usar o Firebase Realtime Database.
 
+## Instalar como aplicativo
+
+Depois que os novos arquivos forem publicados no GitHub Pages, o botão **Instalar app** aparecerá no topo do painel. No Android e no computador, ele abre a instalação quando o navegador permitir. No iPhone/iPad, o botão mostra o caminho **Compartilhar > Adicionar à Tela de Início** no Safari.
+
+O PWA precisa ser aberto pelo endereço HTTPS do GitHub Pages. A instalação não funciona ao abrir o arquivo `index.html` diretamente no computador.
+
+## WhatsApp dos participantes
+
+O telefone aparece com um botão **WhatsApp** nas listas de participantes. Ao tocar, o painel abre uma conversa com uma mensagem inicial sobre o evento. Telefones brasileiros com DDD recebem automaticamente o código do país `55` no link.
+
 ## Publicar no GitHub Pages
 
 1. Crie um repositório novo no GitHub e envie todos os arquivos desta pasta.

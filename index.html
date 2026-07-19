@@ -3,8 +3,13 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#2563eb" />
+    <meta name="theme-color" content="#14213d" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="Le Beef" />
     <title>Le Beef | Controle de ingressos</title>
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="icon-192.png" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@600;700&display=swap" rel="stylesheet" />
@@ -17,6 +22,8 @@
     <link rel="stylesheet" href="participant-filter.css" />
     <link rel="stylesheet" href="filter-counter.css" />
     <link rel="stylesheet" href="branding.css" />
+    <link rel="stylesheet" href="whatsapp.css" />
+    <link rel="stylesheet" href="pwa.css" />
   </head>
   <body>
     <dialog id="accessModal" class="access-modal">
@@ -32,7 +39,10 @@
     </dialog>
     <header class="topbar">
       <a class="brand" href="#" aria-label="Le Beef - início"><img src="logo-le-beef.png" alt="Le Beef Espaço de Eventos" /></a>
-      <div class="connection"><i id="connectionDot"></i><span id="connectionText">Modo demonstração</span></div>
+      <div class="topbar-actions">
+        <button id="installAppButton" class="install-app-button" type="button" hidden><span aria-hidden="true">↓</span> Instalar app</button>
+        <div class="connection"><i id="connectionDot"></i><span id="connectionText">Modo demonstração</span></div>
+      </div>
     </header>
 
     <main>
@@ -108,6 +118,7 @@
     </dialog>
 
     <div id="toast" role="status" aria-live="polite"></div>
+    <script src="pwa.js"></script>
     <script src="access.js"></script>
     <script src="excel-export.js"></script>
     <script type="module" src="app.js"></script>
