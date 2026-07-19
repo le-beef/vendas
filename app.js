@@ -13,6 +13,8 @@ const demoSales = [
 let state = { events: [], sales: [] };
 let selectedEventId = localStorage.getItem("ingressa-selected-event") || "";
 let selectedTicketTypeFilter = "all";
+let selectedPaymentFilter = "all";
+let participantSearchQuery = "";
 let db;
 let isDemo = !firebaseConfig.apiKey || !firebaseConfig.databaseURL || location.protocol === "file:";
 
@@ -60,6 +62,20 @@ function priceLabel(event) { const prices = ticketTypesFor(event).map((item) => 
 function persistDemo() { localStorage.setItem("ingressa-events", JSON.stringify(state.events)); localStorage.setItem("ingressa-sales", JSON.stringify(state.sales)); }
 function dateText(value) { return new Date(`${value}T12:00:00`).toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" }); }
 function escapeHtml(value) { const node = document.createElement("span"); node.textContent = value || ""; return node.innerHTML; }
+function normalizedSearch(value) { return String(value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("pt-BR"); }
+function matchesParticipantSearch(sale) {
+  const query = participantSearchQuery.trim();
+  if (!query) return true;
+  const textMatch = normalizedSearch(sale.buyerName).includes(normalizedSearch(query));
+  const queryDigits = query.replace(/\D/g, "");
+  const phoneMatch = queryDigits && String(sale.buyerPhone || "").replace(/\D/g, "").includes(queryDigits);
+  return textMatch || Boolean(phoneMatch);
+}
+function resetParticipantFilters() {
+  selectedTicketTypeFilter = "all";
+  selectedPaymentFilter = "all";
+  participantSearchQuery = "";
+}
 function whatsappNumber(phone) {
   const digits = String(phone || "").replace(/\D/g, "");
   if (!digits) return "";
@@ -120,7 +136,11 @@ function render() {
   const availableTicketTypes = selectedEvent ? ticketTypesFor(selectedEvent) : [];
   if (selectedTicketTypeFilter !== "all" && !availableTicketTypes.some((type) => type.id === selectedTicketTypeFilter)) selectedTicketTypeFilter = "all";
   const selectedTypeName = availableTicketTypes.find((type) => type.id === selectedTicketTypeFilter)?.name;
-  const visibleSales = selectedTicketTypeFilter === "all" ? selectedSales : selectedSales.filter((sale) => sale.ticketTypeId === selectedTicketTypeFilter || sale.ticketTypeName === selectedTypeName);
+  const visibleSales = selectedSales.filter((sale) => {
+    const matchesTicketType = selectedTicketTypeFilter === "all" || sale.ticketTypeId === selectedTicketTypeFilter || sale.ticketTypeName === selectedTypeName;
+    const matchesPayment = selectedPaymentFilter === "all" || (selectedPaymentFilter === "paid" ? sale.paid : !sale.paid);
+    return matchesTicketType && matchesPayment && matchesParticipantSearch(sale);
+  });
   const visibleSold = visibleSales.reduce((sum, sale) => sum + Number(sale.quantity || 0), 0);
   const visibleSalesTotal = visibleSales.reduce((sum, sale) => sum + Number(sale.total || 0), 0);
   const visibleCapacity = selectedTicketTypeFilter === "all" ? eventCapacity(selectedEvent) : Number(availableTicketTypes.find((type) => type.id === selectedTicketTypeFilter)?.capacity || 0);
@@ -132,9 +152,13 @@ function render() {
   $("selectedEventArea").hidden = !selectedEvent;
   $("ticketTypeFilter").innerHTML = `<option value="all">Todos</option>${availableTicketTypes.map((type) => `<option value="${type.id}">${escapeHtml(type.name)}</option>`).join("")}`;
   $("ticketTypeFilter").value = selectedTicketTypeFilter;
-  $("filterLabel").textContent = selectedTicketTypeFilter === "all" ? "Todos" : availableTicketTypes.find((type) => type.id === selectedTicketTypeFilter)?.name || "Todos";
+  $("paymentStatusFilter").value = selectedPaymentFilter;
+  $("participantSearch").value = participantSearchQuery;
+  const activeFilterCount = Number(selectedTicketTypeFilter !== "all") + Number(selectedPaymentFilter !== "all");
+  $("filterLabel").textContent = activeFilterCount > 1 ? `${activeFilterCount} filtros` : selectedPaymentFilter === "paid" ? "Pago" : selectedPaymentFilter === "pending" ? "Pendente" : selectedTicketTypeFilter === "all" ? "Todos" : selectedTypeName || "Todos";
+  $("clearParticipantFilters").hidden = !participantSearchQuery && activeFilterCount === 0;
   $("filterCount").textContent = `${visibleSold} ${visibleSold === 1 ? "vendido" : "vendidos"} • ${visibleCapacity} ${visibleCapacity === 1 ? "disponível" : "disponíveis"}`;
-  $("allSalesTotalLabel").textContent = selectedTicketTypeFilter === "all" ? "Total vendido — Todos" : `Total vendido — ${selectedTypeName || "Filtro selecionado"}`;
+  $("allSalesTotalLabel").textContent = participantSearchQuery || activeFilterCount ? "Total vendido — resultados filtrados" : "Total vendido — Todos";
   $("allSalesTotal").textContent = money.format(visibleSalesTotal);
   $("revenue").textContent = money.format(revenueTotal); $("revenuePaid").textContent = money.format(revenuePaid); $("revenuePending").textContent = money.format(revenuePending); $("sold").textContent = sold; $("capacity").textContent = eventCapacity(selectedEvent); $("checkins").textContent = checkins;
   if (selectedEvent) { $("selectedEventName").textContent = selectedEvent.name; $("selectedEventMeta").textContent = `${selectedEvent.place} · ${dateText(selectedEvent.date)} · ${priceLabel(selectedEvent)}`; $("salesPanelTitle").textContent = `Vendas de ${selectedEvent.name}`; $("allSalesTitle").textContent = `Participantes — ${selectedEvent.name}`; }
@@ -142,8 +166,8 @@ function render() {
     const eventSold = sales.filter((sale) => sale.eventId === event.id).reduce((sum, sale) => sum + Number(sale.quantity), 0);
     return `<div class="event-card ${event.id === selectedEventId ? "is-selected" : ""}" data-select-event="${event.id}" role="button" tabindex="0" aria-pressed="${event.id === selectedEventId}"><span class="calendar"><b>${new Date(`${event.date}T12:00:00`).getDate()}</b><small>${new Date(`${event.date}T12:00:00`).toLocaleDateString("pt-BR", { month: "short" }).replace(".", "")}</small></span><span class="event-info"><strong>${escapeHtml(event.name)}</strong><small>${escapeHtml(event.place)} · ${priceLabel(event)}</small></span><span class="event-count">${eventSold}/${eventCapacity(event)}</span></div>`;
   }).join("") : `<div class="empty">Nenhum evento cadastrado ainda.</div>`;
-  $("salesList").innerHTML = visibleSales.length ? visibleSales.slice(0, 7).map((sale) => `<tr class="sales-row" data-sale-row="${sale.id}"><td><strong>${escapeHtml(sale.buyerName)}</strong><small>${sale.quantity} ingresso${sale.quantity > 1 ? "s" : ""}</small>${participantContactHtml(sale, selectedEvent?.name)}</td><td>${escapeHtml(sale.ticketTypeName || "Ingresso padrão")}</td><td class="sale-observation">${escapeHtml(sale.notes || "Sem observação")}</td><td>${money.format(sale.total)}</td><td><button class="payment ${sale.paid ? "paid" : ""}" data-paid="${sale.id}">${sale.paid ? "✓ Pago" : "Pendente"}</button></td><td><button class="status ${sale.checkedIn ? "checked" : ""}" data-checkin="${sale.id}">${sale.checkedIn ? "✓ Check-in" : "Fazer check-in"}</button></td><td><button class="delete-button" data-delete-sale="${sale.id}">Excluir</button></td></tr>`).join("") : `<tr><td colspan="7" class="empty">${selectedTicketTypeFilter === "all" ? "Nenhuma venda neste evento." : "Nenhum participante com este tipo de ingresso."}</td></tr>`;
-  $("allSalesList").innerHTML = visibleSales.length ? visibleSales.map((sale) => `<tr class="sales-row" data-sale-row="${sale.id}"><td><strong>${escapeHtml(sale.buyerName)}</strong><small>${sale.quantity} ingresso${sale.quantity > 1 ? "s" : ""}</small></td><td>${escapeHtml(sale.ticketTypeName || "Ingresso padrão")}</td><td class="sale-note"><span class="phone-line"><strong>${escapeHtml(sale.buyerPhone || "Não informado")}</strong>${whatsappButtonHtml(sale, selectedEvent?.name)}</span>${sale.notes ? `<small>${escapeHtml(sale.notes)}</small>` : ""}</td><td>${escapeHtml(selectedEvent?.name || "Evento removido")}</td><td>${money.format(sale.total)}</td><td><button class="payment ${sale.paid ? "paid" : ""}" data-paid="${sale.id}">${sale.paid ? "✓ Pago" : "Pendente"}</button></td><td><button class="status ${sale.checkedIn ? "checked" : ""}" data-checkin="${sale.id}">${sale.checkedIn ? "✓ Check-in" : "Fazer check-in"}</button></td><td><button class="delete-button" data-delete-sale="${sale.id}">Excluir</button></td></tr>`).join("") : `<tr><td colspan="8" class="empty">${selectedTicketTypeFilter === "all" ? "Nenhum participante neste evento." : "Nenhum participante com este tipo de ingresso."}</td></tr>`;
+  $("salesList").innerHTML = visibleSales.length ? visibleSales.slice(0, 7).map((sale) => `<tr class="sales-row" data-sale-row="${sale.id}"><td><strong>${escapeHtml(sale.buyerName)}</strong><small>${sale.quantity} ingresso${sale.quantity > 1 ? "s" : ""}</small>${participantContactHtml(sale, selectedEvent?.name)}</td><td>${escapeHtml(sale.ticketTypeName || "Ingresso padrão")}</td><td class="sale-observation">${escapeHtml(sale.notes || "Sem observação")}</td><td>${money.format(sale.total)}</td><td><button class="payment ${sale.paid ? "paid" : ""}" data-paid="${sale.id}">${sale.paid ? "✓ Pago" : "Pendente"}</button></td><td><button class="status ${sale.checkedIn ? "checked" : ""}" data-checkin="${sale.id}">${sale.checkedIn ? "✓ Check-in" : "Fazer check-in"}</button></td><td><button class="delete-button" data-delete-sale="${sale.id}">Excluir</button></td></tr>`).join("") : `<tr><td colspan="7" class="empty">${participantSearchQuery || activeFilterCount ? "Nenhum participante encontrado com esses filtros." : "Nenhuma venda neste evento."}</td></tr>`;
+  $("allSalesList").innerHTML = visibleSales.length ? visibleSales.map((sale) => `<tr class="sales-row" data-sale-row="${sale.id}"><td><strong>${escapeHtml(sale.buyerName)}</strong><small>${sale.quantity} ingresso${sale.quantity > 1 ? "s" : ""}</small></td><td>${escapeHtml(sale.ticketTypeName || "Ingresso padrão")}</td><td class="sale-note"><span class="phone-line"><strong>${escapeHtml(sale.buyerPhone || "Não informado")}</strong>${whatsappButtonHtml(sale, selectedEvent?.name)}</span>${sale.notes ? `<small>${escapeHtml(sale.notes)}</small>` : ""}</td><td>${escapeHtml(selectedEvent?.name || "Evento removido")}</td><td>${money.format(sale.total)}</td><td><button class="payment ${sale.paid ? "paid" : ""}" data-paid="${sale.id}">${sale.paid ? "✓ Pago" : "Pendente"}</button></td><td><button class="status ${sale.checkedIn ? "checked" : ""}" data-checkin="${sale.id}">${sale.checkedIn ? "✓ Check-in" : "Fazer check-in"}</button></td><td><button class="delete-button" data-delete-sale="${sale.id}">Excluir</button></td></tr>`).join("") : `<tr><td colspan="8" class="empty">${participantSearchQuery || activeFilterCount ? "Nenhum participante encontrado com esses filtros." : "Nenhum participante neste evento."}</td></tr>`;
   addSaleEditButtons();
   const currentEvent = $("saleEvent").value; $("saleEvent").innerHTML = `<option value="">Selecione o evento</option>${events.map((event) => `<option value="${event.id}">${escapeHtml(event.name)} — ${priceLabel(event)}</option>`).join("")}`; if (events.some((event) => event.id === currentEvent)) $("saleEvent").value = currentEvent; populateTicketTypes($("saleEvent").value);
 }
@@ -194,11 +218,15 @@ document.querySelectorAll("[data-close]").forEach((button) => button.addEventLis
 $("addTicketType").addEventListener("click", () => addTicketTypeRow());
 $("saleEvent").addEventListener("change", () => populateTicketTypes($("saleEvent").value));
 $("ticketTypeFilter").addEventListener("change", (event) => { selectedTicketTypeFilter = event.currentTarget.value; document.querySelector(".ticket-filter").open = false; render(); });
-$("eventsList").addEventListener("click", (event) => { if (event.target.closest("[data-select-event]")) selectedTicketTypeFilter = "all"; });
+$("paymentStatusFilter").addEventListener("change", (event) => { selectedPaymentFilter = event.currentTarget.value; document.querySelector(".ticket-filter").open = false; render(); });
+$("participantSearch").addEventListener("input", (event) => { participantSearchQuery = event.currentTarget.value; render(); });
+$("participantSearch").addEventListener("keydown", (event) => { if (event.key === "Escape") { participantSearchQuery = ""; render(); event.currentTarget.focus(); } });
+$("clearParticipantFilters").addEventListener("click", () => { resetParticipantFilters(); render(); $("participantSearch").focus(); });
+$("eventsList").addEventListener("click", (event) => { if (event.target.closest("[data-select-event]")) resetParticipantFilters(); });
 $("eventForm").addEventListener("submit", async (event) => { event.preventDefault(); const form = event.currentTarget; try { const data = Object.fromEntries(new FormData(form)); data.ticketTypes = getTicketTypes(); if (!data.ticketTypes.length) throw new Error("Informe ao menos um tipo ou lote com valor e quantidade."); await saveEvent(data, form.dataset.editId); form.reset(); resetTicketTypes(); $("eventModal").close(); } catch (error) { toast(error.message); } });
 $("saleForm").addEventListener("submit", async (event) => { event.preventDefault(); const form = event.currentTarget; try { await saveSale(Object.fromEntries(new FormData(form)), form.dataset.editId); form.reset(); $("saleModal").close(); } catch (error) { toast(error.message); } });
 document.addEventListener("click", (event) => { const whatsappTrigger = event.target.closest("[data-whatsapp]"); if (whatsappTrigger) { event.preventDefault(); openWhatsappChooser(whatsappTrigger); return; } const whatsappApp = event.target.closest("[data-whatsapp-app]"); if (whatsappApp) { launchWhatsapp(whatsappApp.dataset.whatsappApp); return; } const removeTicket = event.target.closest("[data-remove-ticket]"); if (removeTicket) { if (document.querySelectorAll(".ticket-type-row").length === 1) return toast("O evento precisa de pelo menos um tipo de ingresso."); removeTicket.closest(".ticket-type-row").remove(); return; } const selectedAction = event.target.closest("[data-selected-action]"); if (selectedAction) { const action = selectedAction.dataset.selectedAction; if (action === "sale") openNewSale(selectedEventId); if (action === "edit") openEditEvent(selectedEventId); if (action === "export") window.exportSalesXlsx(state.sales, state.events, selectedEventId); if (action === "delete") deleteEvent(selectedEventId); return; } const selectEvent = event.target.closest("[data-select-event]"); if (selectEvent) { selectedEventId = selectEvent.dataset.selectEvent; render(); return; } const editSaleButton = event.target.closest("[data-edit-sale]"); if (editSaleButton) { openEditSale(editSaleButton.dataset.editSale); return; } const deleteSaleButton = event.target.closest("[data-delete-sale]"); if (deleteSaleButton) { deleteSale(deleteSaleButton.dataset.deleteSale); return; } const checkin = event.target.closest("[data-checkin]"); if (checkin) { toggleCheckin(checkin.dataset.checkin); return; } const paid = event.target.closest("[data-paid]"); if (paid) { togglePayment(paid.dataset.paid); return; } const saleRow = event.target.closest("[data-sale-row]"); if (saleRow) { openEditSale(saleRow.dataset.saleRow); return; } });
-document.addEventListener("keydown", (event) => { const card = event.target.closest?.("[data-select-event]"); if (card && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); selectedEventId = card.dataset.selectEvent; selectedTicketTypeFilter = "all"; render(); } });
+document.addEventListener("keydown", (event) => { const card = event.target.closest?.("[data-select-event]"); if (card && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); selectedEventId = card.dataset.selectEvent; resetParticipantFilters(); render(); } });
 if (localStorage.getItem(ACCESS_KEY) === "granted") start();
 else window.addEventListener("ingressa:access-granted", start, { once: true });
 resetTicketTypes();
