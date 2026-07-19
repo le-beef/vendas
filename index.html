@@ -24,6 +24,7 @@
     <link rel="stylesheet" href="branding.css?v=10" />
     <link rel="stylesheet" href="whatsapp.css?v=8" />
     <link rel="stylesheet" href="pwa.css?v=7" />
+    <link rel="stylesheet" href="financial-report.css?v=16" />
     <style id="topbar-critical-styles">
       html { scroll-padding-top: 84px; }
       body { padding-top: 84px !important; }
@@ -73,6 +74,7 @@
     </header>
 
     <main>
+      <div id="dashboardPage" class="dashboard-page">
       <section class="hero">
         <div>
           <p class="eyebrow">PAINEL DE CONTROLE</p>
@@ -99,7 +101,7 @@
         </div>
 
         <section class="metrics" aria-label="Resumo do evento selecionado">
-          <article class="revenue-card"><span>Faturamento total</span><strong id="revenue">R$ 0,00</strong><div class="revenue-breakdown" aria-label="Situação dos pagamentos"><div class="revenue-detail confirmed"><small>Confirmados</small><b id="revenuePaid">R$ 0,00</b></div><div class="revenue-detail pending"><small>Pendentes</small><b id="revenuePending">R$ 0,00</b></div></div></article>
+          <article class="revenue-card"><span>Faturamento total</span><strong id="revenue">R$ 0,00</strong><div class="revenue-breakdown" aria-label="Situação dos pagamentos"><div class="revenue-detail confirmed"><small>Confirmados</small><b id="revenuePaid">R$ 0,00</b></div><div class="revenue-detail pending"><small>Pendentes</small><b id="revenuePending">R$ 0,00</b></div></div><button id="openFinancialReport" class="financial-report-button" type="button">Ver relatório financeiro <span aria-hidden="true">→</span></button></article>
           <article><span>Ingressos vendidos</span><strong id="sold">0</strong><small>de <b id="capacity">0</b> no total</small></article>
           <article><span>Check-ins</span><strong id="checkins">0</strong><small>participantes presentes</small></article>
         </section>
@@ -110,9 +112,31 @@
           <div class="table-wrap"><table><thead><tr><th>Participante</th><th>Tipo</th><th>Observação</th><th>Valor</th><th>Pagamento</th><th>Entrada</th><th>Ações</th></tr></thead><tbody id="salesList"></tbody></table></div>
         </article>
       </section>
+      </div>
+
+      <section id="financialReportPage" class="financial-report-page" aria-labelledby="financialReportTitle" hidden>
+        <div class="financial-page-header">
+          <button id="backToDashboard" class="financial-back-button" type="button"><span aria-hidden="true">←</span> Voltar ao painel</button>
+          <div><p class="eyebrow">FINANCEIRO</p><h1 id="financialReportTitle">Relatório financeiro</h1><p id="financialReportEventMeta">Evento selecionado</p></div>
+        </div>
+
+        <section class="financial-summary-grid" aria-label="Resumo financeiro">
+          <article class="financial-card total"><span>Total vendido</span><strong id="financialTotalSold">R$ 0,00</strong><small>Valor de todas as vendas</small></article>
+          <article class="financial-card received"><span>Total recebido</span><strong id="financialTotalReceived">R$ 0,00</strong><small>Pagamentos confirmados</small></article>
+          <article class="financial-card pending"><span>Total pendente</span><strong id="financialTotalPending">R$ 0,00</strong><small>Ainda falta receber</small></article>
+          <article class="financial-card average"><span>Ticket médio</span><strong id="financialAverageOrder">R$ 0,00</strong><small>Valor médio por venda</small></article>
+        </section>
+
+        <section class="financial-insights-grid">
+          <article class="financial-panel receipt-panel"><div class="financial-panel-heading"><div><p class="eyebrow">RECEBIMENTOS</p><h2>Taxa de recebimento</h2></div><strong id="financialReceiptRate">0%</strong></div><div class="receipt-progress" role="progressbar" aria-label="Percentual recebido" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span id="financialReceiptProgress"></span></div><p id="financialReceiptCaption">Nenhuma venda registrada.</p></article>
+          <article class="financial-panel sales-indicators"><p class="eyebrow">INDICADORES</p><h2>Movimento do evento</h2><div class="financial-indicator-list"><div><span>Vendas registradas</span><strong id="financialSalesCount">0</strong></div><div><span>Ingressos vendidos</span><strong id="financialTicketsCount">0</strong></div><div><span>Média por ingresso</span><strong id="financialAverageTicket">R$ 0,00</strong></div></div></article>
+        </section>
+
+        <article class="financial-panel financial-breakdown"><div class="financial-panel-heading"><div><p class="eyebrow">DETALHAMENTO</p><h2>Resultado por tipo de ingresso</h2><p>Compare quantidade, faturamento e situação dos pagamentos.</p></div></div><div class="financial-table-wrap"><table><thead><tr><th>Tipo de ingresso</th><th>Vendidos</th><th>Total</th><th>Recebido</th><th>Pendente</th></tr></thead><tbody id="financialTicketBreakdown"></tbody></table></div></article>
+      </section>
     </main>
 
-    <footer class="site-footer">Le Beef | Versão: 3.0.6</footer>
+    <footer class="site-footer">Le Beef | Versão: 3.1.0</footer>
 
     <button class="fab" data-open="saleModal" aria-label="Registrar venda">+</button>
 
