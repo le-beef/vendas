@@ -693,8 +693,8 @@ function render() {
   const filteredTicketType = availableTicketTypes.find((type) => type.id === selectedTicketTypeFilter);
   const visibleSold = visibleSales.reduce((sum, sale) => sum + (filteredTicketType ? saleTypeQuantity(sale, filteredTicketType, selectedEvent) : saleQuantity(sale, selectedEvent)), 0);
   const visibleSalesTotal = visibleSales.reduce((sum, sale) => sum + (filteredTicketType ? saleTypeTotal(sale, filteredTicketType, selectedEvent) : saleTotal(sale, selectedEvent)), 0);
-  const visibleCapacity = selectedTicketTypeFilter === "all" ? eventCapacity(selectedEvent) : Number(availableTicketTypes.find((type) => type.id === selectedTicketTypeFilter)?.capacity || 0);
   const sold = selectedSales.reduce((sum, sale) => sum + saleQuantity(sale, selectedEvent), 0);
+  const visibleAvailable = filteredTicketType ? Math.max(0, Number(filteredTicketType.capacity || 0) - soldForTicket(selectedEventId, filteredTicketType)) : Math.max(0, eventCapacity(selectedEvent) - sold);
   const revenuePaid = selectedSales.filter((sale) => sale.paid).reduce((sum, sale) => sum + saleTotal(sale, selectedEvent), 0);
   const revenuePending = selectedSales.filter((sale) => !sale.paid).reduce((sum, sale) => sum + saleTotal(sale, selectedEvent), 0);
   const revenueTotal = revenuePaid + revenuePending;
@@ -712,14 +712,20 @@ function render() {
   $("clearParticipantFilters").hidden = !hasActiveParticipantFilters;
   $("clearParticipantFilters").disabled = !hasActiveParticipantFilters;
   $("clearParticipantFiltersMenu").disabled = false;
-  $("filterCount").textContent = `${visibleSold} ${visibleSold === 1 ? "vendido" : "vendidos"} • ${visibleCapacity} ${visibleCapacity === 1 ? "disponível" : "disponíveis"}`;
+  $("filterCount").textContent = `${visibleSold} ${visibleSold === 1 ? "vendido" : "vendidos"} • ${visibleAvailable} ${visibleAvailable === 1 ? "disponível" : "disponíveis"}`;
   $("allSalesTotalLabel").textContent = participantSearchQuery || activeFilterCount ? "Total vendido — resultados filtrados" : "Total vendido — Todos";
   $("allSalesTotal").textContent = money.format(visibleSalesTotal);
-  $("revenue").textContent = money.format(revenueTotal); $("revenuePaid").textContent = money.format(revenuePaid); $("revenuePending").textContent = money.format(revenuePending); $("sold").textContent = sold; $("capacity").textContent = eventCapacity(selectedEvent); $("checkins").textContent = checkins;
+  $("revenue").textContent = money.format(revenueTotal); $("revenuePaid").textContent = money.format(revenuePaid); $("revenuePending").textContent = money.format(revenuePending); $("sold").textContent = sold; $("available").textContent = Math.max(0, eventCapacity(selectedEvent) - sold); $("checkins").textContent = checkins;
   $("ticketStockBreakdown").innerHTML = availableTicketTypes.map((type) => {
     const typeSold = selectedSales.reduce((sum, sale) => sum + saleTypeQuantity(sale, type, selectedEvent), 0);
-    const typeCapacity = Number(type.capacity || 0);
-    return `<div class="ticket-stock-row"><strong title="${escapeHtml(type.name)}">${escapeHtml(type.name)}</strong><span><b>${typeSold}</b> ${typeSold === 1 ? "vendido" : "vendidos"} <i aria-hidden="true">•</i> <b>${typeCapacity}</b> ${typeCapacity === 1 ? "disponível" : "disponíveis"}</span></div>`;
+    const typeAvailable = Math.max(0, Number(type.capacity || 0) - typeSold);
+    return `<div class="ticket-stock-row"><strong title="${escapeHtml(type.name)}">${escapeHtml(type.name)}</strong><span><b>${typeSold}</b> ${typeSold === 1 ? "vendido" : "vendidos"} <i aria-hidden="true">•</i> <b>${typeAvailable}</b> ${typeAvailable === 1 ? "disponível" : "disponíveis"}</span></div>`;
+  }).join("");
+  $("ticketCheckinBreakdown").innerHTML = availableTicketTypes.map((type) => {
+    const typeSold = selectedSales.reduce((sum, sale) => sum + saleTypeQuantity(sale, type, selectedEvent), 0);
+    const typeCheckins = selectedSales.filter((sale) => sale.checkedIn).reduce((sum, sale) => sum + saleTypeQuantity(sale, type, selectedEvent), 0);
+    const typeWaiting = Math.max(0, typeSold - typeCheckins);
+    return `<div class="ticket-stock-row"><strong title="${escapeHtml(type.name)}">${escapeHtml(type.name)}</strong><span><b>${typeCheckins}</b> check-in${typeCheckins === 1 ? "" : "s"} <i aria-hidden="true">•</i> <b>${typeWaiting}</b> aguardando</span></div>`;
   }).join("");
   renderFinancialReport(hasRole("admin") ? selectedEvent : undefined, hasRole("admin") ? selectedSales : []);
   if (selectedEvent) { $("selectedEventName").textContent = selectedEvent.name; $("selectedEventMeta").textContent = hasRole("door") ? `${selectedEvent.place} · ${dateText(selectedEvent.date)}` : `${selectedEvent.place} · ${dateText(selectedEvent.date)} · ${priceLabel(selectedEvent)}`; $("salesPanelTitle").textContent = `Vendas de ${selectedEvent.name}`; $("allSalesTitle").textContent = `Participantes — ${selectedEvent.name}`; }
