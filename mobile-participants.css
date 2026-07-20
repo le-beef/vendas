@@ -336,20 +336,59 @@
   .sales-panel tr.sales-row.is-expanded .participant-detail-toggle::after { content: " ↑"; }
 
   .sales-panel tr.sales-row:not(.is-expanded) .mobile-card-overview {
-    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr) auto auto;
     grid-template-areas:
-      "participant payment"
-      "contact toggle";
+      "participant participant value"
+      "contact payment toggle";
     align-items: center;
+    gap: 5px 7px;
   }
 
   .sales-panel tr.sales-row:not(.is-expanded) .mobile-overview-participant > small:last-child,
-  .sales-panel tr.sales-row:not(.is-expanded) .mobile-overview-value,
   .sales-panel tr.sales-row:not(.is-expanded) .mobile-overview-entry,
   .sales-panel tr.sales-row:not(.is-expanded) td:nth-child(2),
   .sales-panel tr.sales-row:not(.is-expanded) td:nth-child(3),
   .sales-panel tr.sales-row:not(.is-expanded) td:last-child {
     display: none;
+  }
+
+  .sales-panel tr.sales-row:not(.is-expanded) .mobile-overview-participant,
+  .sales-panel tr.sales-row:not(.is-expanded) .mobile-overview-value,
+  .sales-panel tr.sales-row:not(.is-expanded) .mobile-overview-payment,
+  .sales-panel tr.sales-row:not(.is-expanded) .payment-display {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    flex-direction: row;
+    gap: 4px;
+  }
+
+  .sales-panel tr.sales-row:not(.is-expanded) .mobile-overview-participant strong,
+  .sales-panel tr.sales-row:not(.is-expanded) .mobile-overview-value strong,
+  .sales-panel tr.sales-row:not(.is-expanded) .payment-details {
+    overflow: hidden;
+    max-width: none;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .sales-panel tr.sales-row:not(.is-expanded) .mobile-overview-value {
+    justify-self: end;
+  }
+
+  .sales-panel tr.sales-row:not(.is-expanded) .mobile-overview-contact {
+    flex-wrap: nowrap;
+    white-space: nowrap;
+  }
+
+  .sales-panel tr.sales-row:not(.is-expanded) .mobile-overview-payment .payment {
+    min-height: 24px;
+    padding: 4px 6px;
+  }
+
+  .sales-panel tr.sales-row:not(.is-expanded) .participant-detail-toggle {
+    align-self: center;
+    white-space: nowrap;
   }
 
   .sales-panel tr.sales-row:not(.is-expanded) td:first-child {
@@ -363,4 +402,15 @@
       "contact payment entry"
       "toggle toggle toggle";
   }
+}
+
+@media (max-width: 390px) {
+  .sales-panel tr.sales-row:not(.is-expanded) .mobile-card-overview { gap: 4px; }
+  .sales-panel tr.sales-row:not(.is-expanded) .mobile-field-label { font-size: 7px; letter-spacing: .35px; }
+  .sales-panel tr.sales-row:not(.is-expanded) .mobile-overview-participant strong { font-size: 13px; }
+  .sales-panel tr.sales-row:not(.is-expanded) .mobile-overview-value strong { font-size: 12px !important; }
+  .sales-panel tr.sales-row:not(.is-expanded) .mobile-overview-contact .whatsapp-button { width: 26px; min-width: 26px; min-height: 26px; }
+  .sales-panel tr.sales-row:not(.is-expanded) .mobile-overview-payment .payment,
+  .sales-panel tr.sales-row:not(.is-expanded) .participant-detail-toggle { font-size: 8px; }
+  .sales-panel tr.sales-row:not(.is-expanded) .payment-details { font-size: 7px !important; }
 }
