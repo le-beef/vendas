@@ -385,6 +385,24 @@
     display: none;
   }
 
+  .sales-panel tr.sales-row:not(.is-expanded) .mobile-overview-participant > .mobile-field-label,
+  .sales-panel tr.sales-row:not(.is-expanded) .mobile-overview-value > .mobile-field-label,
+  .sales-panel tr.sales-row:not(.is-expanded) .mobile-overview-payment > .mobile-field-label {
+    display: none;
+  }
+
+  .sales-panel tr.sales-row:not(.is-expanded) .mobile-overview-contact .whatsapp-button {
+    width: 26px;
+    min-width: 26px;
+    min-height: 26px;
+  }
+
+  .sales-panel tr.sales-row:not(.is-expanded) .mobile-overview-contact .whatsapp-icon-asset {
+    width: 42px;
+    height: 42px;
+    flex-basis: 42px;
+  }
+
   .sales-panel tr.sales-row:not(.is-expanded) .mobile-overview-payment .payment {
     min-height: 24px;
     padding: 4px 6px;

@@ -1,10 +1,10 @@
-# Configuração de segurança e financeiro — Le Beef 3.12.0
+# Configuração de segurança e financeiro — Le Beef 3.12.1
 
 Os eventos e participantes já cadastrados não serão apagados.
 
 ## 1. Publicar o site e marcar os eventos
 
-1. Publique os arquivos da versão 3.12.0 no GitHub Pages.
+1. Publique os arquivos da versão 3.12.1 no GitHub Pages.
 2. Entre com a conta de administrador.
 3. No menu da conta, abra **Gerenciar usuários**.
 4. Ao criar um vendedor ou usuário da portaria, marque um ou mais **Eventos permitidos**.
@@ -35,7 +35,7 @@ As novas regras garantem que:
 3. Clique em **Histórico** no cabeçalho do evento.
 4. Consulte a ação, o participante, o usuário responsável, o perfil, a data e o horário.
 
-O histórico registra ações realizadas depois da publicação das regras da versão 3.4.0. Na versão 3.12.0, a lista principal mostra todos os participantes e o telefone fica oculto no cartão recolhido do celular. A estrutura do Firebase e o funcionamento das cortesias permanecem inalterados.
+O histórico registra ações realizadas depois da publicação das regras da versão 3.4.0. Na versão 3.12.1, os rótulos do cartão recolhido foram ocultados e o ícone do WhatsApp foi reduzido no celular. A estrutura do Firebase e o funcionamento das cortesias permanecem inalterados.
 
 O perfil é gravado assim:
 
