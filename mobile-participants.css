@@ -317,3 +317,50 @@
     font-size: 8px;
   }
 }
+
+@media (max-width: 700px) {
+  .sales-panel tr.sales-row { cursor: pointer; }
+
+  .participant-detail-toggle {
+    grid-area: toggle;
+    justify-self: end;
+    padding: 3px 0;
+    border: 0;
+    background: transparent;
+    color: #2563eb;
+    font: 700 9px "DM Sans";
+    cursor: pointer;
+  }
+
+  .participant-detail-toggle::after { content: " ↓"; }
+  .sales-panel tr.sales-row.is-expanded .participant-detail-toggle::after { content: " ↑"; }
+
+  .sales-panel tr.sales-row:not(.is-expanded) .mobile-card-overview {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "participant payment"
+      "contact toggle";
+    align-items: center;
+  }
+
+  .sales-panel tr.sales-row:not(.is-expanded) .mobile-overview-participant > small:last-child,
+  .sales-panel tr.sales-row:not(.is-expanded) .mobile-overview-value,
+  .sales-panel tr.sales-row:not(.is-expanded) .mobile-overview-entry,
+  .sales-panel tr.sales-row:not(.is-expanded) td:nth-child(2),
+  .sales-panel tr.sales-row:not(.is-expanded) td:nth-child(3),
+  .sales-panel tr.sales-row:not(.is-expanded) td:last-child {
+    display: none;
+  }
+
+  .sales-panel tr.sales-row:not(.is-expanded) td:first-child {
+    padding-bottom: 0;
+    border-bottom: 0;
+  }
+
+  .sales-panel tr.sales-row.is-expanded .mobile-card-overview {
+    grid-template-areas:
+      "participant participant value"
+      "contact payment entry"
+      "toggle toggle toggle";
+  }
+}

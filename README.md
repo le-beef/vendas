@@ -4,7 +4,7 @@ Site estático em HTML, CSS e JavaScript, pronto para publicar no GitHub Pages, 
 
 ## Login individual, permissões e histórico
 
-A versão 3.9.1 mostra no resumo do evento o saldo que ainda está disponível para venda em cada tipo/lote. O quadro de check-ins também discrimina, por tipo de ingresso, quantos já entraram e quantos ainda aguardam entrada. Ingressos vendidos dentro de pacotes entram automaticamente nessas contagens.
+A versão 3.10.0 deixa o painel mais compacto no celular. Os números por tipo de ingresso e check-in aparecem ao tocar em **Detalhar**. Os cartões de participantes mostram inicialmente apenas nome, telefone e pagamento; um toque no cartão abre os ingressos, valor, entrada, observação e ações.
 
 - **Administrador**: visualiza todos os eventos e controla usuários, eventos, vendas, pagamentos, check-in, Excel e relatório financeiro.
 - **Vendedor**: visualiza somente os eventos marcados pelo administrador; nesses eventos, trabalha com vendas, pagamentos, check-in e Excel.
@@ -21,7 +21,7 @@ As permissões são aplicadas na interface e nas regras do Realtime Database. Co
 
 ## Atualização obrigatória no Firebase
 
-Na atualização para a versão 3.9.1, envie os arquivos alterados ao GitHub Pages. Eventos, pacotes e vendas antigas continuam disponíveis normalmente; esta versão não exige alteração no banco de dados.
+Na atualização para a versão 3.10.0, envie os arquivos alterados ao GitHub Pages. Eventos, pacotes e vendas antigas continuam disponíveis normalmente; esta versão não exige alteração no banco de dados.
 
 As instruções completas estão em [FIREBASE-SETUP.md](FIREBASE-SETUP.md).
 
