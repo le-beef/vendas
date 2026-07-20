@@ -4,7 +4,7 @@ Site estático em HTML, CSS e JavaScript, pronto para publicar no GitHub Pages, 
 
 ## Login individual, permissões e histórico
 
-A versão 3.11.1 compacta os cartões de participantes no celular em no máximo duas linhas quando estão recolhidos. A primeira linha mostra nome e valor; a segunda mostra telefone/WhatsApp, pagamento e o controle **Detalhar**. As demais informações continuam disponíveis ao expandir o cartão.
+A versão 3.12.0 exibe todos os participantes cadastrados diretamente na lista do evento, sem limitar aos mais recentes. No celular, o cartão recolhido mostra somente o ícone do WhatsApp; o número completo aparece ao tocar em **Detalhar**.
 
 - **Administrador**: visualiza todos os eventos e controla usuários, eventos, vendas, pagamentos, check-in, Excel e relatório financeiro.
 - **Vendedor**: visualiza somente os eventos marcados pelo administrador; nesses eventos, trabalha com vendas, pagamentos, check-in e Excel.
@@ -21,7 +21,7 @@ As permissões são aplicadas na interface e nas regras do Realtime Database. Co
 
 ## Atualização obrigatória no Firebase
 
-Na atualização para a versão 3.11.1, envie os arquivos alterados ao GitHub Pages. Eventos, pacotes, cortesias e vendas antigas continuam disponíveis normalmente; esta versão não exige alteração nas regras do banco de dados.
+Na atualização para a versão 3.12.0, envie os arquivos alterados ao GitHub Pages. Eventos, pacotes, cortesias e vendas antigas continuam disponíveis normalmente; esta versão não exige alteração nas regras do banco de dados.
 
 As instruções completas estão em [FIREBASE-SETUP.md](FIREBASE-SETUP.md).
 

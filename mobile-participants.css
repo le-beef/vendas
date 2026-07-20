@@ -381,6 +381,10 @@
     white-space: nowrap;
   }
 
+  .sales-panel tr.sales-row:not(.is-expanded) .mobile-overview-contact > span:first-child {
+    display: none;
+  }
+
   .sales-panel tr.sales-row:not(.is-expanded) .mobile-overview-payment .payment {
     min-height: 24px;
     padding: 4px 6px;
