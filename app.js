@@ -4,7 +4,7 @@ import { getDatabase, ref, push, set, update, onValue, get, query, orderByChild,
 import { firebaseConfig } from "./firebase-config.js";
 
 const demoEvents = [
-  { id: "demo-1", name: "Festival de Inverno", date: "2026-08-02", place: "Espaço Aurora", capacity: 300, ticketTypes: [{ id: "inteira", name: "Inteira", price: 85, capacity: 200 }, { id: "meia", name: "Meia-entrada", price: 42.5, capacity: 100 }], packages: [{ id: "combo-casal", name: "Combo Casal", discountPercent: 10, regularPrice: 127.5, price: 114.75, items: [{ ticketTypeId: "inteira", quantity: 1 }, { ticketTypeId: "meia", quantity: 1 }] }] },
+  { id: "demo-1", name: "Festival de Inverno", date: "2026-08-02", place: "Espaço Aurora", capacity: 300, ticketTypes: [{ id: "inteira", name: "Inteira", price: 85, capacity: 200 }, { id: "meia", name: "Meia-entrada", price: 42.5, capacity: 100 }], packages: [{ id: "combo-casal", name: "Combo Casal", discountType: "percent", discountValue: 10, discountPercent: 10, regularPrice: 127.5, price: 114.75, items: [{ ticketTypeId: "inteira", quantity: 1 }, { ticketTypeId: "meia", quantity: 1 }] }] },
   { id: "demo-2", name: "Noite de Comédia", date: "2026-08-18", place: "Teatro Central", capacity: 180, ticketTypes: [{ id: "padrão", name: "Ingresso padrão", price: 45, capacity: 180 }] }
 ];
 const demoSales = [
@@ -152,9 +152,13 @@ function packagesFor(event) {
   return original.map((item) => {
     const packageItems = (Array.isArray(item.items) ? item.items : Object.values(item.items || {})).map((component) => ({ ticketTypeId: component.ticketTypeId || "", quantity: Math.max(0, Number(component.quantity || 0)) })).filter((component) => component.ticketTypeId && component.quantity > 0);
     const regularPrice = packageItems.reduce((sum, component) => { const type = ticketTypesFor(event).find((ticket) => ticket.id === component.ticketTypeId); return sum + Number(type?.price || 0) * component.quantity; }, 0);
-    const discountPercent = Math.min(100, Math.max(0, Number(item.discountPercent || 0)));
-    const price = Number(item.price ?? regularPrice * (1 - discountPercent / 100));
-    return { ...item, id: item.id || "", name: item.name || "Pacote", items: packageItems, regularPrice: Number(item.regularPrice ?? regularPrice), discountPercent, price };
+    const discountType = item.discountType === "fixed" ? "fixed" : "percent";
+    const legacyPercent = Math.min(100, Math.max(0, Number(item.discountPercent || 0)));
+    const discountValue = Math.max(0, Number(item.discountValue ?? (discountType === "fixed" ? item.discountAmount : legacyPercent) ?? 0));
+    const discountAmount = discountType === "fixed" ? Math.min(regularPrice, discountValue) : regularPrice * Math.min(100, discountValue) / 100;
+    const discountPercent = regularPrice > 0 ? discountAmount / regularPrice * 100 : 0;
+    const price = Math.max(0, Number(item.price ?? regularPrice - discountAmount));
+    return { ...item, id: item.id || "", name: item.name || "Pacote", items: packageItems, regularPrice: Number(item.regularPrice ?? regularPrice), discountType, discountValue, discountAmount, discountPercent, price };
   }).filter((item) => item.id && item.name && item.items.length);
 }
 function packageCompositionText(packageItem, event) { return packageItem.items.map((component) => { const type = ticketTypesFor(event).find((item) => item.id === component.ticketTypeId); return `${component.quantity}× ${type?.name || "Ingresso"}`; }).join(" + "); }
@@ -351,18 +355,49 @@ function addPackageRow(packageData = {}) {
   const row = document.createElement("div");
   row.className = "package-row";
   row.dataset.packageId = packageData.id || newEntityId("pacote");
-  row.innerHTML = `<div class="package-row-heading"><label>Nome do pacote<input class="package-name" required placeholder="Ex.: Combo casal" value="${escapeHtml(packageData.name || "")}" /></label><label>Desconto (%)<input class="package-discount" type="number" min="0" max="100" step="0.01" value="${Number(packageData.discountPercent || 0)}" required /></label><button class="close" type="button" data-remove-package aria-label="Remover pacote">×</button></div><div class="package-components"></div><div class="package-actions"><button class="package-add-component" type="button" data-add-package-component>+ Adicionar ingresso ao pacote</button><div class="package-summary"><span>Normal: <strong data-package-regular>R$ 0,00</strong></span><span>Pacote: <strong data-package-price>R$ 0,00</strong></span><span class="package-saving" data-package-saving>Economia R$ 0,00</span></div></div>`;
+  const discountType = packageData.discountType === "fixed" ? "fixed" : "percent";
+  const discountValue = Number(packageData.discountValue ?? (discountType === "fixed" ? packageData.discountAmount : packageData.discountPercent) ?? 0);
+  row.dataset.discountType = discountType;
+  row.innerHTML = `<div class="package-row-heading"><label>Nome do pacote<input class="package-name" required placeholder="Ex.: Combo casal" value="${escapeHtml(packageData.name || "")}" /></label><label class="package-discount-label"><span>Desconto <button class="package-discount-toggle" type="button" data-toggle-package-discount title="Alternar entre porcentagem e reais" aria-label="Alterar desconto para ${discountType === "fixed" ? "porcentagem" : "valor em reais"}">${discountType === "fixed" ? "R$" : "%"}</button></span><input class="package-discount" type="number" min="0" step="0.01" value="${discountValue}" required /></label><button class="close" type="button" data-remove-package aria-label="Remover pacote">×</button></div><div class="package-components"></div><div class="package-actions"><button class="package-add-component" type="button" data-add-package-component>+ Adicionar ingresso ao pacote</button><div class="package-summary"><span>Normal: <strong data-package-regular>R$ 0,00</strong></span><span>Pacote: <strong data-package-price>R$ 0,00</strong></span><span class="package-saving" data-package-saving>Economia R$ 0,00</span></div></div>`;
   $("packagesList").append(row);
   const packageItems = Array.isArray(packageData.items) ? packageData.items : Object.values(packageData.items || {});
   (packageItems.length ? packageItems : [{ ticketTypeId: "", quantity: 1 }]).forEach((component) => addPackageComponentRow(row, component.ticketTypeId, component.quantity));
   refreshPackageTicketOptions();
   return row;
 }
-function updatePackageSummary(packageRow) {
+function packageDraftDetails(packageRow) {
   const ticketTypes = draftTicketTypes();
-  const regularPrice = [...packageRow.querySelectorAll(".package-component-row")].reduce((sum, row) => { const type = ticketTypes.find((item) => item.id === row.querySelector(".package-component-type").value); const quantity = Math.max(0, Number(row.querySelector(".package-component-quantity").value || 0)); return sum + Number(type?.price || 0) * quantity; }, 0);
-  const discount = Math.min(100, Math.max(0, Number(packageRow.querySelector(".package-discount").value || 0)));
-  const price = Math.round(regularPrice * (1 - discount / 100) * 100) / 100;
+  const components = [...packageRow.querySelectorAll(".package-component-row")].map((row) => { const type = ticketTypes.find((item) => item.id === row.querySelector(".package-component-type").value); const quantity = Math.max(0, Number(row.querySelector(".package-component-quantity").value || 0)); return { type, quantity }; });
+  const regularPrice = components.reduce((sum, component) => sum + Number(component.type?.price || 0) * component.quantity, 0);
+  return { components, regularPrice };
+}
+function syncPackageDiscountControl(packageRow) {
+  const isFixed = packageRow.dataset.discountType === "fixed";
+  const input = packageRow.querySelector(".package-discount");
+  const toggle = packageRow.querySelector("[data-toggle-package-discount]");
+  const { regularPrice } = packageDraftDetails(packageRow);
+  input.max = isFixed ? String(Math.max(0, regularPrice)) : "100";
+  toggle.textContent = isFixed ? "R$" : "%";
+  toggle.setAttribute("aria-label", `Alterar desconto para ${isFixed ? "porcentagem" : "valor em reais"}`);
+}
+function togglePackageDiscountType(packageRow) {
+  const input = packageRow.querySelector(".package-discount");
+  const { regularPrice } = packageDraftDetails(packageRow);
+  const currentValue = Math.max(0, Number(input.value || 0));
+  const isFixed = packageRow.dataset.discountType === "fixed";
+  packageRow.dataset.discountType = isFixed ? "percent" : "fixed";
+  const converted = isFixed ? (regularPrice > 0 ? currentValue / regularPrice * 100 : 0) : regularPrice * Math.min(100, currentValue) / 100;
+  input.value = String(Math.round(converted * 100) / 100);
+  syncPackageDiscountControl(packageRow);
+  updatePackageSummary(packageRow);
+}
+function updatePackageSummary(packageRow) {
+  const { regularPrice } = packageDraftDetails(packageRow);
+  const discountValue = Math.max(0, Number(packageRow.querySelector(".package-discount").value || 0));
+  const isFixed = packageRow.dataset.discountType === "fixed";
+  const discountAmount = isFixed ? Math.min(regularPrice, discountValue) : regularPrice * Math.min(100, discountValue) / 100;
+  const price = Math.round(Math.max(0, regularPrice - discountAmount) * 100) / 100;
+  syncPackageDiscountControl(packageRow);
   packageRow.querySelector("[data-package-regular]").textContent = money.format(regularPrice);
   packageRow.querySelector("[data-package-price]").textContent = money.format(price);
   packageRow.querySelector("[data-package-saving]").textContent = `Economia ${money.format(regularPrice - price)}`;
@@ -391,12 +426,14 @@ function getPackages(ticketTypes) {
   const packageNames = new Set();
   return [...document.querySelectorAll(".package-row")].map((row) => {
     const name = row.querySelector(".package-name").value.trim();
-    const discountPercent = Number(row.querySelector(".package-discount").value);
+    const discountType = row.dataset.discountType === "fixed" ? "fixed" : "percent";
+    const discountValue = Number(row.querySelector(".package-discount").value);
     if (!name) throw new Error("Informe o nome de todos os pacotes.");
     const normalizedName = normalizedSearch(name);
     if (packageNames.has(normalizedName)) throw new Error(`O pacote “${name}” foi cadastrado mais de uma vez.`);
     packageNames.add(normalizedName);
-    if (!Number.isFinite(discountPercent) || discountPercent < 0 || discountPercent > 100) throw new Error(`Informe um desconto entre 0% e 100% para “${name}”.`);
+    if (!Number.isFinite(discountValue) || discountValue < 0) throw new Error(`Informe um desconto válido para “${name}”.`);
+    if (discountType === "percent" && discountValue > 100) throw new Error(`Informe um desconto entre 0% e 100% para “${name}”.`);
     const usedTypes = new Set();
     const items = [...row.querySelectorAll(".package-component-row")].map((componentRow) => {
       const ticketTypeId = componentRow.querySelector(".package-component-type").value;
@@ -410,8 +447,11 @@ function getPackages(ticketTypes) {
       return { ticketTypeId: type.id, quantity };
     });
     const regularPrice = items.reduce((sum, component) => sum + Number(ticketTypes.find((type) => type.id === component.ticketTypeId)?.price || 0) * component.quantity, 0);
-    const price = Math.round(regularPrice * (1 - discountPercent / 100) * 100) / 100;
-    return { id: row.dataset.packageId, name, discountPercent, regularPrice, price, items };
+    if (discountType === "fixed" && discountValue > regularPrice) throw new Error(`O desconto em reais do pacote “${name}” não pode ser maior que ${money.format(regularPrice)}.`);
+    const discountAmount = discountType === "fixed" ? discountValue : regularPrice * discountValue / 100;
+    const discountPercent = regularPrice > 0 ? discountAmount / regularPrice * 100 : 0;
+    const price = Math.round(Math.max(0, regularPrice - discountAmount) * 100) / 100;
+    return { id: row.dataset.packageId, name, discountType, discountValue, discountAmount, discountPercent, regularPrice, price, items };
   });
 }
 function saleItemOptionKey(item) { return item?.kind === "package" || item?.packageId ? `package:${item.packageId}` : item?.ticketTypeId ? `ticket:${item.ticketTypeId}` : ""; }
@@ -871,6 +911,7 @@ $("eventForm").addEventListener("submit", async (event) => { event.preventDefaul
 $("saleForm").addEventListener("submit", async (event) => { event.preventDefault(); const form = event.currentTarget; try { const data = Object.fromEntries(new FormData(form)); data.items = getSaleTicketItems(); await saveSale(data, form.dataset.editId); form.reset(); $("saleTicketItemsList").innerHTML = ""; $("saleModal").close(); } catch (error) { toast(error.message); } });
 $("paymentConfirmationForm").addEventListener("submit", async (event) => { event.preventDefault(); const form = event.currentTarget; const button = form.querySelector('[type="submit"]'); button.disabled = true; try { await confirmSalePayment(Object.fromEntries(new FormData(form))); form.reset(); $("paymentConfirmationModal").close(); toast("Pagamento confirmado."); } catch (error) { toast(error.message); } finally { button.disabled = false; } });
 document.addEventListener("click", (event) => { const whatsappTrigger = event.target.closest("[data-whatsapp]"); if (whatsappTrigger) { event.preventDefault(); openWhatsappChooser(whatsappTrigger); return; } const whatsappApp = event.target.closest("[data-whatsapp-app]"); if (whatsappApp) { launchWhatsapp(whatsappApp.dataset.whatsappApp); return; } const addPackageComponent = event.target.closest("[data-add-package-component]"); if (addPackageComponent) { const packageRow = addPackageComponent.closest(".package-row"); if (packageRow.querySelectorAll(".package-component-row").length >= draftTicketTypes().filter((item) => item.name).length) return toast("Todos os tipos de ingresso já estão neste pacote."); addPackageComponentRow(packageRow); refreshPackageTicketOptions(); return; } const removePackageComponent = event.target.closest("[data-remove-package-component]"); if (removePackageComponent) { const packageRow = removePackageComponent.closest(".package-row"); if (packageRow.querySelectorAll(".package-component-row").length === 1) return toast("O pacote precisa ter pelo menos um ingresso."); removePackageComponent.closest(".package-component-row").remove(); refreshPackageTicketOptions(); return; } const removePackage = event.target.closest("[data-remove-package]"); if (removePackage) { removePackage.closest(".package-row").remove(); refreshPackageTicketOptions(); return; } const removeTicket = event.target.closest("[data-remove-ticket]"); if (removeTicket) { if (document.querySelectorAll(".ticket-type-row").length === 1) return toast("O evento precisa de pelo menos um tipo de ingresso."); removeTicket.closest(".ticket-type-row").remove(); refreshPackageTicketOptions(); return; } const removeSaleTicket = event.target.closest("[data-remove-sale-ticket]"); if (removeSaleTicket) { const rows = document.querySelectorAll(".sale-ticket-item-row"); if (rows.length === 1) return toast("A venda precisa de pelo menos um item."); removeSaleTicket.closest(".sale-ticket-item-row").remove(); populateSaleTicketItemOptions(); return; } const selectedAction = event.target.closest("[data-selected-action]"); if (selectedAction) { const action = selectedAction.dataset.selectedAction; if (action === "sale") openNewSale(selectedEventId); if (action === "edit") openEditEvent(selectedEventId); if (action === "history") openAuditHistory(selectedEventId); if (action === "export" && requireRole(["admin", "seller"])) window.exportSalesXlsx(state.sales, state.events, selectedEventId); if (action === "delete") deleteEvent(selectedEventId); return; } const selectEvent = event.target.closest("[data-select-event]"); if (selectEvent) { selectedEventId = selectEvent.dataset.selectEvent; render(); return; } const editSaleButton = event.target.closest("[data-edit-sale]"); if (editSaleButton) { openEditSale(editSaleButton.dataset.editSale); return; } const deleteSaleButton = event.target.closest("[data-delete-sale]"); if (deleteSaleButton) { deleteSale(deleteSaleButton.dataset.deleteSale); return; } const checkin = event.target.closest("[data-checkin]"); if (checkin) { toggleCheckin(checkin.dataset.checkin); return; } const paid = event.target.closest("[data-paid]"); if (paid) { togglePayment(paid.dataset.paid); return; } const saleRow = event.target.closest("[data-sale-row]"); if (saleRow && hasRole("admin", "seller")) { openEditSale(saleRow.dataset.saleRow); return; } });
+document.addEventListener("click", (event) => { const toggle = event.target.closest?.("[data-toggle-package-discount]"); if (!toggle) return; event.preventDefault(); event.stopImmediatePropagation(); togglePackageDiscountType(toggle.closest(".package-row")); }, true);
 // O cartão do participante é somente informativo; edição acontece apenas pelo botão Editar.
 document.addEventListener("click", (event) => { const row = event.target.closest?.("[data-sale-row]"); if (row && !event.target.closest("button, a, input, select, textarea")) event.stopImmediatePropagation(); }, true);
 document.addEventListener("keydown", (event) => { const card = event.target.closest?.("[data-select-event]"); if (card && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); selectedEventId = card.dataset.selectEvent; resetParticipantFilters(); render(); } });
