@@ -716,6 +716,11 @@ function render() {
   $("allSalesTotalLabel").textContent = participantSearchQuery || activeFilterCount ? "Total vendido — resultados filtrados" : "Total vendido — Todos";
   $("allSalesTotal").textContent = money.format(visibleSalesTotal);
   $("revenue").textContent = money.format(revenueTotal); $("revenuePaid").textContent = money.format(revenuePaid); $("revenuePending").textContent = money.format(revenuePending); $("sold").textContent = sold; $("capacity").textContent = eventCapacity(selectedEvent); $("checkins").textContent = checkins;
+  $("ticketStockBreakdown").innerHTML = availableTicketTypes.map((type) => {
+    const typeSold = selectedSales.reduce((sum, sale) => sum + saleTypeQuantity(sale, type, selectedEvent), 0);
+    const typeCapacity = Number(type.capacity || 0);
+    return `<div class="ticket-stock-row"><strong title="${escapeHtml(type.name)}">${escapeHtml(type.name)}</strong><span><b>${typeSold}</b> ${typeSold === 1 ? "vendido" : "vendidos"} <i aria-hidden="true">•</i> <b>${typeCapacity}</b> ${typeCapacity === 1 ? "disponível" : "disponíveis"}</span></div>`;
+  }).join("");
   renderFinancialReport(hasRole("admin") ? selectedEvent : undefined, hasRole("admin") ? selectedSales : []);
   if (selectedEvent) { $("selectedEventName").textContent = selectedEvent.name; $("selectedEventMeta").textContent = hasRole("door") ? `${selectedEvent.place} · ${dateText(selectedEvent.date)}` : `${selectedEvent.place} · ${dateText(selectedEvent.date)} · ${priceLabel(selectedEvent)}`; $("salesPanelTitle").textContent = `Vendas de ${selectedEvent.name}`; $("allSalesTitle").textContent = `Participantes — ${selectedEvent.name}`; }
   $("eventsList").innerHTML = events.length ? events.map((event) => {

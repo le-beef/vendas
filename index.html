@@ -18,7 +18,7 @@
     <link rel="stylesheet" href="access.css" />
     <link rel="stylesheet" href="sales.css?v=15" />
     <link rel="stylesheet" href="layout.css" />
-    <link rel="stylesheet" href="dashboard.css?v=25" />
+    <link rel="stylesheet" href="dashboard.css?v=26" />
     <link rel="stylesheet" href="mobile-participants.css?v=23" />
     <link rel="stylesheet" href="participant-filter.css?v=15" />
     <link rel="stylesheet" href="filter-counter.css?v=9" />
@@ -115,7 +115,7 @@
 
         <section class="metrics" aria-label="Resumo do evento selecionado">
           <article class="revenue-card" data-roles="admin,seller"><span>Faturamento total</span><strong id="revenue">R$ 0,00</strong><div class="revenue-breakdown" aria-label="Situação dos pagamentos"><div class="revenue-detail confirmed"><small>Confirmados</small><b id="revenuePaid">R$ 0,00</b></div><div class="revenue-detail pending"><small>Pendentes</small><b id="revenuePending">R$ 0,00</b></div></div><button id="openFinancialReport" class="financial-report-button" type="button" data-roles="admin">Ver relatório financeiro <span aria-hidden="true">→</span></button></article>
-          <article><span>Ingressos vendidos</span><strong id="sold">0</strong><small>de <b id="capacity">0</b> no total</small></article>
+          <article class="ticket-stock-card"><span>Ingressos vendidos</span><strong id="sold">0</strong><small>de <b id="capacity">0</b> no total</small><div id="ticketStockBreakdown" class="ticket-stock-breakdown" aria-label="Ingressos vendidos e disponíveis por tipo"></div></article>
           <article><span>Check-ins</span><strong id="checkins">0</strong><small>participantes presentes</small></article>
         </section>
 
@@ -151,7 +151,7 @@
       </section>
     </main>
 
-    <footer class="site-footer">Le Beef | Versão: 3.8.0</footer>
+    <footer class="site-footer">Le Beef | Versão: 3.9.0</footer>
 
     <button class="fab" data-open="saleModal" data-roles="admin,seller" aria-label="Registrar venda">+</button>
 
@@ -241,6 +241,6 @@
     <script src="pwa.js"></script>
     <script src="access.js"></script>
     <script src="excel-export.js?v=31"></script>
-    <script type="module" src="app.js?v=32"></script>
+    <script type="module" src="app.js?v=33"></script>
   </body>
 </html>

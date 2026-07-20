@@ -71,3 +71,5 @@
 .sales-panel .table-wrap {
   background: #fff;
 }
+
+.ticket-stock-breakdown{display:grid;gap:7px;margin-top:14px;padding-top:13px;border-top:1px solid #edf0f5}.ticket-stock-row{display:flex;align-items:center;justify-content:space-between;gap:10px;min-width:0}.metrics .ticket-stock-row>strong{min-width:0;margin:0;color:#14213d;font:700 11px "DM Sans";letter-spacing:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.metrics .ticket-stock-row>span{flex:0 0 auto;color:#64748b;font-size:10px;white-space:nowrap}.metrics .ticket-stock-row>span b{color:#2563eb}.metrics .ticket-stock-row>span i{margin:0 3px;color:#cbd5e1;font-style:normal}@media(max-width:430px){.ticket-stock-breakdown{gap:8px}.ticket-stock-row{align-items:flex-start;flex-direction:column;gap:3px}.metrics .ticket-stock-row>strong{max-width:100%;font-size:12px}.metrics .ticket-stock-row>span{font-size:11px}}

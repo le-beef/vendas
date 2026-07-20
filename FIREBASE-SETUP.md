@@ -1,10 +1,10 @@
-# Configuração de segurança e financeiro — Le Beef 3.8.0
+# Configuração de segurança e financeiro — Le Beef 3.9.0
 
 Os eventos e participantes já cadastrados não serão apagados.
 
 ## 1. Publicar o site e marcar os eventos
 
-1. Publique os arquivos da versão 3.8.0 no GitHub Pages.
+1. Publique os arquivos da versão 3.9.0 no GitHub Pages.
 2. Entre com a conta de administrador.
 3. No menu da conta, abra **Gerenciar usuários**.
 4. Ao criar um vendedor ou usuário da portaria, marque um ou mais **Eventos permitidos**.
@@ -35,7 +35,7 @@ As novas regras garantem que:
 3. Clique em **Histórico** no cabeçalho do evento.
 4. Consulte a ação, o participante, o usuário responsável, o perfil, a data e o horário.
 
-O histórico registra ações realizadas depois da publicação das regras da versão 3.4.0. Na versão 3.8.0, eventos também podem guardar pacotes com desconto percentual ou fixo em reais, e as vendas armazenam a composição usada no momento da compra. Vendas e pacotes antigos permanecem normalmente.
+O histórico registra ações realizadas depois da publicação das regras da versão 3.4.0. Na versão 3.9.0, o painel também discrimina no resumo os ingressos vendidos e disponíveis por tipo, incluindo os ingressos consumidos por pacotes. Eventos podem guardar pacotes com desconto percentual ou fixo em reais, e vendas e pacotes antigos permanecem normalmente.
 
 O perfil é gravado assim:
 

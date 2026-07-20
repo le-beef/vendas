@@ -4,7 +4,7 @@ Site estático em HTML, CSS e JavaScript, pronto para publicar no GitHub Pages, 
 
 ## Login individual, permissões e histórico
 
-A versão 3.8.0 permite escolher o desconto dos pacotes em porcentagem ou em valor fixo. Basta tocar no botão `%` ou `R$` acima do campo para alternar; o sistema converte o desconto e mantém o mesmo preço final do pacote.
+A versão 3.9.0 acrescenta ao resumo do evento a quantidade vendida e a quantidade disponível de cada tipo/lote de ingresso. Ingressos vendidos dentro de pacotes também entram automaticamente nessa contagem. A escolha do desconto dos pacotes continua disponível em porcentagem ou em valor fixo.
 
 - **Administrador**: visualiza todos os eventos e controla usuários, eventos, vendas, pagamentos, check-in, Excel e relatório financeiro.
 - **Vendedor**: visualiza somente os eventos marcados pelo administrador; nesses eventos, trabalha com vendas, pagamentos, check-in e Excel.
@@ -21,7 +21,7 @@ As permissões são aplicadas na interface e nas regras do Realtime Database. Co
 
 ## Atualização obrigatória no Firebase
 
-Na atualização para a versão 3.8.0, envie todos os arquivos ao GitHub Pages. Eventos, pacotes e vendas antigas continuam disponíveis normalmente; pacotes antigos permanecem configurados com desconto percentual.
+Na atualização para a versão 3.9.0, envie todos os arquivos ao GitHub Pages. Eventos, pacotes e vendas antigas continuam disponíveis normalmente; esta versão não exige alteração no banco de dados.
 
 As instruções completas estão em [FIREBASE-SETUP.md](FIREBASE-SETUP.md).
 
