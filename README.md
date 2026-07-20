@@ -4,7 +4,7 @@ Site estático em HTML, CSS e JavaScript, pronto para publicar no GitHub Pages, 
 
 ## Login individual, permissões e histórico
 
-A versão 3.5.0 adiciona forma e data do pagamento, confirmação guiada de recebimentos pendentes e fechamento por vendedor com filtro de período. O histórico continua registrando automaticamente quem realizou cada alteração.
+A versão 3.7.0 adiciona pacotes promocionais aos eventos. Cada pacote combina ingressos já cadastrados, aplica desconto percentual e, quando vendido, desconta automaticamente a composição do estoque individual de cada tipo.
 
 - **Administrador**: visualiza todos os eventos e controla usuários, eventos, vendas, pagamentos, check-in, Excel e relatório financeiro.
 - **Vendedor**: visualiza somente os eventos marcados pelo administrador; nesses eventos, trabalha com vendas, pagamentos, check-in e Excel.
@@ -21,7 +21,7 @@ As permissões são aplicadas na interface e nas regras do Realtime Database. Co
 
 ## Atualização obrigatória no Firebase
 
-Na atualização para a versão 3.5.0, envie todos os arquivos ao GitHub Pages. As vendas antigas continuam disponíveis e são agrupadas como **Vendas anteriores** quando não possuem identificação do vendedor.
+Na atualização para a versão 3.7.0, envie todos os arquivos ao GitHub Pages. Eventos e vendas antigas continuam disponíveis normalmente; os pacotes são opcionais e podem ser adicionados ao editar cada evento.
 
 As instruções completas estão em [FIREBASE-SETUP.md](FIREBASE-SETUP.md).
 
@@ -33,14 +33,16 @@ No endereço HTTPS do GitHub Pages, o botão **Instalar app** permite instalar o
 
 ```text
 users/{uid}       → nome, e-mail, perfil, situação e eventIds permitidos
-events/{eventId}  → evento, data, local e tipos/lotes
-sales/{saleId}    → participante, contato, ingresso, valor, forma/data do pagamento, vendedor e check-in
+events/{eventId}  → evento, data, local, tipos/lotes e pacotes promocionais
+sales/{saleId}    → participante, contato, ingressos avulsos/pacotes, quantidades, valor, forma/data do pagamento, vendedor e check-in
 auditLogs/{logId} → ação, venda, participante, usuário, perfil, data e horário
 ```
 
 ## Recursos principais
 
 - Eventos com tipos/lotes, valores e quantidades independentes.
+- Uma única venda pode reunir vários tipos de ingresso e quantidades separadas para o mesmo participante.
+- Pacotes promocionais com composição de ingressos, desconto percentual e baixa automática no estoque individual.
 - Participantes, pagamentos e check-in em tempo real.
 - Busca e filtros combinados.
 - WhatsApp normal ou Business.

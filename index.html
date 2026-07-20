@@ -16,7 +16,7 @@
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@600;700&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="styles.css" />
     <link rel="stylesheet" href="access.css" />
-    <link rel="stylesheet" href="sales.css?v=12" />
+    <link rel="stylesheet" href="sales.css?v=14" />
     <link rel="stylesheet" href="layout.css" />
     <link rel="stylesheet" href="dashboard.css?v=25" />
     <link rel="stylesheet" href="mobile-participants.css?v=23" />
@@ -151,7 +151,7 @@
       </section>
     </main>
 
-    <footer class="site-footer">Le Beef | Versão: 3.5.0</footer>
+    <footer class="site-footer">Le Beef | Versão: 3.7.0</footer>
 
     <button class="fab" data-open="saleModal" data-roles="admin,seller" aria-label="Registrar venda">+</button>
 
@@ -161,6 +161,7 @@
         <label>Nome do evento<input name="name" required placeholder="Ex.: Festival de Inverno" /></label>
         <div class="two-columns"><label>Data<input name="date" type="date" required /></label><label>Local<input name="place" required placeholder="Ex.: Auditório" /></label></div>
         <div class="ticket-types-field"><div class="field-label"><span>Tipos/lotes, valores e quantidades</span><button class="text-button" type="button" id="addTicketType">+ Adicionar tipo</button></div><p class="field-help">Cada tipo ou lote terá seu próprio limite de vendas.</p><div id="ticketTypesList" class="ticket-types-list"></div></div>
+        <div class="packages-field"><div class="field-label"><span>Pacotes promocionais</span><button class="text-button" type="button" id="addPackage">+ Criar pacote</button></div><p class="field-help">Monte pacotes com os ingressos acima. O estoque continuará sendo descontado de cada tipo individual.</p><div id="packagesList" class="packages-list"></div></div>
         <button class="button primary full" id="eventSubmitButton" type="submit">Criar evento</button>
       </form>
     </dialog>
@@ -169,11 +170,15 @@
       <form id="saleForm" method="dialog">
         <div class="modal-heading"><div><p class="eyebrow">VENDA</p><h2 id="saleModalTitle">Registrar ingresso</h2></div><button class="close" type="button" data-close="saleModal" aria-label="Fechar">×</button></div>
         <label>Evento<select id="saleEvent" name="eventId" required></select></label>
-        <label>Tipo de ingresso<select id="saleTicketType" name="ticketTypeId" required><option value="">Selecione primeiro o evento</option></select></label>
+        <div class="sale-items-field">
+          <div class="field-label"><span>Itens desta venda</span><button class="text-button" type="button" id="addSaleTicketItem">+ Adicionar item</button></div>
+          <p class="field-help">Adicione ingressos avulsos ou pacotes e informe a quantidade.</p>
+          <div id="saleTicketItemsList" class="sale-ticket-items-list"></div>
+          <div class="sale-items-summary" aria-live="polite"><span><small>Quantidade total</small><strong id="saleItemsQuantity">0</strong></span><span><small>Valor total</small><strong id="saleItemsTotal">R$ 0,00</strong></span></div>
+        </div>
         <label>Nome do participante<input name="buyerName" required placeholder="Nome completo" /></label>
         <label>Telefone<input name="buyerPhone" type="tel" required placeholder="(00) 00000-0000" /></label>
         <label>E-mail (opcional)<input name="buyerEmail" type="email" placeholder="nome@exemplo.com" /></label>
-        <label>Quantidade<input name="quantity" type="number" min="1" value="1" required /></label>
         <div class="two-columns payment-status-fields"><label>Pagamento<select name="paymentStatus" required><option value="paid">Pago</option><option value="pending">Pendente</option></select></label><label>Forma de pagamento<select name="paymentMethod"><option value="">Selecione</option><option value="pix">Pix</option><option value="cash">Dinheiro</option><option value="credit_card">Cartão de crédito</option><option value="debit_card">Cartão de débito</option><option value="bank_transfer">Transferência</option><option value="other">Outro</option></select></label></div>
         <label class="payment-date-field">Data do pagamento<input name="paymentDate" type="date" /></label>
         <label>Observações (opcional)<textarea name="notes" rows="3" placeholder="Ex.: retirada no local, meia-entrada..."></textarea></label>
@@ -235,7 +240,7 @@
     <div id="toast" role="status" aria-live="polite"></div>
     <script src="pwa.js"></script>
     <script src="access.js"></script>
-    <script src="excel-export.js"></script>
-    <script type="module" src="app.js?v=28"></script>
+    <script src="excel-export.js?v=31"></script>
+    <script type="module" src="app.js?v=30"></script>
   </body>
 </html>
