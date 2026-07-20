@@ -27,13 +27,13 @@ let isDemo = !firebaseConfig.apiKey || !firebaseConfig.databaseURL || location.p
 const money = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 const $ = (id) => document.getElementById(id);
 const ROLE_LABELS = { admin: "Administrador", seller: "Vendedor", door: "Portaria" };
-const PAYMENT_METHOD_LABELS = { pix: "Pix", cash: "Dinheiro", credit_card: "Cartão de crédito", debit_card: "Cartão de débito", bank_transfer: "Transferência", other: "Outro" };
+const PAYMENT_METHOD_LABELS = { pix: "Pix", cash: "Dinheiro", credit_card: "Cartão de crédito", debit_card: "Cartão de débito", bank_transfer: "Transferência", other: "Outro", courtesy: "Cortesia" };
 
 function roleLabel(role) { return ROLE_LABELS[role] || "Sem perfil"; }
 function paymentMethodLabel(method) { return PAYMENT_METHOD_LABELS[method] || "Forma não informada"; }
 function todayInputValue() { const now = new Date(); now.setMinutes(now.getMinutes() - now.getTimezoneOffset()); return now.toISOString().slice(0, 10); }
 function paymentDateLabel(value) { return value ? new Date(`${value}T12:00:00`).toLocaleDateString("pt-BR") : "Data não informada"; }
-function paymentDetailsHtml(sale) { return sale.paid ? `<small class="payment-details">${escapeHtml(paymentMethodLabel(sale.paymentMethod))} · ${escapeHtml(paymentDateLabel(sale.paymentDate))}</small>` : ""; }
+function paymentDetailsHtml(sale) { if (sale.courtesy || sale.paymentMethod === "courtesy") return `<small class="payment-details">Sem cobrança</small>`; return sale.paid ? `<small class="payment-details">${escapeHtml(paymentMethodLabel(sale.paymentMethod))} · ${escapeHtml(paymentDateLabel(sale.paymentDate))}</small>` : ""; }
 function hasRole(...roles) { return Boolean(currentUserProfile?.active && roles.includes(currentUserProfile.role)); }
 function allowedEventIds(profile = currentUserProfile) { return Object.entries(profile?.eventIds || {}).filter(([, allowed]) => allowed === true).map(([eventId]) => eventId).sort(); }
 function eventAccessSignature(profile) { return allowedEventIds(profile).join("|"); }
@@ -152,13 +152,14 @@ function packagesFor(event) {
   return original.map((item) => {
     const packageItems = (Array.isArray(item.items) ? item.items : Object.values(item.items || {})).map((component) => ({ ticketTypeId: component.ticketTypeId || "", quantity: Math.max(0, Number(component.quantity || 0)) })).filter((component) => component.ticketTypeId && component.quantity > 0);
     const regularPrice = packageItems.reduce((sum, component) => { const type = ticketTypesFor(event).find((ticket) => ticket.id === component.ticketTypeId); return sum + Number(type?.price || 0) * component.quantity; }, 0);
-    const discountType = item.discountType === "fixed" ? "fixed" : "percent";
+    const packageKind = item.packageKind === "courtesy" || item.kind === "courtesy" ? "courtesy" : "package";
+    const discountType = packageKind === "courtesy" ? "percent" : item.discountType === "fixed" ? "fixed" : "percent";
     const legacyPercent = Math.min(100, Math.max(0, Number(item.discountPercent || 0)));
-    const discountValue = Math.max(0, Number(item.discountValue ?? (discountType === "fixed" ? item.discountAmount : legacyPercent) ?? 0));
-    const discountAmount = discountType === "fixed" ? Math.min(regularPrice, discountValue) : regularPrice * Math.min(100, discountValue) / 100;
+    const discountValue = packageKind === "courtesy" ? 100 : Math.max(0, Number(item.discountValue ?? (discountType === "fixed" ? item.discountAmount : legacyPercent) ?? 0));
+    const discountAmount = packageKind === "courtesy" ? regularPrice : discountType === "fixed" ? Math.min(regularPrice, discountValue) : regularPrice * Math.min(100, discountValue) / 100;
     const discountPercent = regularPrice > 0 ? discountAmount / regularPrice * 100 : 0;
-    const price = Math.max(0, Number(item.price ?? regularPrice - discountAmount));
-    return { ...item, id: item.id || "", name: item.name || "Pacote", items: packageItems, regularPrice: Number(item.regularPrice ?? regularPrice), discountType, discountValue, discountAmount, discountPercent, price };
+    const price = packageKind === "courtesy" ? 0 : Math.max(0, Number(item.price ?? regularPrice - discountAmount));
+    return { ...item, id: item.id || "", name: item.name || (packageKind === "courtesy" ? "Cortesia" : "Pacote"), packageKind, items: packageItems, regularPrice: Number(item.regularPrice ?? regularPrice), discountType, discountValue, discountAmount, discountPercent, price };
   }).filter((item) => item.id && item.name && item.items.length);
 }
 function packageCompositionText(packageItem, event) { return packageItem.items.map((component) => { const type = ticketTypesFor(event).find((item) => item.id === component.ticketTypeId); return `${component.quantity}× ${type?.name || "Ingresso"}`; }).join(" + "); }
@@ -175,9 +176,10 @@ function saleItems(sale, event = state.events.find((item) => item.id === sale?.e
         const ticketType = ticketTypesFor(event).find((type) => type.id === component.ticketTypeId || type.name === component.ticketTypeName);
         return { ticketTypeId: component.ticketTypeId || ticketType?.id || "", ticketTypeName: component.ticketTypeName || ticketType?.name || "Ingresso padrão", unitPrice: Number(component.unitPrice ?? ticketType?.price ?? 0), quantity: Math.max(0, Number(component.quantity || 0)) };
       }).filter((component) => component.ticketTypeId && component.quantity > 0);
-      const packageName = item.packageName || packageItem?.name || String(item.ticketTypeName || "Pacote").replace(/^Pacote:\s*/i, "");
+      const packageKind = item.packageKind === "courtesy" || packageItem?.packageKind === "courtesy" ? "courtesy" : "package";
+      const packageName = item.packageName || packageItem?.name || String(item.ticketTypeName || (packageKind === "courtesy" ? "Cortesia" : "Pacote")).replace(/^(?:Pacote|Cortesia):\s*/i, "");
       const unitPrice = Number(item.unitPrice ?? packageItem?.price ?? 0);
-      return { kind: "package", packageId: item.packageId || packageItem?.id || "", packageName, ticketTypeId: `package:${item.packageId || packageItem?.id || ""}`, ticketTypeName: `Pacote: ${packageName}`, unitPrice, quantity, subtotal: Number(item.subtotal ?? unitPrice * quantity), components };
+      return { kind: "package", packageKind, packageId: item.packageId || packageItem?.id || "", packageName, ticketTypeId: `package:${item.packageId || packageItem?.id || ""}`, ticketTypeName: `${packageKind === "courtesy" ? "Cortesia" : "Pacote"}: ${packageName}`, unitPrice, quantity, subtotal: Number(item.subtotal ?? unitPrice * quantity), components };
     }
     const ticketType = ticketTypesFor(event).find((type) => type.id === item.ticketTypeId || type.name === item.ticketTypeName);
     const unitPrice = Number(item.unitPrice ?? ticketType?.price ?? 0);
@@ -209,8 +211,9 @@ function saleTypeTotal(sale, ticketType, event) {
     return sum + Number(item.subtotal || 0) * (matchingRegular / regularTotal);
   }, 0);
 }
-function saleTicketSummary(sale, event) { return saleItems(sale, event).map((item) => item.kind === "package" ? `${item.quantity}× Pacote ${item.packageName} (${item.components.map((component) => `${component.quantity}× ${component.ticketTypeName}`).join(" + ")})` : `${item.quantity}× ${item.ticketTypeName}`).join(" + ") || "Ingresso padrão"; }
-function saleTicketBreakdownHtml(sale, event) { return `<span class="sale-ticket-breakdown">${saleItems(sale, event).map((item) => item.kind === "package" ? `<span><b>${item.quantity}×</b><span class="package-item-name">Pacote ${escapeHtml(item.packageName)}</span><em>${money.format(item.subtotal)}</em></span><small class="package-composition">${escapeHtml(item.components.map((component) => `${component.quantity}× ${component.ticketTypeName}`).join(" + "))}</small>` : `<span><b>${item.quantity}×</b><span>${escapeHtml(item.ticketTypeName)}</span><em>${money.format(item.subtotal)}</em></span>`).join("")}</span>`; }
+function saleTicketSummary(sale, event) { return saleItems(sale, event).map((item) => item.kind === "package" ? `${item.quantity}× ${item.packageKind === "courtesy" ? "Cortesia" : "Pacote"} ${item.packageName} (${item.components.map((component) => `${component.quantity}× ${component.ticketTypeName}`).join(" + ")})` : `${item.quantity}× ${item.ticketTypeName}`).join(" + ") || "Ingresso padrão"; }
+function saleTicketBreakdownHtml(sale, event) { return `<span class="sale-ticket-breakdown">${saleItems(sale, event).map((item) => item.kind === "package" ? `<span><b>${item.quantity}×</b><span class="package-item-name ${item.packageKind === "courtesy" ? "courtesy-item-name" : ""}">${item.packageKind === "courtesy" ? "Cortesia" : "Pacote"} ${escapeHtml(item.packageName)}</span><em>${money.format(item.subtotal)}</em></span><small class="package-composition">${escapeHtml(item.components.map((component) => `${component.quantity}× ${component.ticketTypeName}`).join(" + "))}</small>` : `<span><b>${item.quantity}×</b><span>${escapeHtml(item.ticketTypeName)}</span><em>${money.format(item.subtotal)}</em></span>`).join("")}</span>`; }
+function saleIsCourtesy(sale, event) { const items = saleItems(sale, event); return Boolean(items.length && items.every((item) => item.kind === "package" && item.packageKind === "courtesy") && saleTotal(sale, event) === 0); }
 function soldForTicket(eventId, ticketType, excludedSaleId = "") {
   const event = state.events.find((item) => item.id === eventId);
   return state.sales.filter((sale) => sale.eventId === eventId && sale.id !== excludedSaleId).reduce((sum, sale) => sum + saleTypeQuantity(sale, ticketType, event), 0);
@@ -342,7 +345,7 @@ function draftTicketTypes() { return [...document.querySelectorAll(".ticket-type
 function addTicketTypeRow(name = "", price = "", capacity = "", id = "") { const row = document.createElement("div"); row.className = "ticket-type-row"; row.dataset.ticketId = id || newEntityId("tipo"); row.innerHTML = `<input class="ticket-name" required aria-label="Nome do tipo ou lote" placeholder="Ex.: 1º lote" value="${escapeHtml(name)}" /><input class="ticket-price" type="number" min="0" step="0.01" required aria-label="Valor do ingresso" placeholder="Valor" value="${price}" /><input class="ticket-capacity" type="number" min="1" step="1" required aria-label="Quantidade disponível" placeholder="Quantidade" value="${capacity}" /><button class="close" type="button" data-remove-ticket aria-label="Remover tipo">×</button>`; $("ticketTypesList").append(row); refreshPackageTicketOptions(); }
 function resetTicketTypes() { $("ticketTypesList").innerHTML = ""; addTicketTypeRow("Ingresso padrão", "", ""); }
 function getTicketTypes() { return draftTicketTypes().filter((item) => item.name && Number.isFinite(item.price) && Number.isInteger(item.capacity) && item.capacity > 0); }
-function renderPackagesEmptyState() { if (!document.querySelector(".package-row")) $("packagesList").innerHTML = `<div class="packages-empty">Nenhum pacote criado. Use “+ Criar pacote” para montar uma oferta.</div>`; }
+function renderPackagesEmptyState() { if (!document.querySelector(".package-row")) $("packagesList").innerHTML = `<div class="packages-empty">Nenhum pacote ou cortesia criado. Use “+ Pacote” ou “+ Cortesia” para começar.</div>`; }
 function addPackageComponentRow(packageRow, ticketTypeId = "", quantity = 1) {
   const row = document.createElement("div");
   row.className = "package-component-row";
@@ -350,15 +353,18 @@ function addPackageComponentRow(packageRow, ticketTypeId = "", quantity = 1) {
   row.querySelector(".package-component-type").dataset.selectedValue = ticketTypeId;
   packageRow.querySelector(".package-components").append(row);
 }
-function addPackageRow(packageData = {}) {
+function addPackageRow(packageData = {}, requestedKind = "package") {
   if (!document.querySelector(".package-row")) $("packagesList").innerHTML = "";
   const row = document.createElement("div");
-  row.className = "package-row";
+  const packageKind = packageData.packageKind === "courtesy" || packageData.kind === "courtesy" || requestedKind === "courtesy" ? "courtesy" : "package";
+  row.className = `package-row${packageKind === "courtesy" ? " is-courtesy" : ""}`;
+  row.dataset.packageKind = packageKind;
   row.dataset.packageId = packageData.id || newEntityId("pacote");
-  const discountType = packageData.discountType === "fixed" ? "fixed" : "percent";
-  const discountValue = Number(packageData.discountValue ?? (discountType === "fixed" ? packageData.discountAmount : packageData.discountPercent) ?? 0);
+  const discountType = packageKind === "courtesy" ? "percent" : packageData.discountType === "fixed" ? "fixed" : "percent";
+  const discountValue = packageKind === "courtesy" ? 100 : Number(packageData.discountValue ?? (discountType === "fixed" ? packageData.discountAmount : packageData.discountPercent) ?? 0);
   row.dataset.discountType = discountType;
-  row.innerHTML = `<div class="package-row-heading"><label>Nome do pacote<input class="package-name" required placeholder="Ex.: Combo casal" value="${escapeHtml(packageData.name || "")}" /></label><label class="package-discount-label"><span>Desconto <button class="package-discount-toggle" type="button" data-toggle-package-discount title="Alternar entre porcentagem e reais" aria-label="Alterar desconto para ${discountType === "fixed" ? "porcentagem" : "valor em reais"}">${discountType === "fixed" ? "R$" : "%"}</button></span><input class="package-discount" type="number" min="0" step="0.01" value="${discountValue}" required /></label><button class="close" type="button" data-remove-package aria-label="Remover pacote">×</button></div><div class="package-components"></div><div class="package-actions"><button class="package-add-component" type="button" data-add-package-component>+ Adicionar ingresso ao pacote</button><div class="package-summary"><span>Normal: <strong data-package-regular>R$ 0,00</strong></span><span>Pacote: <strong data-package-price>R$ 0,00</strong></span><span class="package-saving" data-package-saving>Economia R$ 0,00</span></div></div>`;
+  const kindLabel = packageKind === "courtesy" ? "cortesia" : "pacote";
+  row.innerHTML = `<div class="package-kind-badge">${packageKind === "courtesy" ? "CORTESIA" : "PACOTE PROMOCIONAL"}</div><div class="package-row-heading"><label>Nome da ${kindLabel}<input class="package-name" required placeholder="${packageKind === "courtesy" ? "Ex.: Cortesia imprensa" : "Ex.: Combo casal"}" value="${escapeHtml(packageData.name || "")}" /></label><label class="package-discount-label"><span>Desconto <button class="package-discount-toggle" type="button" data-toggle-package-discount title="Alternar entre porcentagem e reais" aria-label="Alterar desconto para ${discountType === "fixed" ? "porcentagem" : "valor em reais"}">${discountType === "fixed" ? "R$" : "%"}</button></span><input class="package-discount" type="number" min="0" step="0.01" value="${discountValue}" required /></label><button class="close" type="button" data-remove-package aria-label="Remover ${kindLabel}">×</button></div><div class="package-components"></div><div class="package-actions"><button class="package-add-component" type="button" data-add-package-component>+ Adicionar ingresso à ${kindLabel}</button><div class="package-summary"><span>Normal: <strong data-package-regular>R$ 0,00</strong></span><span>${packageKind === "courtesy" ? "Cortesia" : "Pacote"}: <strong data-package-price>R$ 0,00</strong></span><span class="package-saving" data-package-saving>${packageKind === "courtesy" ? "Valor liberado" : "Economia"} R$ 0,00</span></div></div>`;
   $("packagesList").append(row);
   const packageItems = Array.isArray(packageData.items) ? packageData.items : Object.values(packageData.items || {});
   (packageItems.length ? packageItems : [{ ticketTypeId: "", quantity: 1 }]).forEach((component) => addPackageComponentRow(row, component.ticketTypeId, component.quantity));
@@ -372,15 +378,18 @@ function packageDraftDetails(packageRow) {
   return { components, regularPrice };
 }
 function syncPackageDiscountControl(packageRow) {
+  const isCourtesy = packageRow.dataset.packageKind === "courtesy";
   const isFixed = packageRow.dataset.discountType === "fixed";
   const input = packageRow.querySelector(".package-discount");
   const toggle = packageRow.querySelector("[data-toggle-package-discount]");
   const { regularPrice } = packageDraftDetails(packageRow);
+  if (isCourtesy) { packageRow.dataset.discountType = "percent"; input.value = "100"; input.max = "100"; toggle.textContent = "%"; toggle.disabled = true; return; }
   input.max = isFixed ? String(Math.max(0, regularPrice)) : "100";
   toggle.textContent = isFixed ? "R$" : "%";
   toggle.setAttribute("aria-label", `Alterar desconto para ${isFixed ? "porcentagem" : "valor em reais"}`);
 }
 function togglePackageDiscountType(packageRow) {
+  if (packageRow.dataset.packageKind === "courtesy") return;
   const input = packageRow.querySelector(".package-discount");
   const { regularPrice } = packageDraftDetails(packageRow);
   const currentValue = Math.max(0, Number(input.value || 0));
@@ -393,14 +402,15 @@ function togglePackageDiscountType(packageRow) {
 }
 function updatePackageSummary(packageRow) {
   const { regularPrice } = packageDraftDetails(packageRow);
-  const discountValue = Math.max(0, Number(packageRow.querySelector(".package-discount").value || 0));
+  const isCourtesy = packageRow.dataset.packageKind === "courtesy";
+  const discountValue = isCourtesy ? 100 : Math.max(0, Number(packageRow.querySelector(".package-discount").value || 0));
   const isFixed = packageRow.dataset.discountType === "fixed";
-  const discountAmount = isFixed ? Math.min(regularPrice, discountValue) : regularPrice * Math.min(100, discountValue) / 100;
+  const discountAmount = isCourtesy ? regularPrice : isFixed ? Math.min(regularPrice, discountValue) : regularPrice * Math.min(100, discountValue) / 100;
   const price = Math.round(Math.max(0, regularPrice - discountAmount) * 100) / 100;
   syncPackageDiscountControl(packageRow);
   packageRow.querySelector("[data-package-regular]").textContent = money.format(regularPrice);
   packageRow.querySelector("[data-package-price]").textContent = money.format(price);
-  packageRow.querySelector("[data-package-saving]").textContent = `Economia ${money.format(regularPrice - price)}`;
+  packageRow.querySelector("[data-package-saving]").textContent = `${isCourtesy ? "Valor liberado" : "Economia"} ${money.format(regularPrice - price)}`;
 }
 function refreshPackageTicketOptions() {
   if (!$("packagesList")) return;
@@ -426,11 +436,12 @@ function getPackages(ticketTypes) {
   const packageNames = new Set();
   return [...document.querySelectorAll(".package-row")].map((row) => {
     const name = row.querySelector(".package-name").value.trim();
-    const discountType = row.dataset.discountType === "fixed" ? "fixed" : "percent";
-    const discountValue = Number(row.querySelector(".package-discount").value);
-    if (!name) throw new Error("Informe o nome de todos os pacotes.");
+    const packageKind = row.dataset.packageKind === "courtesy" ? "courtesy" : "package";
+    const discountType = packageKind === "courtesy" ? "percent" : row.dataset.discountType === "fixed" ? "fixed" : "percent";
+    const discountValue = packageKind === "courtesy" ? 100 : Number(row.querySelector(".package-discount").value);
+    if (!name) throw new Error("Informe o nome de todos os pacotes e cortesias.");
     const normalizedName = normalizedSearch(name);
-    if (packageNames.has(normalizedName)) throw new Error(`O pacote “${name}” foi cadastrado mais de uma vez.`);
+    if (packageNames.has(normalizedName)) throw new Error(`O nome “${name}” foi cadastrado mais de uma vez entre os pacotes e cortesias.`);
     packageNames.add(normalizedName);
     if (!Number.isFinite(discountValue) || discountValue < 0) throw new Error(`Informe um desconto válido para “${name}”.`);
     if (discountType === "percent" && discountValue > 100) throw new Error(`Informe um desconto entre 0% e 100% para “${name}”.`);
@@ -438,20 +449,20 @@ function getPackages(ticketTypes) {
     const items = [...row.querySelectorAll(".package-component-row")].map((componentRow) => {
       const ticketTypeId = componentRow.querySelector(".package-component-type").value;
       const type = ticketTypes.find((item) => item.id === ticketTypeId);
-      if (!type) throw new Error(`Selecione todos os ingressos do pacote “${name}”.`);
-      if (usedTypes.has(type.id)) throw new Error(`O ingresso “${type.name}” está repetido no pacote “${name}”.`);
+      if (!type) throw new Error(`Selecione todos os ingressos de “${name}”.`);
+      if (usedTypes.has(type.id)) throw new Error(`O ingresso “${type.name}” está repetido em “${name}”.`);
       usedTypes.add(type.id);
       const quantity = Number(componentRow.querySelector(".package-component-quantity").value);
-      if (!Number.isInteger(quantity) || quantity < 1) throw new Error(`Informe uma quantidade válida para “${type.name}” no pacote “${name}”.`);
-      if (quantity > Number(type.capacity || 0)) throw new Error(`O pacote “${name}” usa ${quantity} ingressos “${type.name}”, mas somente ${type.capacity} estão disponíveis no evento.`);
+      if (!Number.isInteger(quantity) || quantity < 1) throw new Error(`Informe uma quantidade válida para “${type.name}” em “${name}”.`);
+      if (quantity > Number(type.capacity || 0)) throw new Error(`“${name}” usa ${quantity} ingressos “${type.name}”, mas somente ${type.capacity} estão disponíveis no evento.`);
       return { ticketTypeId: type.id, quantity };
     });
     const regularPrice = items.reduce((sum, component) => sum + Number(ticketTypes.find((type) => type.id === component.ticketTypeId)?.price || 0) * component.quantity, 0);
-    if (discountType === "fixed" && discountValue > regularPrice) throw new Error(`O desconto em reais do pacote “${name}” não pode ser maior que ${money.format(regularPrice)}.`);
-    const discountAmount = discountType === "fixed" ? discountValue : regularPrice * discountValue / 100;
+    if (packageKind !== "courtesy" && discountType === "fixed" && discountValue > regularPrice) throw new Error(`O desconto em reais do pacote “${name}” não pode ser maior que ${money.format(regularPrice)}.`);
+    const discountAmount = packageKind === "courtesy" ? regularPrice : discountType === "fixed" ? discountValue : regularPrice * discountValue / 100;
     const discountPercent = regularPrice > 0 ? discountAmount / regularPrice * 100 : 0;
-    const price = Math.round(Math.max(0, regularPrice - discountAmount) * 100) / 100;
-    return { id: row.dataset.packageId, name, discountType, discountValue, discountAmount, discountPercent, regularPrice, price, items };
+    const price = packageKind === "courtesy" ? 0 : Math.round(Math.max(0, regularPrice - discountAmount) * 100) / 100;
+    return { id: row.dataset.packageId, name, packageKind, discountType, discountValue, discountAmount, discountPercent, regularPrice, price, items };
   });
 }
 function saleItemOptionKey(item) { return item?.kind === "package" || item?.packageId ? `package:${item.packageId}` : item?.ticketTypeId ? `ticket:${item.ticketTypeId}` : ""; }
@@ -478,11 +489,15 @@ function updateSaleItemsSummary() {
   const options = saleOptionsFor(event, $("saleForm").dataset.editId || "");
   let quantity = 0;
   let total = 0;
+  const selectedOptions = [];
   document.querySelectorAll(".sale-ticket-item-row").forEach((row) => {
     const option = options.find((item) => item.key === row.querySelector(".sale-item-type").value);
     const itemQuantity = Math.max(0, Number(row.querySelector(".sale-item-quantity").value || 0));
-    if (option && Number.isInteger(itemQuantity)) { quantity += (option.kind === "package" ? packageTicketCount(option.item) : 1) * itemQuantity; total += Number(option.item.price || 0) * itemQuantity; }
+    if (option && Number.isInteger(itemQuantity)) { selectedOptions.push(option); quantity += (option.kind === "package" ? packageTicketCount(option.item) : 1) * itemQuantity; total += Number(option.item.price || 0) * itemQuantity; }
   });
+  const courtesyOnly = Boolean(selectedOptions.length && selectedOptions.length === document.querySelectorAll(".sale-ticket-item-row").length && selectedOptions.every((option) => option.kind === "package" && option.item.packageKind === "courtesy"));
+  $("saleForm").classList.toggle("sale-is-courtesy", courtesyOnly);
+  syncSalePaymentFields(false);
   $("saleItemsQuantity").textContent = quantity;
   $("saleItemsTotal").textContent = money.format(total);
 }
@@ -496,8 +511,9 @@ function populateSaleTicketItemOptions(eventId = $("saleEvent").value) {
     const select = row.querySelector(".sale-item-type");
     const selectedValue = selectedValues[rowIndex];
     const ticketOptions = options.filter((option) => option.kind === "ticket").map((option) => { const disabled = selectedValues.some((value, index) => index !== rowIndex && value === option.key) || (option.available === 0 && selectedValue !== option.key); return `<option value="${option.key}" ${disabled ? "disabled" : ""}>${escapeHtml(option.item.name)} — ${money.format(option.item.price)} — ${option.available} disponíveis</option>`; }).join("");
-    const packageOptions = options.filter((option) => option.kind === "package").map((option) => { const disabled = selectedValues.some((value, index) => index !== rowIndex && value === option.key) || (option.available === 0 && selectedValue !== option.key); return `<option value="${option.key}" ${disabled ? "disabled" : ""}>PACOTE · ${escapeHtml(option.item.name)} — ${money.format(option.item.price)} — ${packageTicketCount(option.item)} ingressos — ${option.available} pacotes disponíveis</option>`; }).join("");
-    select.innerHTML = event ? `<option value="">Selecione o item</option><optgroup label="Ingressos avulsos">${ticketOptions}</optgroup>${packageOptions ? `<optgroup label="Pacotes promocionais">${packageOptions}</optgroup>` : ""}` : `<option value="">Selecione primeiro o evento</option>`;
+    const packageOptions = options.filter((option) => option.kind === "package" && option.item.packageKind !== "courtesy").map((option) => { const disabled = selectedValues.some((value, index) => index !== rowIndex && value === option.key) || (option.available === 0 && selectedValue !== option.key); return `<option value="${option.key}" ${disabled ? "disabled" : ""}>PACOTE · ${escapeHtml(option.item.name)} — ${money.format(option.item.price)} — ${packageTicketCount(option.item)} ingressos — ${option.available} pacotes disponíveis</option>`; }).join("");
+    const courtesyOptions = options.filter((option) => option.kind === "package" && option.item.packageKind === "courtesy").map((option) => { const disabled = selectedValues.some((value, index) => index !== rowIndex && value === option.key) || (option.available === 0 && selectedValue !== option.key); return `<option value="${option.key}" ${disabled ? "disabled" : ""}>CORTESIA · ${escapeHtml(option.item.name)} — R$ 0,00 — ${packageTicketCount(option.item)} ingressos — ${option.available} disponíveis</option>`; }).join("");
+    select.innerHTML = event ? `<option value="">Selecione o item</option><optgroup label="Ingressos avulsos">${ticketOptions}</optgroup>${packageOptions ? `<optgroup label="Pacotes promocionais">${packageOptions}</optgroup>` : ""}${courtesyOptions ? `<optgroup label="Cortesias">${courtesyOptions}</optgroup>` : ""}` : `<option value="">Selecione primeiro o evento</option>`;
     if (event && options.some((option) => option.key === selectedValue)) select.value = selectedValue;
     delete select.dataset.selectedValue;
     row.querySelector("[data-remove-sale-ticket]").disabled = rows.length === 1;
@@ -528,7 +544,7 @@ function getSaleTicketItems() {
     if (!Number.isInteger(quantity) || quantity < 1) throw new Error(`Informe uma quantidade válida para “${option.item.name}”.`);
     if (option.kind === "ticket") return { kind: "ticket", ticketTypeId: option.item.id, ticketTypeName: option.item.name, unitPrice: Number(option.item.price || 0), quantity, subtotal: Number(option.item.price || 0) * quantity };
     const components = option.item.items.map((component) => { const type = ticketTypesFor(event).find((item) => item.id === component.ticketTypeId); return { ticketTypeId: type.id, ticketTypeName: type.name, unitPrice: Number(type.price || 0), quantity: Number(component.quantity || 0) }; });
-    return { kind: "package", packageId: option.item.id, packageName: option.item.name, ticketTypeId: `package:${option.item.id}`, ticketTypeName: `Pacote: ${option.item.name}`, unitPrice: Number(option.item.price || 0), quantity, subtotal: Number(option.item.price || 0) * quantity, components };
+    return { kind: "package", packageKind: option.item.packageKind || "package", packageId: option.item.id, packageName: option.item.name, ticketTypeId: `package:${option.item.id}`, ticketTypeName: `${option.item.packageKind === "courtesy" ? "Cortesia" : "Pacote"}: ${option.item.name}`, unitPrice: Number(option.item.price || 0), quantity, subtotal: Number(option.item.price || 0) * quantity, components };
   });
 }
 function addSaleEditButtons() { if (!hasRole("admin", "seller")) return; document.querySelectorAll("[data-sale-row]").forEach((row) => { const actions = row.lastElementChild; if (!actions?.querySelector("[data-edit-sale]")) { const button = document.createElement("button"); button.type = "button"; button.className = "edit-button"; button.dataset.editSale = row.dataset.saleRow; button.textContent = "Editar"; actions.prepend(button); } }); }
@@ -736,7 +752,7 @@ function render() {
     return `<div class="event-card ${event.id === selectedEventId ? "is-selected" : ""}" data-select-event="${event.id}" role="button" tabindex="0" aria-pressed="${event.id === selectedEventId}"><span class="calendar"><b>${new Date(`${event.date}T12:00:00`).getDate()}</b><small>${new Date(`${event.date}T12:00:00`).toLocaleDateString("pt-BR", { month: "short" }).replace(".", "")}</small></span><span class="event-info"><strong>${escapeHtml(event.name)}</strong><small>${escapeHtml(event.place)}${hasRole("door") ? "" : ` · ${priceLabel(event)}`}</small></span><span class="event-count">${eventSold}/${eventCapacity(event)}</span></div>`;
   }).join("") : `<div class="empty">Nenhum evento cadastrado ainda.</div>`;
   const canManageSales = hasRole("admin", "seller");
-  const paymentControl = (sale) => `<span class="payment-display">${canManageSales ? `<button class="payment ${sale.paid ? "paid" : ""}" data-paid="${sale.id}">${sale.paid ? "✓ Pago" : "Pendente"}</button>` : `<span class="payment ${sale.paid ? "paid" : ""}">${sale.paid ? "✓ Pago" : "Pendente"}</span>`}${paymentDetailsHtml(sale)}</span>`;
+  const paymentControl = (sale) => { const courtesy = saleIsCourtesy(sale, selectedEvent) || sale.courtesy; return `<span class="payment-display">${courtesy ? `<span class="payment paid courtesy-payment">Cortesia</span>` : canManageSales ? `<button class="payment ${sale.paid ? "paid" : ""}" data-paid="${sale.id}">${sale.paid ? "✓ Pago" : "Pendente"}</button>` : `<span class="payment ${sale.paid ? "paid" : ""}">${sale.paid ? "✓ Pago" : "Pendente"}</span>`}${paymentDetailsHtml(sale)}</span>`; };
   const checkinControl = (sale) => `<button class="status ${sale.checkedIn ? "checked" : ""}" data-checkin="${sale.id}">${sale.checkedIn ? "✓ Check-in" : "Fazer check-in"}</button>`;
   const actionControl = (sale) => canManageSales ? `<button class="delete-button" data-delete-sale="${sale.id}">Excluir</button>` : `<span class="role-readonly">Somente consulta</span>`;
   $("salesList").innerHTML = visibleSales.length ? visibleSales.slice(0, 7).map((sale) => { const quantity = saleQuantity(sale, selectedEvent); const total = saleTotal(sale, selectedEvent); return `<tr class="sales-row" data-sale-row="${sale.id}" aria-expanded="false"><td><span class="desktop-participant-content"><strong>${escapeHtml(sale.buyerName)}</strong><small>${quantity} ingresso${quantity > 1 ? "s" : ""}</small>${participantContactHtml(sale, selectedEvent?.name)}</span><span class="mobile-card-overview"><span class="mobile-overview-participant"><small class="mobile-field-label">Participante</small><strong>${escapeHtml(sale.buyerName)}</strong><small>${quantity} ingresso${quantity > 1 ? "s" : ""}</small></span><span class="mobile-overview-value mobile-financial"><small class="mobile-field-label">Valor</small><strong>${money.format(total)}</strong></span><span class="mobile-overview-contact"><span>${escapeHtml(formatPhoneDisplay(sale.buyerPhone) || "Sem telefone")}</span>${whatsappButtonHtml(sale, selectedEvent?.name)}</span><span class="mobile-overview-payment mobile-financial"><small class="mobile-field-label">Pagamento</small>${paymentControl(sale)}</span><span class="mobile-overview-entry"><small class="mobile-field-label">Entrada</small>${checkinControl(sale)}</span><button class="participant-detail-toggle" type="button" data-toggle-sale-details>Detalhar</button></span></td><td>${saleTicketBreakdownHtml(sale, selectedEvent)}</td><td class="sale-observation">${escapeHtml(sale.notes || "Sem observação")}</td><td class="financial-column mobile-detail-original">${money.format(total)}</td><td class="financial-column mobile-detail-original">${paymentControl(sale)}</td><td class="mobile-detail-original">${checkinControl(sale)}</td><td>${actionControl(sale)}</td></tr>`; }).join("") : `<tr><td colspan="7" class="empty">${participantSearchQuery || activeFilterCount ? "Nenhum participante encontrado com esses filtros." : "Nenhuma venda neste evento."}</td></tr>`;
@@ -756,7 +772,7 @@ async function saveEvent(data, id = "") {
     if (removedWithSales) throw new Error(`Não é possível remover o tipo “${removedWithSales.ticketTypeName}” porque ele já possui vendas.`);
     const keptPackageIds = new Set((data.packages || []).map((item) => item.id));
     const removedPackageWithSales = eventSales.flatMap((sale) => saleItems(sale)).find((item) => item.kind === "package" && !keptPackageIds.has(item.packageId));
-    if (removedPackageWithSales) throw new Error(`Não é possível remover o pacote “${removedPackageWithSales.packageName}” porque ele já possui vendas.`);
+    if (removedPackageWithSales) throw new Error(`Não é possível remover “${removedPackageWithSales.packageName}” porque esse pacote ou cortesia já foi lançado.`);
     for (const type of data.ticketTypes) {
       const alreadySold = soldForTicket(id, type);
       if (alreadySold > type.capacity) throw new Error(`O tipo “${type.name}” já possui ${alreadySold} vendidos. Informe uma quantidade igual ou maior.`);
@@ -776,7 +792,7 @@ async function saveSale(data, id = "") {
   const requestedStock = saleStockItems({ eventId: event.id, items }, event);
   for (const requested of requestedStock) {
     const ticketType = ticketTypesFor(event).find((type) => type.id === requested.ticketTypeId);
-    if (!ticketType) throw new Error("Um dos ingressos do pacote não está mais disponível neste evento.");
+    if (!ticketType) throw new Error("Um dos ingressos do pacote ou cortesia não está mais disponível neste evento.");
     const soldForType = soldForTicket(event.id, ticketType, id);
     const remaining = Math.max(0, Number(ticketType.capacity) - soldForType);
     if (requested.quantity > remaining) throw new Error(`Restam apenas ${remaining} ingressos do tipo “${ticketType.name}”. Esta venda precisa de ${requested.quantity}.`);
@@ -785,13 +801,14 @@ async function saveSale(data, id = "") {
   const total = items.reduce((sum, item) => sum + Number(item.subtotal || 0), 0);
   const primaryTicket = items[0];
   const current = state.sales.find((sale) => sale.id === id);
-  const paid = data.paymentStatus === "paid";
-  const paymentMethod = paid ? String(data.paymentMethod || "") : "";
-  const paymentDate = paid ? String(data.paymentDate || "") : "";
-  if (paid && !PAYMENT_METHOD_LABELS[paymentMethod]) throw new Error("Selecione a forma de pagamento.");
-  if (paid && !paymentDate) throw new Error("Informe a data do pagamento.");
+  const courtesy = Boolean(items.length && items.every((item) => item.kind === "package" && item.packageKind === "courtesy") && total === 0);
+  const paid = courtesy || data.paymentStatus === "paid";
+  const paymentMethod = courtesy ? "courtesy" : paid ? String(data.paymentMethod || "") : "";
+  const paymentDate = courtesy ? "" : paid ? String(data.paymentDate || "") : "";
+  if (paid && !courtesy && !PAYMENT_METHOD_LABELS[paymentMethod]) throw new Error("Selecione a forma de pagamento.");
+  if (paid && !courtesy && !paymentDate) throw new Error("Informe a data do pagamento.");
   const timestamp = isDemo ? Date.now() : serverTimestamp();
-  const saleData = { eventId: event.id, ticketTypeId: items.length === 1 ? primaryTicket.ticketTypeId : "multiple", ticketTypeName: items.length === 1 ? primaryTicket.ticketTypeName : "Vários ingressos", items, buyerName: String(data.buyerName || "").trim(), buyerPhone: String(data.buyerPhone || "").trim(), buyerEmail: String(data.buyerEmail || "").trim(), notes: String(data.notes || "").trim(), paid, paymentMethod, paymentDate, quantity, total, checkedIn: current?.checkedIn || false, updatedAt: timestamp };
+  const saleData = { eventId: event.id, ticketTypeId: items.length === 1 ? primaryTicket.ticketTypeId : "multiple", ticketTypeName: items.length === 1 ? primaryTicket.ticketTypeName : "Vários ingressos", items, buyerName: String(data.buyerName || "").trim(), buyerPhone: String(data.buyerPhone || "").trim(), buyerEmail: String(data.buyerEmail || "").trim(), notes: String(data.notes || "").trim(), courtesy, paid, paymentMethod, paymentDate, quantity, total, checkedIn: current?.checkedIn || false, updatedAt: timestamp };
   if (isDemo) {
     if (id) {
       const updatedSale = { ...current, ...saleData };
@@ -800,7 +817,7 @@ async function saveSale(data, id = "") {
     } else {
       const createdSale = { id: crypto.randomUUID(), ...saleData, createdByUid: currentUser.uid, createdByName: currentUserProfile.name || currentUser.email, createdByEmail: currentUser.email || currentUserProfile.email || "", createdAt: timestamp };
       state.sales.push(createdSale);
-      appendDemoAudit("created", createdSale, `Criou a venda com ${saleTicketSummary(createdSale, event)}, pagamento ${createdSale.paid ? `${paymentMethodLabel(createdSale.paymentMethod)} em ${paymentDateLabel(createdSale.paymentDate)}` : "pendente"}.`);
+      appendDemoAudit("created", createdSale, `Criou a venda com ${saleTicketSummary(createdSale, event)}, ${createdSale.courtesy ? "cortesia sem cobrança" : `pagamento ${createdSale.paid ? `${paymentMethodLabel(createdSale.paymentMethod)} em ${paymentDateLabel(createdSale.paymentDate)}` : "pendente"}`}.`);
     }
     persistDemo(); render();
   } else {
@@ -809,7 +826,7 @@ async function saveSale(data, id = "") {
     if (!id) Object.assign(storedSale, { createdByUid: currentUser.uid, createdByName: currentUserProfile.name || currentUser.email, createdByEmail: currentUser.email || currentUserProfile.email || "", createdAt: timestamp });
     const logId = push(ref(db, "auditLogs")).key;
     const action = id ? "edited" : "created";
-    const details = id ? auditChangeSummary(current, storedSale) : `Criou a venda com ${saleTicketSummary(storedSale, event)}, pagamento ${storedSale.paid ? `${paymentMethodLabel(storedSale.paymentMethod)} em ${paymentDateLabel(storedSale.paymentDate)}` : "pendente"}.`;
+    const details = id ? auditChangeSummary(current, storedSale) : `Criou a venda com ${saleTicketSummary(storedSale, event)}, ${storedSale.courtesy ? "cortesia sem cobrança" : `pagamento ${storedSale.paid ? `${paymentMethodLabel(storedSale.paymentMethod)} em ${paymentDateLabel(storedSale.paymentDate)}` : "pendente"}`}.`;
     await update(ref(db), { [`sales/${saleId}`]: Object.fromEntries(Object.entries(storedSale).filter(([key]) => key !== "id")), [`auditLogs/${logId}`]: auditLogData(action, storedSale, details, timestamp) });
   }
   toast(id ? "Participante atualizado." : "Venda registrada.");
@@ -825,6 +842,7 @@ async function toggleCheckin(id) {
 async function togglePayment(id) {
   if (!requireRole(["admin", "seller"])) return;
   const sale = state.sales.find((item) => item.id === id); if (!sale) return;
+  if (sale.courtesy || saleIsCourtesy(sale)) return toast("Cortesias não possuem cobrança para alterar.");
   if (!sale.paid) {
     const form = $("paymentConfirmationForm");
     form.reset();
@@ -861,13 +879,14 @@ async function deleteEvent(id) { if (!requireRole(["admin"], "Somente administra
 function toast(message) { const el = $("toast"); el.textContent = message; el.classList.add("visible"); setTimeout(() => el.classList.remove("visible"), 3200); }
 function syncSalePaymentFields(useToday = false) {
   const form = $("saleForm");
+  const courtesy = form.classList.contains("sale-is-courtesy");
   const paid = form.elements.paymentStatus.value === "paid";
   const method = form.elements.paymentMethod;
   const date = form.elements.paymentDate;
-  method.disabled = !paid; date.disabled = !paid;
-  method.required = paid; date.required = paid;
+  method.disabled = courtesy || !paid; date.disabled = courtesy || !paid;
+  method.required = paid && !courtesy; date.required = paid && !courtesy;
   form.classList.toggle("payment-is-pending", !paid);
-  if (!paid) { method.value = ""; date.value = ""; }
+  if (courtesy || !paid) { method.value = ""; date.value = ""; }
   else if (useToday && !date.value) date.value = todayInputValue();
 }
 
@@ -880,10 +899,11 @@ document.querySelectorAll("[data-open]").forEach((button) => button.addEventList
 document.querySelectorAll("[data-close]").forEach((button) => button.addEventListener("click", () => $(button.dataset.close).close()));
 $("addTicketType").addEventListener("click", () => addTicketTypeRow());
 $("addPackage").addEventListener("click", () => addPackageRow());
+$("addCourtesy").addEventListener("click", () => addPackageRow({}, "courtesy"));
 $("ticketTypesList").addEventListener("input", refreshPackageTicketOptions);
 $("packagesList").addEventListener("input", (event) => { const packageRow = event.target.closest(".package-row"); if (packageRow) updatePackageSummary(packageRow); });
 $("packagesList").addEventListener("change", (event) => { if (event.target.matches(".package-component-type")) refreshPackageTicketOptions(); });
-$("addSaleTicketItem").addEventListener("click", () => { const event = state.events.find((item) => item.id === $("saleEvent").value); if (!event) return toast("Selecione o evento primeiro."); if (document.querySelectorAll(".sale-ticket-item-row").length >= saleOptionsFor(event, $("saleForm").dataset.editId || "").length) return toast("Todos os ingressos e pacotes disponíveis já foram adicionados."); addSaleTicketItemRow(); populateSaleTicketItemOptions(event.id); });
+$("addSaleTicketItem").addEventListener("click", () => { const event = state.events.find((item) => item.id === $("saleEvent").value); if (!event) return toast("Selecione o evento primeiro."); if (document.querySelectorAll(".sale-ticket-item-row").length >= saleOptionsFor(event, $("saleForm").dataset.editId || "").length) return toast("Todos os ingressos, pacotes e cortesias disponíveis já foram adicionados."); addSaleTicketItemRow(); populateSaleTicketItemOptions(event.id); });
 $("saleEvent").addEventListener("change", () => setSaleTicketItems($("saleEvent").value));
 $("saleTicketItemsList").addEventListener("change", (event) => { if (event.target.matches(".sale-item-type")) populateSaleTicketItemOptions(); else updateSaleItemsSummary(); });
 $("saleTicketItemsList").addEventListener("input", updateSaleItemsSummary);
@@ -923,7 +943,7 @@ $("eventsList").addEventListener("click", (event) => { if (event.target.closest(
 $("eventForm").addEventListener("submit", async (event) => { event.preventDefault(); const form = event.currentTarget; try { const data = Object.fromEntries(new FormData(form)); data.ticketTypes = getTicketTypes(); if (!data.ticketTypes.length) throw new Error("Informe ao menos um tipo ou lote com valor e quantidade."); data.packages = getPackages(data.ticketTypes); await saveEvent(data, form.dataset.editId); form.reset(); resetPackages(); resetTicketTypes(); $("eventModal").close(); } catch (error) { toast(error.message); } });
 $("saleForm").addEventListener("submit", async (event) => { event.preventDefault(); const form = event.currentTarget; try { const data = Object.fromEntries(new FormData(form)); data.items = getSaleTicketItems(); await saveSale(data, form.dataset.editId); form.reset(); $("saleTicketItemsList").innerHTML = ""; $("saleModal").close(); } catch (error) { toast(error.message); } });
 $("paymentConfirmationForm").addEventListener("submit", async (event) => { event.preventDefault(); const form = event.currentTarget; const button = form.querySelector('[type="submit"]'); button.disabled = true; try { await confirmSalePayment(Object.fromEntries(new FormData(form))); form.reset(); $("paymentConfirmationModal").close(); toast("Pagamento confirmado."); } catch (error) { toast(error.message); } finally { button.disabled = false; } });
-document.addEventListener("click", (event) => { const whatsappTrigger = event.target.closest("[data-whatsapp]"); if (whatsappTrigger) { event.preventDefault(); openWhatsappChooser(whatsappTrigger); return; } const whatsappApp = event.target.closest("[data-whatsapp-app]"); if (whatsappApp) { launchWhatsapp(whatsappApp.dataset.whatsappApp); return; } const metricDetails = event.target.closest("[data-toggle-metric-details]"); if (metricDetails) { toggleMetricDetails(metricDetails); return; } const participantDetails = event.target.closest("[data-toggle-sale-details]"); if (participantDetails) { toggleParticipantCard(participantDetails.closest("[data-sale-row]")); return; } const addPackageComponent = event.target.closest("[data-add-package-component]"); if (addPackageComponent) { const packageRow = addPackageComponent.closest(".package-row"); if (packageRow.querySelectorAll(".package-component-row").length >= draftTicketTypes().filter((item) => item.name).length) return toast("Todos os tipos de ingresso já estão neste pacote."); addPackageComponentRow(packageRow); refreshPackageTicketOptions(); return; } const removePackageComponent = event.target.closest("[data-remove-package-component]"); if (removePackageComponent) { const packageRow = removePackageComponent.closest(".package-row"); if (packageRow.querySelectorAll(".package-component-row").length === 1) return toast("O pacote precisa ter pelo menos um ingresso."); removePackageComponent.closest(".package-component-row").remove(); refreshPackageTicketOptions(); return; } const removePackage = event.target.closest("[data-remove-package]"); if (removePackage) { removePackage.closest(".package-row").remove(); refreshPackageTicketOptions(); return; } const removeTicket = event.target.closest("[data-remove-ticket]"); if (removeTicket) { if (document.querySelectorAll(".ticket-type-row").length === 1) return toast("O evento precisa de pelo menos um tipo de ingresso."); removeTicket.closest(".ticket-type-row").remove(); refreshPackageTicketOptions(); return; } const removeSaleTicket = event.target.closest("[data-remove-sale-ticket]"); if (removeSaleTicket) { const rows = document.querySelectorAll(".sale-ticket-item-row"); if (rows.length === 1) return toast("A venda precisa de pelo menos um item."); removeSaleTicket.closest(".sale-ticket-item-row").remove(); populateSaleTicketItemOptions(); return; } const selectedAction = event.target.closest("[data-selected-action]"); if (selectedAction) { const action = selectedAction.dataset.selectedAction; if (action === "sale") openNewSale(selectedEventId); if (action === "edit") openEditEvent(selectedEventId); if (action === "history") openAuditHistory(selectedEventId); if (action === "export" && requireRole(["admin", "seller"])) window.exportSalesXlsx(state.sales, state.events, selectedEventId); if (action === "delete") deleteEvent(selectedEventId); return; } const selectEvent = event.target.closest("[data-select-event]"); if (selectEvent) { selectedEventId = selectEvent.dataset.selectEvent; render(); return; } const editSaleButton = event.target.closest("[data-edit-sale]"); if (editSaleButton) { openEditSale(editSaleButton.dataset.editSale); return; } const deleteSaleButton = event.target.closest("[data-delete-sale]"); if (deleteSaleButton) { deleteSale(deleteSaleButton.dataset.deleteSale); return; } const checkin = event.target.closest("[data-checkin]"); if (checkin) { toggleCheckin(checkin.dataset.checkin); return; } const paid = event.target.closest("[data-paid]"); if (paid) { togglePayment(paid.dataset.paid); return; } });
+document.addEventListener("click", (event) => { const whatsappTrigger = event.target.closest("[data-whatsapp]"); if (whatsappTrigger) { event.preventDefault(); openWhatsappChooser(whatsappTrigger); return; } const whatsappApp = event.target.closest("[data-whatsapp-app]"); if (whatsappApp) { launchWhatsapp(whatsappApp.dataset.whatsappApp); return; } const metricDetails = event.target.closest("[data-toggle-metric-details]"); if (metricDetails) { toggleMetricDetails(metricDetails); return; } const participantDetails = event.target.closest("[data-toggle-sale-details]"); if (participantDetails) { toggleParticipantCard(participantDetails.closest("[data-sale-row]")); return; } const addPackageComponent = event.target.closest("[data-add-package-component]"); if (addPackageComponent) { const packageRow = addPackageComponent.closest(".package-row"); if (packageRow.querySelectorAll(".package-component-row").length >= draftTicketTypes().filter((item) => item.name).length) return toast("Todos os tipos de ingresso já foram adicionados aqui."); addPackageComponentRow(packageRow); refreshPackageTicketOptions(); return; } const removePackageComponent = event.target.closest("[data-remove-package-component]"); if (removePackageComponent) { const packageRow = removePackageComponent.closest(".package-row"); if (packageRow.querySelectorAll(".package-component-row").length === 1) return toast("O pacote ou cortesia precisa ter pelo menos um ingresso."); removePackageComponent.closest(".package-component-row").remove(); refreshPackageTicketOptions(); return; } const removePackage = event.target.closest("[data-remove-package]"); if (removePackage) { removePackage.closest(".package-row").remove(); refreshPackageTicketOptions(); return; } const removeTicket = event.target.closest("[data-remove-ticket]"); if (removeTicket) { if (document.querySelectorAll(".ticket-type-row").length === 1) return toast("O evento precisa de pelo menos um tipo de ingresso."); removeTicket.closest(".ticket-type-row").remove(); refreshPackageTicketOptions(); return; } const removeSaleTicket = event.target.closest("[data-remove-sale-ticket]"); if (removeSaleTicket) { const rows = document.querySelectorAll(".sale-ticket-item-row"); if (rows.length === 1) return toast("A venda precisa de pelo menos um item."); removeSaleTicket.closest(".sale-ticket-item-row").remove(); populateSaleTicketItemOptions(); return; } const selectedAction = event.target.closest("[data-selected-action]"); if (selectedAction) { const action = selectedAction.dataset.selectedAction; if (action === "sale") openNewSale(selectedEventId); if (action === "edit") openEditEvent(selectedEventId); if (action === "history") openAuditHistory(selectedEventId); if (action === "export" && requireRole(["admin", "seller"])) window.exportSalesXlsx(state.sales, state.events, selectedEventId); if (action === "delete") deleteEvent(selectedEventId); return; } const selectEvent = event.target.closest("[data-select-event]"); if (selectEvent) { selectedEventId = selectEvent.dataset.selectEvent; render(); return; } const editSaleButton = event.target.closest("[data-edit-sale]"); if (editSaleButton) { openEditSale(editSaleButton.dataset.editSale); return; } const deleteSaleButton = event.target.closest("[data-delete-sale]"); if (deleteSaleButton) { deleteSale(deleteSaleButton.dataset.deleteSale); return; } const checkin = event.target.closest("[data-checkin]"); if (checkin) { toggleCheckin(checkin.dataset.checkin); return; } const paid = event.target.closest("[data-paid]"); if (paid) { togglePayment(paid.dataset.paid); return; } });
 document.addEventListener("click", (event) => { const toggle = event.target.closest?.("[data-toggle-package-discount]"); if (!toggle) return; event.preventDefault(); event.stopImmediatePropagation(); togglePackageDiscountType(toggle.closest(".package-row")); }, true);
 // O cartão do participante é somente informativo; edição acontece apenas pelo botão Editar.
 document.addEventListener("click", (event) => { const row = event.target.closest?.("#salesList [data-sale-row]"); if (!row || event.target.closest("button, a, input, select, textarea")) return; if (window.matchMedia("(max-width: 700px)").matches) toggleParticipantCard(row); event.stopImmediatePropagation(); }, true);

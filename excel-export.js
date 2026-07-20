@@ -22,7 +22,7 @@
   const textCell = (address, value, style) => `<c r="${address}" t="inlineStr" s="${style}"><is><t>${xml(value)}</t></is></c>`;
   const numberCell = (address, value, style) => `<c r="${address}" s="${style}"><v>${Number(value || 0)}</v></c>`;
   window.exportSalesXlsx = (sales, events, eventId) => {
-    const paymentMethods = { pix: "PIX", cash: "DINHEIRO", credit_card: "CARTÃO DE CRÉDITO", debit_card: "CARTÃO DE DÉBITO", bank_transfer: "TRANSFERÊNCIA", other: "OUTRO" };
+    const paymentMethods = { pix: "PIX", cash: "DINHEIRO", credit_card: "CARTÃO DE CRÉDITO", debit_card: "CARTÃO DE DÉBITO", bank_transfer: "TRANSFERÊNCIA", other: "OUTRO", courtesy: "CORTESIA" };
     const paymentDate = (value) => value ? new Date(`${value}T12:00:00`).toLocaleDateString("pt-BR") : "";
     const eventName = (id) => events.find((event) => event.id === id)?.name || "Evento removido";
     const saleItems = (sale) => {
@@ -30,7 +30,8 @@
       if (storedItems.length) return storedItems.map((item) => {
         const components = Array.isArray(item.components) ? item.components : Object.values(item.components || {});
         const composition = components.map((component) => `${Number(component.quantity || 0)}x ${component.ticketTypeName || "Ingresso"}`).join(" + ");
-        const ticketTypeName = item.kind === "package" || item.packageId ? `PACOTE: ${item.packageName || String(item.ticketTypeName || "Pacote").replace(/^Pacote:\s*/i, "")}${composition ? ` (${composition})` : ""}` : item.ticketTypeName || "Ingresso padrão";
+        const isCourtesy = item.packageKind === "courtesy" || /^Cortesia:/i.test(String(item.ticketTypeName || ""));
+        const ticketTypeName = item.kind === "package" || item.packageId ? `${isCourtesy ? "CORTESIA" : "PACOTE"}: ${item.packageName || String(item.ticketTypeName || (isCourtesy ? "Cortesia" : "Pacote")).replace(/^(?:Pacote|Cortesia):\s*/i, "")}${composition ? ` (${composition})` : ""}` : item.ticketTypeName || "Ingresso padrão";
         return { ticketTypeName, quantity: Number(item.quantity || 0), subtotal: Number(item.subtotal ?? Number(item.unitPrice || 0) * Number(item.quantity || 0)) };
       });
       return [{ ticketTypeName: sale.ticketTypeName || "Ingresso padrão", quantity: Number(sale.quantity || 0), subtotal: Number(sale.total || 0) }];
@@ -38,7 +39,7 @@
     const selectedEvent = events.find((event) => event.id === eventId);
     const selectedSales = eventId ? sales.filter((sale) => sale.eventId === eventId) : sales;
     const header = ["EVENTO", "TIPO DE INGRESSO", "PARTICIPANTE", "TELEFONE / CONTATO", "OBSERVAÇÃO", "QTD.", "VALOR", "PAGAMENTO", "FORMA DE PAGAMENTO", "DATA DO PAGAMENTO", "VENDEDOR", "ENTRADA"];
-    const rows = selectedSales.flatMap((sale) => saleItems(sale).map((item) => [eventName(sale.eventId), item.ticketTypeName, sale.buyerName || "", sale.buyerPhone || "", sale.notes || "", item.quantity, item.subtotal, sale.paid ? "PAGO" : "PENDENTE", sale.paid ? paymentMethods[sale.paymentMethod] || "NÃO INFORMADA" : "", sale.paid ? paymentDate(sale.paymentDate) : "", sale.createdByName || "VENDAS ANTERIORES", sale.checkedIn ? "SIM" : "NÃO"]));
+    const rows = selectedSales.flatMap((sale) => saleItems(sale).map((item) => { const courtesy = sale.courtesy || sale.paymentMethod === "courtesy" || /^CORTESIA:/i.test(item.ticketTypeName); return [eventName(sale.eventId), item.ticketTypeName, sale.buyerName || "", sale.buyerPhone || "", sale.notes || "", item.quantity, item.subtotal, courtesy ? "CORTESIA" : sale.paid ? "PAGO" : "PENDENTE", courtesy ? "CORTESIA" : sale.paid ? paymentMethods[sale.paymentMethod] || "NÃO INFORMADA" : "", courtesy ? "" : sale.paid ? paymentDate(sale.paymentDate) : "", sale.createdByName || "VENDAS ANTERIORES", sale.checkedIn ? "SIM" : "NÃO"]; }));
     const sheetRows = [`<row r="1">${header.map((cell, i) => textCell(`${column(i)}1`, cell, 1)).join("")}</row>`];
     rows.forEach((row, index) => { const r = index + 2, style = index % 2 ? 2 : 0, moneyStyle = index % 2 ? 4 : 3; sheetRows.push(`<row r="${r}">${row.map((cell, i) => i === 5 ? numberCell(`${column(i)}${r}`, cell, style) : i === 6 ? numberCell(`${column(i)}${r}`, cell, moneyStyle) : textCell(`${column(i)}${r}`, cell, style)).join("")}</row>`); });
     const sheet = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><cols><col min="1" max="1" width="25" customWidth="1"/><col min="2" max="2" width="49" customWidth="1"/><col min="3" max="3" width="28" customWidth="1"/><col min="4" max="4" width="21" customWidth="1"/><col min="5" max="5" width="34" customWidth="1"/><col min="6" max="6" width="9" customWidth="1"/><col min="7" max="7" width="16" customWidth="1"/><col min="8" max="8" width="15" customWidth="1"/><col min="9" max="9" width="23" customWidth="1"/><col min="10" max="10" width="21" customWidth="1"/><col min="11" max="11" width="25" customWidth="1"/><col min="12" max="12" width="14" customWidth="1"/></cols><sheetData>${sheetRows.join("")}</sheetData></worksheet>`;

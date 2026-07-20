@@ -4,7 +4,7 @@ Site estático em HTML, CSS e JavaScript, pronto para publicar no GitHub Pages, 
 
 ## Login individual, permissões e histórico
 
-A versão 3.10.0 deixa o painel mais compacto no celular. Os números por tipo de ingresso e check-in aparecem ao tocar em **Detalhar**. Os cartões de participantes mostram inicialmente apenas nome, telefone e pagamento; um toque no cartão abre os ingressos, valor, entrada, observação e ações.
+A versão 3.11.0 permite criar cortesias usando os tipos de ingresso já cadastrados no evento. A cortesia tem valor R$ 0,00 e, quando lançada para um participante, desconta automaticamente o estoque de cada ingresso que faz parte de sua composição. Cortesias também aparecem identificadas nos participantes, no histórico e no Excel.
 
 - **Administrador**: visualiza todos os eventos e controla usuários, eventos, vendas, pagamentos, check-in, Excel e relatório financeiro.
 - **Vendedor**: visualiza somente os eventos marcados pelo administrador; nesses eventos, trabalha com vendas, pagamentos, check-in e Excel.
@@ -21,7 +21,7 @@ As permissões são aplicadas na interface e nas regras do Realtime Database. Co
 
 ## Atualização obrigatória no Firebase
 
-Na atualização para a versão 3.10.0, envie os arquivos alterados ao GitHub Pages. Eventos, pacotes e vendas antigas continuam disponíveis normalmente; esta versão não exige alteração no banco de dados.
+Na atualização para a versão 3.11.0, envie os arquivos alterados ao GitHub Pages. Eventos, pacotes e vendas antigas continuam disponíveis normalmente; esta versão não exige alteração nas regras do banco de dados.
 
 As instruções completas estão em [FIREBASE-SETUP.md](FIREBASE-SETUP.md).
 
