@@ -4,7 +4,7 @@ Site estático em HTML, CSS e JavaScript, pronto para publicar no GitHub Pages, 
 
 ## Login individual, permissões e histórico
 
-A versão 3.12.1 deixa o cartão recolhido ainda mais limpo no celular: os rótulos **Participante**, **Valor** e **Pagamento** ficam ocultos, enquanto nome, valor e situação continuam visíveis. O ícone do WhatsApp foi reduzido em 20%. Os rótulos e o telefone completo reaparecem ao expandir em **Detalhar**.
+A versão 3.12.2 simplifica o indicador de conexão do menu superior. O texto agora mostra somente **Conectado** ou **Desconectado**, sem exibir o nome Firebase.
 
 - **Administrador**: visualiza todos os eventos e controla usuários, eventos, vendas, pagamentos, check-in, Excel e relatório financeiro.
 - **Vendedor**: visualiza somente os eventos marcados pelo administrador; nesses eventos, trabalha com vendas, pagamentos, check-in e Excel.
@@ -21,7 +21,7 @@ As permissões são aplicadas na interface e nas regras do Realtime Database. Co
 
 ## Atualização obrigatória no Firebase
 
-Na atualização para a versão 3.12.1, envie os arquivos alterados ao GitHub Pages. Eventos, pacotes, cortesias e vendas antigas continuam disponíveis normalmente; esta versão não exige alteração nas regras do banco de dados.
+Na atualização para a versão 3.12.2, envie os arquivos alterados ao GitHub Pages. Eventos, pacotes, cortesias e vendas antigas continuam disponíveis normalmente; esta versão não exige alteração nas regras do banco de dados.
 
 As instruções completas estão em [FIREBASE-SETUP.md](FIREBASE-SETUP.md).
 

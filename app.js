@@ -110,14 +110,14 @@ function attachRealtimeListeners() {
 async function handleAuthenticatedUser(user) {
   clearDataSubscriptions();
   if (!user) {
-    currentUser = null; currentUserProfile = null; state = { events: [], sales: [], users: [], auditLogs: [] }; $("connectionDot").classList.remove("online"); $("connectionText").textContent = "Aguardando login"; if ($("userManagementModal").open) $("userManagementModal").close(); applyRolePermissions(); render(); showAccessModal(); return;
+    currentUser = null; currentUserProfile = null; state = { events: [], sales: [], users: [], auditLogs: [] }; $("connectionDot").classList.remove("online"); $("connectionText").textContent = "Desconectado"; if ($("userManagementModal").open) $("userManagementModal").close(); applyRolePermissions(); render(); showAccessModal(); return;
   }
   try {
     const profileSnapshot = await get(ref(db, `users/${user.uid}`));
     const profile = profileSnapshot.val();
     if (!profile || !profile.active || !ROLE_LABELS[profile.role]) { await signOut(auth); showAccessModal("Sua conta ainda não possui permissão ativa. Fale com o administrador."); return; }
     currentUser = user; currentUserProfile = { ...profile, active: profile.active === true }; hideAccessModal(); applyRolePermissions();
-    $("connectionDot").classList.add("online"); $("connectionText").textContent = "Firebase conectado";
+    $("connectionDot").classList.add("online"); $("connectionText").textContent = "Conectado";
     attachRealtimeListeners();
   } catch (error) { console.error(error); await signOut(auth); showAccessModal("Não foi possível carregar suas permissões. Confira as regras do Firebase."); }
 }
@@ -125,11 +125,11 @@ async function start() {
   if (isDemo) {
     currentUser = { uid: "local-demo", email: "demo@local" }; currentUserProfile = { name: "Administrador local", email: "demo@local", role: "admin", active: true };
     state = { events: JSON.parse(localStorage.getItem("ingressa-events") || "null") || demoEvents, sales: JSON.parse(localStorage.getItem("ingressa-sales") || "null") || demoSales, users: [{ id: "local-demo", ...currentUserProfile }], auditLogs: JSON.parse(localStorage.getItem("ingressa-audit-logs") || "null") || [] };
-    $("connectionText").textContent = "Modo local — dados neste navegador"; applyRolePermissions(); render(); return;
+    $("connectionText").textContent = "Desconectado"; applyRolePermissions(); render(); return;
   }
   try {
     showAccessModal();
-    $("connectionText").textContent = "Aguardando login";
+    $("connectionText").textContent = "Desconectado";
     firebaseApp = initializeApp(firebaseConfig); auth = getAuth(firebaseApp); db = getDatabase(firebaseApp, firebaseConfig.databaseURL);
     await setPersistence(auth, browserLocalPersistence);
     onAuthStateChanged(auth, (user) => { handleAuthenticatedUser(user); });
