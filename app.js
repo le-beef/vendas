@@ -628,11 +628,13 @@ function saleCreatedDate(sale) {
   date.setMinutes(date.getMinutes() - date.getTimezoneOffset());
   return date.toISOString().slice(0, 10);
 }
-function renderSellerClosing(eventSales) {
+function renderSellerClosing(eventSales, event) {
   const start = $("sellerClosingStart").value;
   const end = $("sellerClosingEnd").value;
   const periodSales = eventSales.filter((sale) => { const date = saleCreatedDate(sale); return (!start || (date && date >= start)) && (!end || (date && date <= end)); });
   const groups = new Map();
+  const sellerTicketGroups = new Map();
+  const ticketTypes = event ? ticketTypesFor(event) : [];
   periodSales.forEach((sale) => {
     const seller = sellerForSale(sale);
     const current = groups.get(seller.id) || { ...seller, sales: 0, tickets: 0, total: 0, received: 0, pending: 0 };
@@ -641,11 +643,25 @@ function renderSellerClosing(eventSales) {
     current.total += saleTotal(sale);
     if (sale.paid) current.received += saleTotal(sale); else current.pending += saleTotal(sale);
     groups.set(seller.id, current);
+    ticketTypes.forEach((type) => {
+      const quantity = saleTypeQuantity(sale, type, event);
+      if (!quantity) return;
+      const total = saleTypeTotal(sale, type, event);
+      const key = `${seller.id}::${type.id}`;
+      const typeRow = sellerTicketGroups.get(key) || { ...seller, ticketTypeId: type.id, ticketTypeName: type.name, sales: 0, tickets: 0, total: 0, received: 0, pending: 0 };
+      typeRow.sales += 1;
+      typeRow.tickets += quantity;
+      typeRow.total += total;
+      if (sale.paid) typeRow.received += total; else typeRow.pending += total;
+      sellerTicketGroups.set(key, typeRow);
+    });
   });
   const rows = [...groups.values()].sort((a, b) => b.total - a.total || a.name.localeCompare(b.name, "pt-BR"));
   const totals = rows.reduce((sum, row) => ({ sales: sum.sales + row.sales, tickets: sum.tickets + row.tickets, total: sum.total + row.total, received: sum.received + row.received, pending: sum.pending + row.pending }), { sales: 0, tickets: 0, total: 0, received: 0, pending: 0 });
   $("sellerClosingPeriodLabel").textContent = start || end ? `${start ? paymentDateLabel(start) : "Início"} até ${end ? paymentDateLabel(end) : "hoje"}` : "Todo o evento";
   $("sellerClosingBreakdown").innerHTML = rows.length ? `${rows.map((row) => `<tr><td data-label="Vendedor"><strong>${escapeHtml(row.name)}</strong><small>${escapeHtml(row.email)}</small></td><td data-label="Vendas">${row.sales}</td><td data-label="Ingressos">${row.tickets}</td><td data-label="Total vendido">${money.format(row.total)}</td><td data-label="Recebido">${money.format(row.received)}</td><td data-label="Pendente">${money.format(row.pending)}</td></tr>`).join("")}<tr class="seller-closing-total"><td data-label="Vendedor"><strong>Total do período</strong></td><td data-label="Vendas">${totals.sales}</td><td data-label="Ingressos">${totals.tickets}</td><td data-label="Total vendido">${money.format(totals.total)}</td><td data-label="Recebido">${money.format(totals.received)}</td><td data-label="Pendente">${money.format(totals.pending)}</td></tr>` : `<tr><td class="financial-empty" colspan="6">Nenhuma venda registrada neste período.</td></tr>`;
+  const sellerTicketRows = [...sellerTicketGroups.values()].sort((a, b) => a.name.localeCompare(b.name, "pt-BR") || b.tickets - a.tickets || a.ticketTypeName.localeCompare(b.ticketTypeName, "pt-BR"));
+  $("sellerTicketBreakdown").innerHTML = sellerTicketRows.length ? sellerTicketRows.map((row) => `<tr><td data-label="Vendedor"><strong>${escapeHtml(row.name)}</strong><small>${escapeHtml(row.email)}</small></td><td data-label="Tipo de ingresso">${escapeHtml(row.ticketTypeName)}</td><td data-label="Vendas">${row.sales}</td><td data-label="Ingressos">${row.tickets}</td><td data-label="Total">${money.format(row.total)}</td><td data-label="Recebido">${money.format(row.received)}</td><td data-label="Pendente">${money.format(row.pending)}</td></tr>`).join("") : `<tr><td class="financial-empty" colspan="7">Nenhum ingresso vendido por vendedores neste período.</td></tr>`;
 }
 
 function renderFinancialReport(event, eventSales) {
@@ -678,9 +694,12 @@ function renderFinancialReport(event, eventSales) {
     const quantity = typeSales.reduce((sum, sale) => sum + saleTypeQuantity(sale, type, event), 0);
     const total = typeSales.reduce((sum, sale) => sum + saleTypeTotal(sale, type, event), 0);
     const received = typeSales.filter((sale) => sale.paid).reduce((sum, sale) => sum + saleTypeTotal(sale, type, event), 0);
-    return `<tr><td data-label="Tipo de ingresso">${escapeHtml(type.name)}</td><td data-label="Vendidos">${quantity}</td><td data-label="Total">${money.format(total)}</td><td data-label="Recebido">${money.format(received)}</td><td data-label="Pendente">${money.format(total - received)}</td></tr>`;
-  }).join("") : `<tr><td class="financial-empty" colspan="5">Nenhum tipo de ingresso disponível.</td></tr>`;
-  renderSellerClosing(eventSales);
+    const capacity = Number(type.capacity || 0);
+    const available = Math.max(0, capacity - quantity);
+    const occupancy = capacity ? Math.min(100, Math.round(quantity / capacity * 100)) : 0;
+    return `<tr><td data-label="Tipo de ingresso">${escapeHtml(type.name)}</td><td data-label="Vendas">${typeSales.length}</td><td data-label="Vendidos">${quantity}</td><td data-label="Disponíveis">${available}</td><td data-label="Ocupação"><span class="occupancy-value">${occupancy}%</span></td><td data-label="Total">${money.format(total)}</td><td data-label="Recebido">${money.format(received)}</td><td data-label="Pendente">${money.format(total - received)}</td></tr>`;
+  }).join("") : `<tr><td class="financial-empty" colspan="8">Nenhum tipo de ingresso disponível.</td></tr>`;
+  renderSellerClosing(eventSales, event);
 }
 
 function syncApplicationPage() {
