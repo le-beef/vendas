@@ -25,7 +25,7 @@
     <link rel="stylesheet" href="branding.css?v=10" />
     <link rel="stylesheet" href="whatsapp.css?v=23" />
     <link rel="stylesheet" href="pwa.css?v=7" />
-    <link rel="stylesheet" href="financial-report.css?v=18" />
+    <link rel="stylesheet" href="financial-report.css?v=19" />
     <link rel="stylesheet" href="auth-permissions.css?v=17" />
     <link rel="stylesheet" href="audit-log.css?v=27" />
     <link rel="stylesheet" href="payment-closing.css?v=28" />
@@ -147,13 +147,11 @@
 
         <article class="financial-panel financial-breakdown"><div class="financial-panel-heading"><div><p class="eyebrow">DETALHAMENTO</p><h2>Resultado por tipo de ingresso</h2><p>Compare vendas, estoque restante, ocupação, faturamento e pagamentos de cada tipo.</p></div></div><div class="financial-table-wrap financial-detailed-wrap"><table class="financial-detailed-table"><thead><tr><th>Tipo de ingresso</th><th>Vendas</th><th>Vendidos</th><th>Disponíveis</th><th>Ocupação</th><th>Total</th><th>Recebido</th><th>Pendente</th></tr></thead><tbody id="financialTicketBreakdown"></tbody></table></div></article>
 
-        <article class="financial-panel seller-closing"><div class="financial-panel-heading seller-closing-heading"><div><p class="eyebrow">EQUIPE</p><h2>Fechamento por vendedor</h2><p>Confira vendas, ingressos e recebimentos de cada usuário no período.</p></div><span id="sellerClosingPeriodLabel">Todo o evento</span></div><div class="seller-closing-filters"><label>Data inicial<input id="sellerClosingStart" type="date" /></label><label>Data final<input id="sellerClosingEnd" type="date" /></label><button id="sellerClosingToday" class="button secondary" type="button">Hoje</button><button id="sellerClosingAll" class="button secondary" type="button">Todo o evento</button></div><div class="financial-table-wrap"><table class="seller-closing-table"><thead><tr><th>Vendedor</th><th>Vendas</th><th>Ingressos</th><th>Total vendido</th><th>Recebido</th><th>Pendente</th></tr></thead><tbody id="sellerClosingBreakdown"></tbody></table></div></article>
-
-        <article class="financial-panel financial-breakdown seller-ticket-report"><div class="financial-panel-heading"><div><p class="eyebrow">EQUIPE POR INGRESSO</p><h2>Tipos vendidos por vendedor</h2><p>Veja quais ingressos cada vendedor lançou e os respectivos valores no período selecionado acima.</p></div></div><div class="financial-table-wrap financial-detailed-wrap"><table class="financial-detailed-table"><thead><tr><th>Vendedor</th><th>Tipo de ingresso</th><th>Vendas</th><th>Ingressos</th><th>Total</th><th>Recebido</th><th>Pendente</th></tr></thead><tbody id="sellerTicketBreakdown"></tbody></table></div></article>
+        <article class="financial-panel seller-closing"><div class="financial-panel-heading seller-closing-heading"><div><p class="eyebrow">EQUIPE</p><h2>Fechamento por vendedor</h2><p>Confira vendas, ingressos e recebimentos de cada usuário no período.</p></div><div class="seller-closing-heading-actions"><span id="sellerClosingPeriodLabel">Todo o evento</span><button id="sellerDetailsToggle" class="seller-details-toggle" type="button" aria-expanded="false" aria-controls="sellerTicketReport">Detalhar</button></div></div><div class="seller-closing-filters"><label>Data inicial<input id="sellerClosingStart" type="date" /></label><label>Data final<input id="sellerClosingEnd" type="date" /></label><button id="sellerClosingToday" class="button secondary" type="button">Hoje</button><button id="sellerClosingAll" class="button secondary" type="button">Todo o evento</button></div><div class="financial-table-wrap"><table class="seller-closing-table"><thead><tr><th>Vendedor</th><th>Vendas</th><th>Ingressos</th><th>Total vendido</th><th>Recebido</th><th>Pendente</th></tr></thead><tbody id="sellerClosingBreakdown"></tbody></table></div><section id="sellerTicketReport" class="seller-ticket-inline" hidden><div class="seller-ticket-inline-heading"><p class="eyebrow">DETALHAMENTO POR INGRESSO</p><h3>Tipos vendidos por vendedor</h3><p>Valores calculados para o mesmo período selecionado acima.</p></div><div class="financial-table-wrap financial-detailed-wrap"><table class="financial-detailed-table"><thead><tr><th>Vendedor</th><th>Tipo de ingresso</th><th>Vendas</th><th>Ingressos</th><th>Total</th><th>Recebido</th><th>Pendente</th></tr></thead><tbody id="sellerTicketBreakdown"></tbody></table></div></section></article>
       </section>
     </main>
 
-    <footer class="site-footer">Le Beef | Versão: 3.13.0</footer>
+    <footer class="site-footer">Le Beef | Versão: 3.13.1</footer>
 
     <button class="fab" data-open="saleModal" data-roles="admin,seller" aria-label="Registrar venda">+</button>
 
@@ -244,6 +242,6 @@
     <script src="pwa.js"></script>
     <script src="access.js"></script>
     <script src="excel-export.js?v=32"></script>
-    <script type="module" src="app.js?v=39"></script>
+    <script type="module" src="app.js?v=40"></script>
   </body>
 </html>

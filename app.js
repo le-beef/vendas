@@ -550,6 +550,7 @@ function getSaleTicketItems() {
 function addSaleEditButtons() { if (!hasRole("admin", "seller")) return; document.querySelectorAll("[data-sale-row]").forEach((row) => { const actions = row.lastElementChild; if (!actions?.querySelector("[data-edit-sale]")) { const button = document.createElement("button"); button.type = "button"; button.className = "edit-button"; button.dataset.editSale = row.dataset.saleRow; button.textContent = "Editar"; actions.prepend(button); } }); }
 function toggleParticipantCard(row) { if (!row) return; const expanded = row.classList.toggle("is-expanded"); row.setAttribute("aria-expanded", String(expanded)); const button = row.querySelector("[data-toggle-sale-details]"); if (button) button.textContent = expanded ? "Ocultar detalhes" : "Detalhar"; }
 function toggleMetricDetails(button) { const details = $(button.dataset.toggleMetricDetails); if (!details) return; const expanded = details.hidden; details.hidden = !expanded; button.setAttribute("aria-expanded", String(expanded)); button.textContent = expanded ? "Ocultar" : "Detalhar"; }
+function toggleSellerTicketReport() { const report = $("sellerTicketReport"); const button = $("sellerDetailsToggle"); const expanded = report.hidden; report.hidden = !expanded; button.setAttribute("aria-expanded", String(expanded)); button.textContent = expanded ? "Ocultar" : "Detalhar"; }
 
 function eventAccessCheckboxes(selectedIds = []) {
   const selected = new Set(selectedIds);
@@ -935,6 +936,7 @@ $("sellerClosingStart").addEventListener("change", render);
 $("sellerClosingEnd").addEventListener("change", render);
 $("sellerClosingToday").addEventListener("click", () => { const today = todayInputValue(); $("sellerClosingStart").value = today; $("sellerClosingEnd").value = today; render(); });
 $("sellerClosingAll").addEventListener("click", () => { $("sellerClosingStart").value = ""; $("sellerClosingEnd").value = ""; render(); });
+$("sellerDetailsToggle").addEventListener("click", toggleSellerTicketReport);
 $("accessModal").addEventListener("cancel", (event) => event.preventDefault());
 $("accessForm").addEventListener("submit", async (event) => { event.preventDefault(); if (!auth) return; const button = $("accessSubmitButton"); button.disabled = true; button.textContent = "Entrando..."; $("accessError").textContent = ""; try { await signInWithEmailAndPassword(auth, $("accessEmail").value.trim(), $("accessPassword").value); $("accessPassword").value = ""; } catch (error) { $("accessError").textContent = authErrorMessage(error); } finally { button.disabled = false; button.textContent = "Entrar no painel"; } });
 $("resetPasswordButton").addEventListener("click", async () => { const email = $("accessEmail").value.trim(); if (!auth) { $("accessError").textContent = "O Firebase ainda está carregando. Tente novamente."; return; } if (!email) { $("accessError").textContent = "Digite seu e-mail para redefinir a senha."; $("accessEmail").focus(); return; } try { await sendPasswordResetEmail(auth, email); $("accessError").textContent = "Enviamos as instruções para o seu e-mail."; } catch (error) { $("accessError").textContent = authErrorMessage(error); } });
