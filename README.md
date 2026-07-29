@@ -4,7 +4,7 @@ Site estático em HTML, CSS e JavaScript, pronto para publicar no GitHub Pages, 
 
 ## Login individual, permissões e histórico
 
-A versão 4.0.0 adiciona dois modos de evento: **somente vendas unitárias** ou **mesas/bistrôs + vendas unitárias**. O administrador escolhe Salão, Mezanino ou ambos e monta o mapa visualmente, posicionando, movendo e redimensionando mesas e bistrôs.
+A versão 4.1.0 aprimora o modo de **mesas/bistrôs + vendas unitárias**. O administrador escolhe Salão, Mezanino ou ambos e ativa posições predefinidas sobre os mapas oficiais, definindo cada posição como mesa ou bistrô. A numeração é única e contínua entre tipos e áreas.
 
 Nas reservas, a primeira pessoa é a responsável e informa nome e telefone. Os demais ocupantes precisam somente do nome. O total é calculado automaticamente pelo valor por pessoa/cadeira definido no evento. As reservas entram no faturamento, no fechamento por vendedor, no histórico e na planilha Excel.
 
@@ -23,7 +23,7 @@ As permissões são aplicadas na interface e nas regras do Realtime Database. Co
 
 ## Atualização obrigatória no Firebase
 
-Na atualização para a versão 4.0.0, envie todos os arquivos do pacote ao GitHub Pages, inclusive os mapas e ícones. Eventos, pacotes, cortesias e vendas antigas continuam disponíveis normalmente; esta versão não exige alteração nas regras do banco de dados.
+Na atualização para a versão 4.1.0, envie todos os arquivos do pacote ao GitHub Pages, inclusive os mapas e ícones. As reservas agora aparecem em uma lista separada e possuem um Excel exclusivo; o Excel principal contém somente participantes de vendas unitárias. Eventos e vendas antigas continuam disponíveis normalmente; esta versão não exige alteração nas regras do banco de dados.
 
 As instruções completas estão em [FIREBASE-SETUP.md](FIREBASE-SETUP.md).
 

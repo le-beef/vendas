@@ -1,4 +1,4 @@
-const CACHE_NAME = "le-beef-painel-v45";
+const CACHE_NAME = "le-beef-painel-v46";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -19,13 +19,13 @@ const APP_SHELL = [
   "./audit-log.css",
   "./payment-closing.css",
   "./event-access.css",
-  "./theme.css?v=2",
-  "./table-map.css?v=1",
+  "./theme.css?v=3",
+  "./table-map.css?v=2",
   "./access.js",
   "./theme.js?v=1",
-  "./excel-export.js?v=33",
+  "./excel-export.js?v=34",
   "./firebase-config.js",
-  "./app.js?v=42",
+  "./app.js?v=43",
   "./pwa.js",
   "./manifest.webmanifest",
   "./logo-le-beef.png",

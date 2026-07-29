@@ -372,3 +372,4 @@ html[data-theme="dark"] .table-reservation-modal .modal-heading p:last-child,
 html[data-theme="dark"] .map-editor-help {
   color: #9aa8bd !important;
 }
+[data-theme="dark"] .table-reservation-card{border-color:#334155;background:#172033}[data-theme="dark"] .map-preset-slot.is-inactive{border-color:#60a5fa;background:#1e3a5fcc}[data-theme="dark"] .table-reservation-card small{color:#94a3b8}

@@ -578,14 +578,42 @@ function toggleParticipantCard(row) { if (!row) return; const expanded = row.cla
 function toggleMetricDetails(button) { const details = $(button.dataset.toggleMetricDetails); if (!details) return; const expanded = details.hidden; details.hidden = !expanded; button.setAttribute("aria-expanded", String(expanded)); button.textContent = expanded ? "Ocultar" : "Detalhar"; }
 function toggleSellerTicketReport() { const report = $("sellerTicketReport"); const button = $("sellerDetailsToggle"); const expanded = report.hidden; report.hidden = !expanded; button.setAttribute("aria-expanded", String(expanded)); button.textContent = expanded ? "Ocultar" : "Detalhar"; }
 
+function presetSlotsFor(area) {
+  const slots = [];
+  const add = (x, y, width = 7.6, height = 7.6) => slots.push({ id: `slot-${area}-${String(slots.length + 1).padStart(2, "0")}`, area, x, y, width, height });
+  if (area === "salao") {
+    [7, 16, 25, 34, 43, 52].forEach((x) => add(x, 9));
+    [10, 19, 28, 37, 46, 55].forEach((x) => add(x, 18));
+    [28, 38, 48, 58, 68].forEach((y) => [19, 28, 37, 46, 55].forEach((x) => add(x, y)));
+  } else {
+    [11, 18, 25, 32, 39, 46, 53].forEach((y) => add(53, y, 6.8, 6.8));
+    [76, 85].forEach((y, row) => (row ? [31, 40, 49, 58] : [27, 36, 45, 54, 63]).forEach((x) => add(x, y, 6.8, 6.8)));
+  }
+  return slots;
+}
+
+function migrateFurnitureToPreset(tableMap) {
+  const normalized = normalizeTableMap(tableMap);
+  const used = new Set();
+  const furniture = [...normalized.furniture].sort((a, b) => Number(a.number || 0) - Number(b.number || 0)).map((item) => {
+    const presets = presetSlotsFor(item.area);
+    let preset = presets.find((slot) => slot.id === item.id && !used.has(slot.id));
+    if (!preset) preset = presets.filter((slot) => !used.has(slot.id)).sort((a, b) => Math.hypot(a.x - Number(item.x || 0), a.y - Number(item.y || 0)) - Math.hypot(b.x - Number(item.x || 0), b.y - Number(item.y || 0)))[0];
+    if (!preset) return item;
+    used.add(preset.id);
+    return { ...preset, id: item.id, slotId: preset.id, kind: item.kind === "bistro" ? "bistro" : "table", number: Number(item.number || 0) };
+  });
+  return { areas: normalized.areas, furniture };
+}
+
 function mapFurnitureHtml(item, editor = false, reservation = null) {
   const label = `${furnitureKindLabel(item.kind)} ${String(item.number).padStart(2, "0")} — ${mapAreaLabel(item.area)}`;
   const status = reservation ? (reservation.paid ? "is-paid" : "is-pending") : "is-free";
   const occupancy = reservation ? `<span class="map-furniture-occupancy">${reservation.occupants?.length || reservation.quantity || 1} pessoa${Number(reservation.occupants?.length || reservation.quantity || 1) === 1 ? "" : "s"}</span>` : "";
-  const content = `<img src="${item.kind === "bistro" ? "bistro-icon.png" : "mesa-icon.png"}" alt="" /><span class="map-furniture-number">${String(item.number).padStart(2, "0")}</span>${occupancy}${editor ? `<span class="map-resize-handle" data-map-resize aria-hidden="true"></span>` : ""}`;
+  const content = `<img src="${item.kind === "bistro" ? "bistro-icon.png" : "mesa-icon.png"}" alt="" /><span class="map-furniture-number">${String(item.number).padStart(2, "0")}</span>${occupancy}`;
   const style = `left:${item.x}%;top:${item.y}%;width:${item.width}%;height:${item.height}%`;
   return editor
-    ? `<button class="map-furniture ${item.id === selectedMapFurnitureId ? "is-selected" : ""}" type="button" data-map-furniture="${item.id}" style="${style}" aria-label="${escapeHtml(label)}">${content}</button>`
+    ? `<button class="map-furniture map-preset-slot is-active" type="button" data-map-slot="${item.slotId || item.id}" style="${style}" aria-label="${escapeHtml(label)}">${content}</button>`
     : `<button class="map-furniture ${status}" type="button" data-reserve-furniture="${item.id}" style="${style}" aria-label="${escapeHtml(`${label}${reservation ? `, reservada para ${reservation.buyerName}` : ", livre"}`)}">${content}</button>`;
 }
 
@@ -598,7 +626,6 @@ function updateMapEditorTabs() {
 function renderMapEditor() {
   updateMapEditorTabs();
   const stage = $("tableMapEditor");
-  $("deleteMapFurniture").disabled = !selectedMapFurnitureId;
   document.querySelectorAll("[data-map-tool]").forEach((button) => button.classList.toggle("is-active", button.dataset.mapTool === activeMapTool));
   if (!activeMapEditorArea) {
     stage.removeAttribute("data-area");
@@ -607,7 +634,12 @@ function renderMapEditor() {
   }
   stage.dataset.area = activeMapEditorArea;
   const furniture = eventMapDraft.furniture.filter((item) => item.area === activeMapEditorArea);
-  stage.innerHTML = furniture.map((item) => mapFurnitureHtml(item, true)).join("") || `<div class="map-empty-hint">Escolha “Adicionar mesa” ou “Adicionar bistrô” e toque no mapa.</div>`;
+  stage.innerHTML = presetSlotsFor(activeMapEditorArea).map((slot) => {
+    const active = furniture.find((item) => (item.slotId || item.id) === slot.id);
+    if (active) return mapFurnitureHtml(active, true);
+    const style = `left:${slot.x}%;top:${slot.y}%;width:${slot.width}%;height:${slot.height}%`;
+    return `<button class="map-furniture map-preset-slot is-inactive" type="button" data-map-slot="${slot.id}" style="${style}" aria-label="Ativar esta posição"><span class="map-slot-plus">+</span></button>`;
+  }).join("");
 }
 
 function syncEventMapSettings() {
@@ -624,11 +656,32 @@ function syncEventMapSettings() {
 }
 
 function resetEventMapDraft(event = null) {
-  eventMapDraft = normalizeTableMap(event?.tableMap);
+  eventMapDraft = migrateFurnitureToPreset(event?.tableMap);
   activeMapEditorArea = eventMapDraft.areas[0] || "";
   activeMapTool = "";
   selectedMapFurnitureId = "";
   document.querySelectorAll('#eventForm [name="mapArea"]').forEach((input) => { input.checked = eventMapDraft.areas.includes(input.value); });
+  renderMapEditor();
+}
+
+function togglePresetSlot(slotId) {
+  if (!activeMapTool) return toast("Selecione primeiro Mesa ou Bistrô.");
+  const slot = presetSlotsFor(activeMapEditorArea).find((item) => item.id === slotId);
+  if (!slot) return;
+  const existingIndex = eventMapDraft.furniture.findIndex((item) => (item.slotId || item.id) === slotId);
+  if (existingIndex >= 0) {
+    const existing = eventMapDraft.furniture[existingIndex];
+    if (existing.kind !== activeMapTool) existing.kind = activeMapTool;
+    else {
+      const editingEventId = $("eventForm").dataset.editId;
+      if (editingEventId && tableReservationsFor(editingEventId).some((sale) => sale.furnitureId === slotId)) return toast("Esta posição possui uma reserva e não pode ser desativada.");
+      eventMapDraft.furniture.splice(existingIndex, 1);
+      eventMapDraft.furniture.sort((a, b) => Number(a.number || 0) - Number(b.number || 0)).forEach((item, index) => { item.number = index + 1; });
+    }
+  } else {
+    const number = Math.max(0, ...eventMapDraft.furniture.map((item) => Number(item.number || 0))) + 1;
+    eventMapDraft.furniture.push({ ...slot, kind: activeMapTool, number });
+  }
   renderMapEditor();
 }
 
@@ -658,7 +711,6 @@ function handleMapPointerDown(event) {
   const item = eventMapDraft.furniture.find((entry) => entry.id === selectedMapFurnitureId);
   if (!item) return;
   document.querySelectorAll("#tableMapEditor .map-furniture").forEach((element) => element.classList.toggle("is-selected", element.dataset.mapFurniture === selectedMapFurnitureId));
-  $("deleteMapFurniture").disabled = false;
   const rect = $("tableMapEditor").getBoundingClientRect();
   mapPointerAction = { type: event.target.closest("[data-map-resize]") ? "resize" : "move", pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, rect, item, initial: { x: item.x, y: item.y, width: item.width, height: item.height }, element: furnitureElement };
   furnitureElement.setPointerCapture?.(event.pointerId);
@@ -708,6 +760,21 @@ function renderTableMapPanel(event, eventSales) {
   const occupied = furniture.filter((item) => reservations.some((sale) => sale.furnitureId === item.id)).length;
   const paid = furniture.filter((item) => reservations.some((sale) => sale.furnitureId === item.id && sale.paid)).length;
   $("tableMapSummary").innerHTML = `<span>${furniture.length} móveis</span><span>${occupied} reservados</span><span>${Math.max(0, furniture.length - occupied)} livres</span><span>${paid} pagos</span>`;
+}
+
+function renderTableReservationsList(event, eventSales) {
+  const panel = $("tableReservationsPanel");
+  const visible = Boolean(event && eventUsesTableMap(event));
+  panel.hidden = !visible;
+  if (!visible) return;
+  const reservations = eventSales.filter(isTableReservation).sort((a, b) => String(a.reservationLabel || "").localeCompare(String(b.reservationLabel || ""), "pt-BR", { numeric: true }));
+  const canManage = hasRole("admin", "seller");
+  $("tableReservationsList").innerHTML = reservations.length ? reservations.map((sale) => {
+    const occupants = Array.isArray(sale.occupants) ? sale.occupants : Object.values(sale.occupants || {});
+    const payment = sale.paid ? `<span class="payment paid">✓ Pago</span>${paymentDetailsHtml(sale)}` : `<span class="payment">Pendente</span>`;
+    const actions = canManage ? `<div class="table-reservation-actions"><button class="edit-button" type="button" data-open-table-reservation="${sale.furnitureId}">Editar</button><button class="delete-button" type="button" data-delete-sale="${sale.id}">Excluir</button></div>` : "";
+    return `<article class="table-reservation-card"><div><small>${escapeHtml(mapAreaLabel(sale.reservationArea || ""))}</small><strong>${escapeHtml(sale.reservationLabel || "Reserva")}</strong></div><div><small>Responsável</small><strong>${escapeHtml(sale.buyerName || "")}</strong><span class="phone-line">${escapeHtml(formatPhoneDisplay(sale.buyerPhone) || "Sem telefone")}${whatsappButtonHtml(sale, event.name)}</span></div><div><small>Ocupação</small><strong>${occupants.length || sale.quantity || 1} pessoas</strong><span>${escapeHtml(occupants.slice(0, 3).join(", "))}${occupants.length > 3 ? ` +${occupants.length - 3}` : ""}</span></div><div><small>Total</small><strong>${money.format(saleTotal(sale, event))}</strong>${payment}</div>${actions}</article>`;
+  }).join("") : `<div class="empty">Nenhuma reserva registrada neste evento.</div>`;
 }
 
 function addTableOccupantRow(name = "") {
@@ -1056,6 +1123,7 @@ function render() {
   }).join("");
   renderFinancialReport(hasRole("admin") ? selectedEvent : undefined, hasRole("admin") ? selectedSales : []);
   renderTableMapPanel(selectedEvent, selectedSales);
+  renderTableReservationsList(selectedEvent, selectedSales);
   if (selectedEvent) { $("selectedEventName").textContent = selectedEvent.name; $("selectedEventMeta").textContent = hasRole("door") ? `${selectedEvent.place} · ${dateText(selectedEvent.date)}` : `${selectedEvent.place} · ${dateText(selectedEvent.date)} · ${priceLabel(selectedEvent)}`; $("salesPanelTitle").textContent = `Vendas de ${selectedEvent.name}`; $("allSalesTitle").textContent = `Participantes — ${selectedEvent.name}`; }
   $("eventsList").innerHTML = events.length ? events.map((event) => {
     const eventSold = sales.filter((sale) => sale.eventId === event.id && !isTableReservation(sale)).reduce((sum, sale) => sum + saleQuantity(sale, event), 0);
@@ -1278,14 +1346,12 @@ document.querySelectorAll('#eventForm [name="mapArea"]').forEach((input) => inpu
   renderMapEditor();
 }));
 document.querySelectorAll("[data-map-tool]").forEach((button) => button.addEventListener("click", () => { activeMapTool = activeMapTool === button.dataset.mapTool ? "" : button.dataset.mapTool; renderMapEditor(); }));
-$("deleteMapFurniture").addEventListener("click", () => { if (!selectedMapFurnitureId) return; eventMapDraft.furniture = eventMapDraft.furniture.filter((item) => item.id !== selectedMapFurnitureId); selectedMapFurnitureId = ""; renderMapEditor(); });
-$("tableMapEditor").addEventListener("pointerdown", handleMapPointerDown);
-$("tableMapEditor").addEventListener("pointermove", handleMapPointerMove);
-$("tableMapEditor").addEventListener("pointerup", handleMapPointerUp);
-$("tableMapEditor").addEventListener("pointercancel", handleMapPointerUp);
+$("tableMapEditor").addEventListener("click", (event) => { const slot = event.target.closest("[data-map-slot]"); if (slot) togglePresetSlot(slot.dataset.mapSlot); });
 $("mapEditorAreaTabs").addEventListener("click", (event) => { const button = event.target.closest("[data-editor-map-area]"); if (!button) return; activeMapEditorArea = button.dataset.editorMapArea; selectedMapFurnitureId = ""; renderMapEditor(); });
 $("tableMapAreaTabs").addEventListener("click", (event) => { const button = event.target.closest("[data-view-map-area]"); if (!button) return; activeMapViewerArea = button.dataset.viewMapArea; const selectedEvent = state.events.find((item) => item.id === selectedEventId); renderTableMapPanel(selectedEvent, state.sales.filter((sale) => sale.eventId === selectedEventId)); });
 $("tableMapViewer").addEventListener("click", (event) => { const furniture = event.target.closest("[data-reserve-furniture]"); if (furniture) openTableReservation(furniture.dataset.reserveFurniture); });
+$("tableReservationsList").addEventListener("click", (event) => { const button = event.target.closest("[data-open-table-reservation]"); if (button) openTableReservation(button.dataset.openTableReservation); });
+$("exportTableReservations").addEventListener("click", () => { if (requireRole(["admin", "seller"])) window.exportSalesXlsx(state.sales, state.events, selectedEventId, "tables"); });
 $("addTableOccupant").addEventListener("click", () => addTableOccupantRow());
 $("tableOccupantsList").addEventListener("click", (event) => { const remove = event.target.closest("[data-remove-table-occupant]"); if (!remove) return; remove.closest(".table-occupant-row").remove(); updateTableReservationTotal(); });
 $("tableReservationForm").elements.paymentStatus.addEventListener("change", () => syncTableReservationPaymentFields(true));
@@ -1295,7 +1361,7 @@ $("eventForm").addEventListener("submit", async (event) => { event.preventDefaul
 $("saleForm").addEventListener("submit", async (event) => { event.preventDefault(); const form = event.currentTarget; try { const data = Object.fromEntries(new FormData(form)); data.items = getSaleTicketItems(); await saveSale(data, form.dataset.editId); form.reset(); $("saleTicketItemsList").innerHTML = ""; $("saleModal").close(); } catch (error) { toast(error.message); } });
 $("tableReservationForm").addEventListener("submit", async (event) => { event.preventDefault(); const form = event.currentTarget; try { const data = Object.fromEntries(new FormData(form)); await saveTableReservation(data); form.reset(); $("tableOccupantsList").innerHTML = ""; $("tableReservationModal").close(); } catch (error) { toast(error.message); } });
 $("paymentConfirmationForm").addEventListener("submit", async (event) => { event.preventDefault(); const form = event.currentTarget; const button = form.querySelector('[type="submit"]'); button.disabled = true; try { await confirmSalePayment(Object.fromEntries(new FormData(form))); form.reset(); $("paymentConfirmationModal").close(); toast("Pagamento confirmado."); } catch (error) { toast(error.message); } finally { button.disabled = false; } });
-document.addEventListener("click", (event) => { const whatsappTrigger = event.target.closest("[data-whatsapp]"); if (whatsappTrigger) { event.preventDefault(); openWhatsappChooser(whatsappTrigger); return; } const whatsappApp = event.target.closest("[data-whatsapp-app]"); if (whatsappApp) { launchWhatsapp(whatsappApp.dataset.whatsappApp); return; } const metricDetails = event.target.closest("[data-toggle-metric-details]"); if (metricDetails) { toggleMetricDetails(metricDetails); return; } const participantDetails = event.target.closest("[data-toggle-sale-details]"); if (participantDetails) { toggleParticipantCard(participantDetails.closest("[data-sale-row]")); return; } const addPackageComponent = event.target.closest("[data-add-package-component]"); if (addPackageComponent) { const packageRow = addPackageComponent.closest(".package-row"); if (packageRow.querySelectorAll(".package-component-row").length >= draftTicketTypes().filter((item) => item.name).length) return toast("Todos os tipos de ingresso já foram adicionados aqui."); addPackageComponentRow(packageRow); refreshPackageTicketOptions(); return; } const removePackageComponent = event.target.closest("[data-remove-package-component]"); if (removePackageComponent) { const packageRow = removePackageComponent.closest(".package-row"); if (packageRow.querySelectorAll(".package-component-row").length === 1) return toast("O pacote ou cortesia precisa ter pelo menos um ingresso."); removePackageComponent.closest(".package-component-row").remove(); refreshPackageTicketOptions(); return; } const removePackage = event.target.closest("[data-remove-package]"); if (removePackage) { removePackage.closest(".package-row").remove(); refreshPackageTicketOptions(); return; } const removeTicket = event.target.closest("[data-remove-ticket]"); if (removeTicket) { if (document.querySelectorAll(".ticket-type-row").length === 1) return toast("O evento precisa de pelo menos um tipo de ingresso."); removeTicket.closest(".ticket-type-row").remove(); refreshPackageTicketOptions(); return; } const removeSaleTicket = event.target.closest("[data-remove-sale-ticket]"); if (removeSaleTicket) { const rows = document.querySelectorAll(".sale-ticket-item-row"); if (rows.length === 1) return toast("A venda precisa de pelo menos um item."); removeSaleTicket.closest(".sale-ticket-item-row").remove(); populateSaleTicketItemOptions(); return; } const deleteEventButton = event.target.closest("[data-delete-event]"); if (deleteEventButton) { event.preventDefault(); event.stopPropagation(); deleteEvent(deleteEventButton.dataset.deleteEvent); return; } const selectedAction = event.target.closest("[data-selected-action]"); if (selectedAction) { const action = selectedAction.dataset.selectedAction; if (action === "sale") openNewSale(selectedEventId); if (action === "edit") openEditEvent(selectedEventId); if (action === "history") openAuditHistory(selectedEventId); if (action === "export" && requireRole(["admin", "seller"])) window.exportSalesXlsx(state.sales, state.events, selectedEventId); if (action === "delete") deleteEvent(selectedEventId); return; } const selectEvent = event.target.closest("[data-select-event]"); if (selectEvent) { selectedEventId = selectEvent.dataset.selectEvent; render(); return; } const editSaleButton = event.target.closest("[data-edit-sale]"); if (editSaleButton) { openEditSale(editSaleButton.dataset.editSale); return; } const deleteSaleButton = event.target.closest("[data-delete-sale]"); if (deleteSaleButton) { deleteSale(deleteSaleButton.dataset.deleteSale); return; } const checkin = event.target.closest("[data-checkin]"); if (checkin) { toggleCheckin(checkin.dataset.checkin); return; } const paid = event.target.closest("[data-paid]"); if (paid) { togglePayment(paid.dataset.paid); return; } });
+document.addEventListener("click", (event) => { const whatsappTrigger = event.target.closest("[data-whatsapp]"); if (whatsappTrigger) { event.preventDefault(); openWhatsappChooser(whatsappTrigger); return; } const whatsappApp = event.target.closest("[data-whatsapp-app]"); if (whatsappApp) { launchWhatsapp(whatsappApp.dataset.whatsappApp); return; } const metricDetails = event.target.closest("[data-toggle-metric-details]"); if (metricDetails) { toggleMetricDetails(metricDetails); return; } const participantDetails = event.target.closest("[data-toggle-sale-details]"); if (participantDetails) { toggleParticipantCard(participantDetails.closest("[data-sale-row]")); return; } const addPackageComponent = event.target.closest("[data-add-package-component]"); if (addPackageComponent) { const packageRow = addPackageComponent.closest(".package-row"); if (packageRow.querySelectorAll(".package-component-row").length >= draftTicketTypes().filter((item) => item.name).length) return toast("Todos os tipos de ingresso já foram adicionados aqui."); addPackageComponentRow(packageRow); refreshPackageTicketOptions(); return; } const removePackageComponent = event.target.closest("[data-remove-package-component]"); if (removePackageComponent) { const packageRow = removePackageComponent.closest(".package-row"); if (packageRow.querySelectorAll(".package-component-row").length === 1) return toast("O pacote ou cortesia precisa ter pelo menos um ingresso."); removePackageComponent.closest(".package-component-row").remove(); refreshPackageTicketOptions(); return; } const removePackage = event.target.closest("[data-remove-package]"); if (removePackage) { removePackage.closest(".package-row").remove(); refreshPackageTicketOptions(); return; } const removeTicket = event.target.closest("[data-remove-ticket]"); if (removeTicket) { if (document.querySelectorAll(".ticket-type-row").length === 1) return toast("O evento precisa de pelo menos um tipo de ingresso."); removeTicket.closest(".ticket-type-row").remove(); refreshPackageTicketOptions(); return; } const removeSaleTicket = event.target.closest("[data-remove-sale-ticket]"); if (removeSaleTicket) { const rows = document.querySelectorAll(".sale-ticket-item-row"); if (rows.length === 1) return toast("A venda precisa de pelo menos um item."); removeSaleTicket.closest(".sale-ticket-item-row").remove(); populateSaleTicketItemOptions(); return; } const deleteEventButton = event.target.closest("[data-delete-event]"); if (deleteEventButton) { event.preventDefault(); event.stopPropagation(); deleteEvent(deleteEventButton.dataset.deleteEvent); return; } const selectedAction = event.target.closest("[data-selected-action]"); if (selectedAction) { const action = selectedAction.dataset.selectedAction; if (action === "sale") openNewSale(selectedEventId); if (action === "edit") openEditEvent(selectedEventId); if (action === "history") openAuditHistory(selectedEventId); if (action === "export" && requireRole(["admin", "seller"])) window.exportSalesXlsx(state.sales, state.events, selectedEventId, "unit"); if (action === "delete") deleteEvent(selectedEventId); return; } const selectEvent = event.target.closest("[data-select-event]"); if (selectEvent) { selectedEventId = selectEvent.dataset.selectEvent; render(); return; } const editSaleButton = event.target.closest("[data-edit-sale]"); if (editSaleButton) { openEditSale(editSaleButton.dataset.editSale); return; } const deleteSaleButton = event.target.closest("[data-delete-sale]"); if (deleteSaleButton) { deleteSale(deleteSaleButton.dataset.deleteSale); return; } const checkin = event.target.closest("[data-checkin]"); if (checkin) { toggleCheckin(checkin.dataset.checkin); return; } const paid = event.target.closest("[data-paid]"); if (paid) { togglePayment(paid.dataset.paid); return; } });
 document.addEventListener("click", (event) => { const toggle = event.target.closest?.("[data-toggle-package-discount]"); if (!toggle) return; event.preventDefault(); event.stopImmediatePropagation(); togglePackageDiscountType(toggle.closest(".package-row")); }, true);
 // O cartão do participante é somente informativo; edição acontece apenas pelo botão Editar.
 document.addEventListener("click", (event) => { const row = event.target.closest?.("#salesList [data-sale-row]"); if (!row || event.target.closest("button, a, input, select, textarea")) return; if (window.matchMedia("(max-width: 700px)").matches) toggleParticipantCard(row); event.stopImmediatePropagation(); }, true);

@@ -40,8 +40,8 @@
     <link rel="stylesheet" href="audit-log.css?v=27" />
     <link rel="stylesheet" href="payment-closing.css?v=28" />
     <link rel="stylesheet" href="event-access.css?v=18" />
-    <link rel="stylesheet" href="theme.css?v=2" />
-    <link rel="stylesheet" href="table-map.css?v=1" />
+    <link rel="stylesheet" href="theme.css?v=3" />
+    <link rel="stylesheet" href="table-map.css?v=2" />
     <style id="topbar-critical-styles">
       html { scroll-padding-top: 84px; }
       body { padding-top: 84px !important; }
@@ -139,6 +139,11 @@
           <div id="tableMapSummary" class="table-map-summary"></div>
         </article>
 
+        <article id="tableReservationsPanel" class="panel table-reservations-panel" hidden>
+          <div class="panel-heading table-reservations-heading"><div><p class="eyebrow">OCUPAÇÃO</p><h2>Reservas de mesas e bistrôs</h2><p>Lista separada das vendas unitárias, com responsáveis e ocupantes.</p></div><button id="exportTableReservations" class="button secondary" type="button" data-roles="admin,seller">Excel das reservas</button></div>
+          <div id="tableReservationsList" class="table-reservations-list"></div>
+        </article>
+
         <article class="panel sales-panel">
           <div class="panel-heading"><div><p class="eyebrow">PARTICIPANTES</p><h2 id="salesPanelTitle">Vendas recentes</h2><p>Somente as vendas deste evento, atualizadas em tempo real.</p></div><div class="participant-tools"><div class="participant-tool-row"><details class="ticket-filter"><summary aria-label="Filtrar participantes"><span class="filter-glyph" aria-hidden="true"></span><span id="filterLabel">Todos</span></summary><div class="filter-menu"><label>Tipo de ingresso<select id="ticketTypeFilter"><option value="all">Todos</option></select></label><label data-roles="admin,seller">Situação do pagamento<select id="paymentStatusFilter"><option value="all">Todos</option><option value="paid">Pago</option><option value="pending">Pendente</option></select></label><label>Situação da entrada<select id="entryStatusFilter"><option value="all">Todos</option><option value="checked">Check-in realizado</option><option value="waiting">Aguardando entrada</option></select></label><div class="filter-actions"><button id="clearParticipantFiltersMenu" class="filter-clear-button" type="button" data-clear-participant-filters>Limpar filtros</button><button id="applyParticipantFilters" class="filter-apply-button" type="button">Aplicar filtros</button></div></div></details><button class="view-all-button" data-open="allSalesModal">Ver todas</button></div><span id="filterCount" class="filter-count">0 vendidos • 0 disponíveis</span></div></div>
           <div class="participant-search-row"><label class="participant-search"><span class="search-glyph" aria-hidden="true"></span><span class="sr-only">Buscar participante por nome ou telefone</span><input id="participantSearch" type="search" inputmode="search" autocomplete="off" placeholder="Buscar por nome ou telefone" /></label><button id="clearParticipantFilters" class="clear-participant-filters" type="button" data-clear-participant-filters hidden>Limpar</button></div>
@@ -171,7 +176,7 @@
       </section>
     </main>
 
-    <footer class="site-footer">Le Beef | Versão: 4.0.0</footer>
+    <footer class="site-footer">Le Beef | Versão: 4.1.0</footer>
 
     <button class="fab" data-open="saleModal" data-roles="admin,seller" aria-label="Registrar venda">+</button>
 
@@ -182,12 +187,12 @@
         <div class="two-columns"><label>Data<input name="date" type="date" required /></label><label>Local<input name="place" required placeholder="Ex.: Auditório" /></label></div>
         <div class="event-mode-field"><label>Modo do evento<select id="eventMode" name="eventMode"><option value="unit">Somente vendas unitárias</option><option value="mixed">Mesas/bistrôs + vendas unitárias</option></select></label><p class="field-help">No modo com mesas, as vendas unitárias continuam disponíveis normalmente.</p></div>
         <section id="eventMapSettings" class="event-map-settings" hidden>
-          <div class="map-settings-heading"><div><span class="field-label">Mapa de mesas e bistrôs</span><p class="field-help">Escolha as áreas abertas, selecione o móvel e toque no mapa para posicioná-lo.</p></div><label class="chair-price-field">Valor por pessoa/cadeira<input id="chairPrice" name="chairPrice" type="number" min="0" step="0.01" placeholder="R$ 0,00" /></label></div>
+          <div class="map-settings-heading"><div><span class="field-label">Mapa de mesas e bistrôs</span><p class="field-help">Escolha as áreas abertas, selecione o tipo e toque nas posições predefinidas para ativá-las.</p></div><label class="chair-price-field">Valor por pessoa/cadeira<input id="chairPrice" name="chairPrice" type="number" min="0" step="0.01" placeholder="R$ 0,00" /></label></div>
           <fieldset class="map-area-selector"><legend>Áreas disponíveis neste evento</legend><label><input type="checkbox" name="mapArea" value="salao" /> Salão</label><label><input type="checkbox" name="mapArea" value="mezanino" /> Mezanino</label></fieldset>
-          <div class="map-editor-toolbar"><div class="map-tool-buttons"><button class="map-tool-button" type="button" data-map-tool="table"><img src="mesa-icon.png" alt="" />Adicionar mesa</button><button class="map-tool-button" type="button" data-map-tool="bistro"><img src="bistro-icon.png" alt="" />Adicionar bistrô</button></div><button id="deleteMapFurniture" class="map-delete-selection" type="button" disabled>Excluir selecionado</button></div>
+          <div class="map-editor-toolbar"><div class="map-tool-buttons"><button class="map-tool-button" type="button" data-map-tool="table"><img src="mesa-icon.png" alt="" />Ativar como mesa</button><button class="map-tool-button" type="button" data-map-tool="bistro"><img src="bistro-icon.png" alt="" />Ativar como bistrô</button></div></div>
           <div id="mapEditorAreaTabs" class="map-area-tabs" role="tablist" aria-label="Área sendo editada"></div>
           <div id="tableMapEditor" class="table-map-stage table-map-editor" aria-label="Editor do mapa de mesas"><div class="map-empty-hint">Selecione Salão ou Mezanino para começar.</div></div>
-          <p class="map-editor-help">Arraste para mover. Use o ponto no canto do móvel para aumentar ou diminuir o tamanho.</p>
+          <p class="map-editor-help">Clique numa posição para ativá-la. Clique novamente com o mesmo tipo selecionado para desativar. A numeração é única entre todas as áreas.</p>
         </section>
         <div class="ticket-types-field"><div class="field-label"><span>Tipos/lotes, valores e quantidades</span><button class="text-button" type="button" id="addTicketType">+ Adicionar tipo</button></div><p class="field-help">Cada tipo ou lote terá seu próprio limite de vendas.</p><div id="ticketTypesList" class="ticket-types-list"></div></div>
         <div class="packages-field"><div class="field-label"><span>Pacotes e cortesias</span><span class="package-create-actions"><button class="text-button" type="button" id="addPackage">+ Pacote</button><button class="text-button courtesy-create-button" type="button" id="addCourtesy">+ Cortesia</button></span></div><p class="field-help">Monte pacotes ou cortesias com os ingressos acima. O estoque continuará sendo descontado de cada tipo individual.</p><div id="packagesList" class="packages-list"></div></div>
@@ -285,7 +290,7 @@
     <script src="pwa.js"></script>
     <script src="access.js"></script>
     <script src="theme.js?v=1"></script>
-    <script src="excel-export.js?v=33"></script>
-    <script type="module" src="app.js?v=42"></script>
+    <script src="excel-export.js?v=34"></script>
+    <script type="module" src="app.js?v=43"></script>
   </body>
 </html>
