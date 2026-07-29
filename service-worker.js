@@ -1,4 +1,4 @@
-const CACHE_NAME = "le-beef-painel-v42";
+const CACHE_NAME = "le-beef-painel-v45";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -6,7 +6,7 @@ const APP_SHELL = [
   "./access.css",
   "./sales.css?v=16",
   "./layout.css",
-  "./dashboard.css?v=28",
+  "./dashboard.css?v=29",
   "./mobile-participants.css?v=27",
   "./participant-filter.css",
   "./filter-counter.css",
@@ -19,17 +19,24 @@ const APP_SHELL = [
   "./audit-log.css",
   "./payment-closing.css",
   "./event-access.css",
+  "./theme.css?v=2",
+  "./table-map.css?v=1",
   "./access.js",
-  "./excel-export.js?v=32",
+  "./theme.js?v=1",
+  "./excel-export.js?v=33",
   "./firebase-config.js",
-  "./app.js?v=40",
+  "./app.js?v=42",
   "./pwa.js",
   "./manifest.webmanifest",
   "./logo-le-beef.png",
   "./logo-le-beef-branca.png",
   "./icon-192.png",
   "./icon-512.png",
-  "./icon-maskable-512.png"
+  "./icon-maskable-512.png",
+  "./mesa-icon.png",
+  "./bistro-icon.png",
+  "./salao-fundo.png",
+  "./mezanino-fundo.png"
 ];
 const STATIC_HOSTS = new Set(["www.gstatic.com", "fonts.googleapis.com", "fonts.gstatic.com"]);
 

@@ -8,6 +8,16 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="Le Beef" />
     <title>Le Beef | Controle de ingressos</title>
+    <script>
+      try {
+        const savedTheme = localStorage.getItem("le-beef-theme");
+        document.documentElement.dataset.theme = savedTheme === "dark" || savedTheme === "light"
+          ? savedTheme
+          : (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+      } catch (_) {
+        document.documentElement.dataset.theme = "light";
+      }
+    </script>
     <link rel="manifest" href="manifest.webmanifest" />
     <link rel="icon" href="icon-192.png?v=19" type="image/png" />
     <link rel="apple-touch-icon" href="icon-192.png?v=19" />
@@ -18,7 +28,7 @@
     <link rel="stylesheet" href="access.css" />
     <link rel="stylesheet" href="sales.css?v=16" />
     <link rel="stylesheet" href="layout.css" />
-    <link rel="stylesheet" href="dashboard.css?v=28" />
+    <link rel="stylesheet" href="dashboard.css?v=29" />
     <link rel="stylesheet" href="mobile-participants.css?v=27" />
     <link rel="stylesheet" href="participant-filter.css?v=15" />
     <link rel="stylesheet" href="filter-counter.css?v=9" />
@@ -30,6 +40,8 @@
     <link rel="stylesheet" href="audit-log.css?v=27" />
     <link rel="stylesheet" href="payment-closing.css?v=28" />
     <link rel="stylesheet" href="event-access.css?v=18" />
+    <link rel="stylesheet" href="theme.css?v=2" />
+    <link rel="stylesheet" href="table-map.css?v=1" />
     <style id="topbar-critical-styles">
       html { scroll-padding-top: 84px; }
       body { padding-top: 84px !important; }
@@ -76,6 +88,7 @@
     <header class="topbar">
       <a class="brand" href="#" aria-label="Le Beef - início"><img src="logo-le-beef-branca.png" alt="Le Beef Espaço de Eventos" /></a>
       <div class="topbar-actions">
+        <button id="themeToggleButton" class="theme-toggle-button" type="button" aria-pressed="false" aria-label="Ativar modo noturno" title="Ativar modo noturno"><span id="themeToggleIcon" aria-hidden="true">☾</span><span id="themeToggleLabel" class="theme-toggle-label">Modo noturno</span></button>
         <button id="installAppButton" class="install-app-button" type="button" hidden><span aria-hidden="true">↓</span> Instalar app</button>
         <details id="userMenu" class="user-menu" hidden>
           <summary aria-label="Abrir menu da conta"><span id="userInitials" class="user-initials">U</span><span class="user-summary-copy"><strong id="userDisplayName">Usuário</strong><small id="userRoleLabel">Perfil</small></span></summary>
@@ -119,6 +132,13 @@
           <article class="ticket-checkin-card"><span>Check-ins</span><strong id="checkins">0</strong><small>participantes presentes</small><button class="metric-detail-button" type="button" data-toggle-metric-details="ticketCheckinBreakdown" aria-expanded="false">Detalhar</button><div id="ticketCheckinBreakdown" class="ticket-checkin-breakdown" aria-label="Check-ins e entradas aguardando por tipo de ingresso" hidden></div></article>
         </section>
 
+        <article id="tableMapPanel" class="panel table-map-panel" hidden>
+          <div class="panel-heading table-map-panel-heading"><div><p class="eyebrow">RESERVAS</p><h2>Mapa de mesas</h2><p>Selecione uma mesa ou bistrô para registrar ou consultar os ocupantes.</p></div><div id="tableMapLegend" class="table-map-legend"><span><i class="is-free"></i>Livre</span><span><i class="is-pending"></i>Pendente</span><span><i class="is-paid"></i>Pago</span></div></div>
+          <div id="tableMapAreaTabs" class="map-area-tabs" role="tablist" aria-label="Áreas do evento"></div>
+          <div id="tableMapViewer" class="table-map-stage table-map-viewer" aria-label="Mapa das mesas do evento"></div>
+          <div id="tableMapSummary" class="table-map-summary"></div>
+        </article>
+
         <article class="panel sales-panel">
           <div class="panel-heading"><div><p class="eyebrow">PARTICIPANTES</p><h2 id="salesPanelTitle">Vendas recentes</h2><p>Somente as vendas deste evento, atualizadas em tempo real.</p></div><div class="participant-tools"><div class="participant-tool-row"><details class="ticket-filter"><summary aria-label="Filtrar participantes"><span class="filter-glyph" aria-hidden="true"></span><span id="filterLabel">Todos</span></summary><div class="filter-menu"><label>Tipo de ingresso<select id="ticketTypeFilter"><option value="all">Todos</option></select></label><label data-roles="admin,seller">Situação do pagamento<select id="paymentStatusFilter"><option value="all">Todos</option><option value="paid">Pago</option><option value="pending">Pendente</option></select></label><label>Situação da entrada<select id="entryStatusFilter"><option value="all">Todos</option><option value="checked">Check-in realizado</option><option value="waiting">Aguardando entrada</option></select></label><div class="filter-actions"><button id="clearParticipantFiltersMenu" class="filter-clear-button" type="button" data-clear-participant-filters>Limpar filtros</button><button id="applyParticipantFilters" class="filter-apply-button" type="button">Aplicar filtros</button></div></div></details><button class="view-all-button" data-open="allSalesModal">Ver todas</button></div><span id="filterCount" class="filter-count">0 vendidos • 0 disponíveis</span></div></div>
           <div class="participant-search-row"><label class="participant-search"><span class="search-glyph" aria-hidden="true"></span><span class="sr-only">Buscar participante por nome ou telefone</span><input id="participantSearch" type="search" inputmode="search" autocomplete="off" placeholder="Buscar por nome ou telefone" /></label><button id="clearParticipantFilters" class="clear-participant-filters" type="button" data-clear-participant-filters hidden>Limpar</button></div>
@@ -151,7 +171,7 @@
       </section>
     </main>
 
-    <footer class="site-footer">Le Beef | Versão: 3.13.1</footer>
+    <footer class="site-footer">Le Beef | Versão: 4.0.0</footer>
 
     <button class="fab" data-open="saleModal" data-roles="admin,seller" aria-label="Registrar venda">+</button>
 
@@ -160,6 +180,15 @@
         <div class="modal-heading"><div><p class="eyebrow">CADASTRO</p><h2 id="eventModalTitle">Novo evento</h2></div><button class="close" type="button" data-close="eventModal" aria-label="Fechar">×</button></div>
         <label>Nome do evento<input name="name" required placeholder="Ex.: Festival de Inverno" /></label>
         <div class="two-columns"><label>Data<input name="date" type="date" required /></label><label>Local<input name="place" required placeholder="Ex.: Auditório" /></label></div>
+        <div class="event-mode-field"><label>Modo do evento<select id="eventMode" name="eventMode"><option value="unit">Somente vendas unitárias</option><option value="mixed">Mesas/bistrôs + vendas unitárias</option></select></label><p class="field-help">No modo com mesas, as vendas unitárias continuam disponíveis normalmente.</p></div>
+        <section id="eventMapSettings" class="event-map-settings" hidden>
+          <div class="map-settings-heading"><div><span class="field-label">Mapa de mesas e bistrôs</span><p class="field-help">Escolha as áreas abertas, selecione o móvel e toque no mapa para posicioná-lo.</p></div><label class="chair-price-field">Valor por pessoa/cadeira<input id="chairPrice" name="chairPrice" type="number" min="0" step="0.01" placeholder="R$ 0,00" /></label></div>
+          <fieldset class="map-area-selector"><legend>Áreas disponíveis neste evento</legend><label><input type="checkbox" name="mapArea" value="salao" /> Salão</label><label><input type="checkbox" name="mapArea" value="mezanino" /> Mezanino</label></fieldset>
+          <div class="map-editor-toolbar"><div class="map-tool-buttons"><button class="map-tool-button" type="button" data-map-tool="table"><img src="mesa-icon.png" alt="" />Adicionar mesa</button><button class="map-tool-button" type="button" data-map-tool="bistro"><img src="bistro-icon.png" alt="" />Adicionar bistrô</button></div><button id="deleteMapFurniture" class="map-delete-selection" type="button" disabled>Excluir selecionado</button></div>
+          <div id="mapEditorAreaTabs" class="map-area-tabs" role="tablist" aria-label="Área sendo editada"></div>
+          <div id="tableMapEditor" class="table-map-stage table-map-editor" aria-label="Editor do mapa de mesas"><div class="map-empty-hint">Selecione Salão ou Mezanino para começar.</div></div>
+          <p class="map-editor-help">Arraste para mover. Use o ponto no canto do móvel para aumentar ou diminuir o tamanho.</p>
+        </section>
         <div class="ticket-types-field"><div class="field-label"><span>Tipos/lotes, valores e quantidades</span><button class="text-button" type="button" id="addTicketType">+ Adicionar tipo</button></div><p class="field-help">Cada tipo ou lote terá seu próprio limite de vendas.</p><div id="ticketTypesList" class="ticket-types-list"></div></div>
         <div class="packages-field"><div class="field-label"><span>Pacotes e cortesias</span><span class="package-create-actions"><button class="text-button" type="button" id="addPackage">+ Pacote</button><button class="text-button courtesy-create-button" type="button" id="addCourtesy">+ Cortesia</button></span></div><p class="field-help">Monte pacotes ou cortesias com os ingressos acima. O estoque continuará sendo descontado de cada tipo individual.</p><div id="packagesList" class="packages-list"></div></div>
         <button class="button primary full" id="eventSubmitButton" type="submit">Criar evento</button>
@@ -184,6 +213,20 @@
         <label class="payment-date-field">Data do pagamento<input name="paymentDate" type="date" /></label>
         <label>Observações (opcional)<textarea name="notes" rows="3" placeholder="Ex.: retirada no local, meia-entrada..."></textarea></label>
         <button class="button primary full" id="saleSubmitButton" type="submit">Confirmar venda</button>
+      </form>
+    </dialog>
+
+    <dialog id="tableReservationModal" class="table-reservation-modal">
+      <form id="tableReservationForm">
+        <div class="modal-heading"><div><p class="eyebrow">RESERVA DE MESA</p><h2 id="tableReservationTitle">Mesa</h2><p id="tableReservationArea">Área do evento</p></div><button class="close" type="button" data-close="tableReservationModal" aria-label="Fechar">×</button></div>
+        <input name="eventId" type="hidden" /><input name="furnitureId" type="hidden" /><input name="saleId" type="hidden" />
+        <div class="reservation-responsible"><span class="field-label">Responsável pela mesa</span><label>Nome completo<input name="buyerName" required placeholder="Nome do responsável" /></label><div class="two-columns"><label>Telefone<input name="buyerPhone" type="tel" required placeholder="(00) 00000-0000" /></label><label>E-mail (opcional)<input name="buyerEmail" type="email" placeholder="nome@exemplo.com" /></label></div></div>
+        <div class="reservation-occupants-field"><div class="field-label"><span>Outros participantes</span><button id="addTableOccupant" class="text-button" type="button">+ Adicionar pessoa</button></div><p class="field-help">O responsável já conta como a primeira pessoa. Para os demais, informe somente o nome.</p><div id="tableOccupantsList" class="table-occupants-list"></div></div>
+        <div class="reservation-total-summary"><span><small>Total de pessoas</small><strong id="tableReservationPeople">1</strong></span><span><small>Valor por pessoa</small><strong id="tableReservationUnitPrice">R$ 0,00</strong></span><span><small>Total da reserva</small><strong id="tableReservationTotal">R$ 0,00</strong></span></div>
+        <div class="two-columns payment-status-fields"><label>Pagamento<select name="paymentStatus" required><option value="paid">Pago</option><option value="pending">Pendente</option></select></label><label>Forma de pagamento<select name="paymentMethod"><option value="">Selecione</option><option value="pix">Pix</option><option value="cash">Dinheiro</option><option value="credit_card">Cartão de crédito</option><option value="debit_card">Cartão de débito</option><option value="bank_transfer">Transferência</option><option value="other">Outro</option></select></label></div>
+        <label class="payment-date-field">Data do pagamento<input name="paymentDate" type="date" /></label>
+        <label>Observações (opcional)<textarea name="notes" rows="3" placeholder="Informações sobre a reserva"></textarea></label>
+        <div class="reservation-form-actions"><button id="deleteTableReservation" class="button danger" type="button" hidden>Excluir reserva</button><button class="button primary" type="submit">Salvar reserva</button></div>
       </form>
     </dialog>
 
@@ -241,7 +284,8 @@
     <div id="toast" role="status" aria-live="polite"></div>
     <script src="pwa.js"></script>
     <script src="access.js"></script>
-    <script src="excel-export.js?v=32"></script>
-    <script type="module" src="app.js?v=40"></script>
+    <script src="theme.js?v=1"></script>
+    <script src="excel-export.js?v=33"></script>
+    <script type="module" src="app.js?v=42"></script>
   </body>
 </html>

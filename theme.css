@@ -1,0 +1,374 @@
+html[data-theme="dark"] {
+  color-scheme: dark;
+  --ink: #f1f5f9;
+  --muted: #a7b3c7;
+  --line: #2a3a52;
+  --blue: #60a5fa;
+  --soft: #172a46;
+  --surface: #111c2f;
+}
+
+.theme-toggle-button {
+  display: inline-flex;
+  min-height: 36px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 11px;
+  border: 1px solid #ffffff4a;
+  border-radius: 9px;
+  background: #ffffff14;
+  color: #fff;
+  font: 700 11px "DM Sans", sans-serif;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.theme-toggle-button > span:first-child {
+  font-size: 16px;
+  line-height: 1;
+}
+
+.theme-toggle-button:hover,
+.theme-toggle-button:focus-visible {
+  border-color: #fff;
+  background: #fff;
+  color: #14213d;
+  outline: none;
+}
+
+html[data-theme="dark"] body,
+html[data-theme="dark"] .site-footer {
+  background: #0b1220;
+  color: #e5edf8;
+}
+
+html[data-theme="dark"] .site-footer {
+  border-color: #26364d;
+  color: #8290a7;
+}
+
+html[data-theme="dark"] .panel,
+html[data-theme="dark"] .metrics article,
+html[data-theme="dark"] dialog,
+html[data-theme="dark"] .financial-card,
+html[data-theme="dark"] .financial-panel,
+html[data-theme="dark"] .event-card,
+html[data-theme="dark"] .event-card.is-selected {
+  border-color: #2a3a52 !important;
+  background: #111c2f !important;
+  color: #e5edf8;
+  box-shadow: 0 8px 24px #02061742;
+}
+
+html[data-theme="dark"] .event-card:hover,
+html[data-theme="dark"] .event-card.is-selected {
+  border-color: #4f86d9 !important;
+  background: #14233a !important;
+}
+
+html[data-theme="dark"] .event-card-delete,
+html[data-theme="dark"] .danger,
+html[data-theme="dark"] .delete-button {
+  border-color: #7f3540;
+  background: #321923;
+  color: #fda4af;
+}
+
+html[data-theme="dark"] .event-card-delete:hover,
+html[data-theme="dark"] .event-card-delete:focus-visible,
+html[data-theme="dark"] .danger:hover,
+html[data-theme="dark"] .delete-button:hover {
+  border-color: #fb7185;
+  background: #4a1d29;
+}
+
+html[data-theme="dark"] .secondary,
+html[data-theme="dark"] .view-all-button,
+html[data-theme="dark"] .ticket-filter summary,
+html[data-theme="dark"] .seller-details-toggle,
+html[data-theme="dark"] .managed-user-actions button {
+  border-color: #385071;
+  background: #16243a;
+  color: #93c5fd;
+}
+
+html[data-theme="dark"] .panel-heading,
+html[data-theme="dark"] .participant-search-row,
+html[data-theme="dark"] .financial-table-wrap,
+html[data-theme="dark"] .audit-log-heading,
+html[data-theme="dark"] .audit-log-summary,
+html[data-theme="dark"] .seller-closing-filters,
+html[data-theme="dark"] .seller-ticket-inline {
+  border-color: #2a3a52;
+}
+
+html[data-theme="dark"] .panel h2,
+html[data-theme="dark"] .financial-panel h2,
+html[data-theme="dark"] .financial-card strong,
+html[data-theme="dark"] .financial-indicator-list strong,
+html[data-theme="dark"] .financial-table-wrap td:first-child,
+html[data-theme="dark"] .seller-ticket-inline-heading h3,
+html[data-theme="dark"] .audit-entry-content > strong,
+html[data-theme="dark"] .audit-log-summary strong,
+html[data-theme="dark"] .audit-empty strong,
+html[data-theme="dark"] .user-menu-identity strong,
+html[data-theme="dark"] .permission-guide strong,
+html[data-theme="dark"] .managed-user-copy strong {
+  color: #f1f5f9;
+}
+
+html[data-theme="dark"] .panel p,
+html[data-theme="dark"] .metrics span,
+html[data-theme="dark"] .metrics small,
+html[data-theme="dark"] .event-info small,
+html[data-theme="dark"] .financial-card span,
+html[data-theme="dark"] .financial-card small,
+html[data-theme="dark"] .financial-breakdown .financial-panel-heading p:last-child,
+html[data-theme="dark"] .receipt-panel > p,
+html[data-theme="dark"] .financial-indicator-list span,
+html[data-theme="dark"] .seller-closing-heading p:last-child,
+html[data-theme="dark"] .seller-ticket-inline-heading p:last-child,
+html[data-theme="dark"] .audit-log-heading p:last-child,
+html[data-theme="dark"] .audit-log-summary,
+html[data-theme="dark"] .audit-entry-heading time,
+html[data-theme="dark"] .audit-entry-content p,
+html[data-theme="dark"] .audit-entry-meta,
+html[data-theme="dark"] .permission-guide span,
+html[data-theme="dark"] .managed-user-copy small {
+  color: #9aa8bd;
+}
+
+html[data-theme="dark"] input,
+html[data-theme="dark"] select,
+html[data-theme="dark"] textarea {
+  border-color: #344761;
+  background: #0e192a;
+  color: #f1f5f9;
+}
+
+html[data-theme="dark"] input::placeholder,
+html[data-theme="dark"] textarea::placeholder {
+  color: #718096;
+}
+
+html[data-theme="dark"] input:focus,
+html[data-theme="dark"] select:focus,
+html[data-theme="dark"] textarea:focus,
+html[data-theme="dark"] .participant-search input:focus {
+  border-color: #60a5fa;
+  background: #101e32;
+  box-shadow: 0 0 0 3px #60a5fa25;
+}
+
+html[data-theme="dark"] .participant-search input,
+html[data-theme="dark"] .seller-closing-filters,
+html[data-theme="dark"] .seller-closing-filters input,
+html[data-theme="dark"] .financial-indicator-list div,
+html[data-theme="dark"] .financial-table-wrap th,
+html[data-theme="dark"] .audit-log-summary,
+html[data-theme="dark"] .permission-guide div,
+html[data-theme="dark"] .create-user-form {
+  border-color: #2a3a52;
+  background: #0e192a;
+}
+
+html[data-theme="dark"] th,
+html[data-theme="dark"] td,
+html[data-theme="dark"] .financial-table-wrap th,
+html[data-theme="dark"] .financial-table-wrap td {
+  border-color: #26364d;
+}
+
+html[data-theme="dark"] th,
+html[data-theme="dark"] .financial-table-wrap th {
+  background: #0e192a;
+  color: #91a0b6;
+}
+
+html[data-theme="dark"] td,
+html[data-theme="dark"] .financial-table-wrap td,
+html[data-theme="dark"] .sale-observation {
+  color: #d7e0ed;
+}
+
+html[data-theme="dark"] .filter-menu,
+html[data-theme="dark"] .user-menu-popover,
+html[data-theme="dark"] .managed-user,
+html[data-theme="dark"] .audit-entry-content {
+  border-color: #2f4059;
+  background: #111c2f;
+  color: #e5edf8;
+  box-shadow: 0 18px 55px #02061770;
+}
+
+html[data-theme="dark"] .user-menu-identity,
+html[data-theme="dark"] .audit-entry-meta {
+  border-color: #2a3a52;
+}
+
+html[data-theme="dark"] .user-menu-popover button {
+  background: #16243a;
+  color: #d7e0ed;
+}
+
+html[data-theme="dark"] .user-menu-popover button:hover,
+html[data-theme="dark"] .user-menu-popover button:focus-visible {
+  background: #1d3352;
+  color: #93c5fd;
+}
+
+html[data-theme="dark"] .receipt-progress {
+  background: #24344a;
+}
+
+html[data-theme="dark"] .financial-table-wrap tr,
+html[data-theme="dark"] .seller-closing-total,
+html[data-theme="dark"] .seller-closing-total td {
+  border-color: #2a3a52 !important;
+  background: #14233a !important;
+  color: #e5edf8;
+}
+
+html[data-theme="dark"] .seller-ticket-inline {
+  background: #0e192a;
+}
+
+html[data-theme="dark"] .occupancy-value,
+html[data-theme="dark"] .seller-closing-heading-actions > span,
+html[data-theme="dark"] .user-menu-identity span,
+html[data-theme="dark"] .audit-entry-meta span:last-child {
+  background: #17345a;
+  color: #93c5fd;
+}
+
+html[data-theme="dark"] .audit-entry:not(:last-child)::before {
+  background: #30435e;
+}
+
+html[data-theme="dark"] .payment-status-fields select:disabled,
+html[data-theme="dark"] .payment-date-field input:disabled {
+  background: #182338;
+  color: #718096;
+}
+
+html[data-theme="dark"] .access-modal {
+  background: #111c2f !important;
+}
+
+html[data-theme="dark"] .access-modal .access-brand img {
+  filter: brightness(0) invert(1);
+}
+
+html[data-theme="dark"] .access-modal form > p:not(.eyebrow):not(.access-error),
+html[data-theme="dark"] .access-persistence-note {
+  color: #9aa8bd;
+}
+
+html[data-theme="dark"] #toast {
+  background: #dbeafe;
+  color: #0f255f;
+}
+
+@media (max-width: 700px) {
+  html[data-theme="dark"] .sales-panel tr.sales-row,
+  html[data-theme="dark"] .all-sales-modal tr.sales-row {
+    border-color: #2a3a52;
+    background: #111c2f;
+    box-shadow: 0 3px 12px #02061745;
+  }
+
+  html[data-theme="dark"] .sales-panel tr.sales-row:nth-child(even),
+  html[data-theme="dark"] .all-sales-modal tr.sales-row:nth-child(even) {
+    border-color: #315176;
+    background: #142844;
+  }
+
+  html[data-theme="dark"] .sales-panel tr.sales-row td:first-child,
+  html[data-theme="dark"] .sales-panel tr.sales-row td:nth-child(2),
+  html[data-theme="dark"] .sales-panel tr.sales-row td:last-child {
+    border-color: #344761;
+  }
+
+  html[data-theme="dark"] .sales-panel tr.sales-row td:first-child strong,
+  html[data-theme="dark"] .all-sales-modal tr.sales-row td:first-child strong,
+  html[data-theme="dark"] .mobile-overview-contact > span:first-child {
+    color: #f1f5f9;
+  }
+
+  html[data-theme="dark"] .mobile-overview-contact > span:first-child {
+    border-color: #344761;
+    background: #0e192acc;
+  }
+}
+
+@media (max-width: 600px) {
+  header.topbar .topbar-actions {
+    grid-template-columns: auto auto auto !important;
+    grid-template-areas:
+      "theme install user"
+      "connection connection connection" !important;
+  }
+
+  header.topbar .theme-toggle-button {
+    grid-area: theme;
+    min-width: 34px;
+    min-height: 34px;
+    padding: 7px 8px;
+  }
+
+  .theme-toggle-label {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .theme-toggle-button {
+    transition: none;
+  }
+}
+
+html[data-theme="dark"] .event-map-settings,
+html[data-theme="dark"] .reservation-responsible,
+html[data-theme="dark"] .reservation-occupants-field {
+  border-color: #315176;
+  background: #0e192a;
+}
+
+html[data-theme="dark"] .map-area-selector,
+html[data-theme="dark"] .map-tool-button,
+html[data-theme="dark"] .map-delete-selection {
+  border-color: #385071;
+  background: #16243a;
+  color: #93c5fd;
+}
+
+html[data-theme="dark"] .map-delete-selection {
+  border-color: #7f3540;
+  color: #fda4af;
+}
+
+html[data-theme="dark"] .map-area-tabs button,
+html[data-theme="dark"] .table-map-summary span,
+html[data-theme="dark"] .reservation-total-summary span,
+html[data-theme="dark"] .event-card-mode {
+  border-color: #315176;
+  background: #17345a;
+  color: #93c5fd;
+}
+
+html[data-theme="dark"] .map-area-tabs button.is-active,
+html[data-theme="dark"] .map-tool-button.is-active {
+  background: #2563eb;
+  color: #fff;
+}
+
+html[data-theme="dark"] .reservation-total-summary strong {
+  color: #f1f5f9;
+}
+
+html[data-theme="dark"] .table-map-legend,
+html[data-theme="dark"] .table-reservation-modal .modal-heading p:last-child,
+html[data-theme="dark"] .map-editor-help {
+  color: #9aa8bd !important;
+}
