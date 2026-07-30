@@ -1,4 +1,4 @@
-/* Versão 4.5.1: reservas em harmonia com os cartões de participantes no celular. */
+/* Versão 4.5.2: reservas em harmonia com os cartões de participantes no celular. */
 @media(max-width:700px){
   .table-reservations-panel .table-reservations-heading{display:flex!important;flex-direction:row!important;align-items:flex-start!important;gap:10px;padding:18px 16px 14px}
   .table-reservations-heading>div:first-child{min-width:0;flex:1}
@@ -16,6 +16,7 @@
   .table-reservation-card.is-expanded>.table-reservation-expanded>.table-reservation-expanded-contact,.table-reservation-card.is-expanded>.table-reservation-expanded>.table-reservation-expanded-actions{grid-column:1/-1}
   .table-reservation-card.is-expanded>.table-reservation-expanded>.table-reservation-expanded-contact{display:flex!important}
   .table-reservation-card.is-expanded>.table-reservation-expanded>.table-reservation-expanded-actions{display:grid!important;grid-template-columns:1fr 1fr;width:100%}
+  .table-reservation-expanded-actions .edit-button,.table-reservation-expanded-actions .table-reservation-delete{grid-column:auto!important;grid-row:auto!important;width:100%!important;min-width:0!important;min-height:36px;margin:0!important;padding:8px!important}
   .table-reservation-card:not(.is-expanded) .table-reservation-payment{display:flex!important;align-items:center;gap:5px;white-space:nowrap}
   .table-reservation-card:not(.is-expanded) .table-reservation-payment .payment-display{display:flex;align-items:center;gap:4px}
   .table-reservation-card:not(.is-expanded) .table-reservation-payment .payment-details{display:block!important;overflow:hidden;max-width:82px;color:#64748b;font-size:7px!important;text-overflow:ellipsis;white-space:nowrap}
