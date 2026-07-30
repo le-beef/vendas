@@ -1,4 +1,4 @@
-/* Versão 4.5.2: reservas em harmonia com os cartões de participantes no celular. */
+/* Versão 4.5.3: reservas em harmonia com os cartões de participantes no celular. */
 @media(max-width:700px){
   .table-reservations-panel .table-reservations-heading{display:flex!important;flex-direction:row!important;align-items:flex-start!important;gap:10px;padding:18px 16px 14px}
   .table-reservations-heading>div:first-child{min-width:0;flex:1}
@@ -8,7 +8,8 @@
   .table-reservations-panel .participant-tool-row{gap:7px}
   .table-reservations-panel .ticket-filter>summary,.table-reservations-panel .view-all-button{min-height:38px;padding:8px 11px}
   .table-reservations-panel .filter-count{align-self:flex-end;font-size:8px;white-space:nowrap}
-  .table-reservation-export{display:none!important}
+  .table-reservation-export{display:flex!important;width:100%;padding:0 10px 10px}
+  .table-reservation-export .button{width:100%;min-height:40px}
   .table-reservation-card{overflow:hidden}
   .table-reservation-card:not(.is-expanded)>.table-reservation-expanded{display:none!important}
   .table-reservation-card.is-expanded>.table-reservation-expanded{display:grid!important;grid-template-columns:1fr 1fr;width:100%;min-width:0;gap:12px}

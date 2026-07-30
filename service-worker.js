@@ -1,4 +1,4 @@
-const CACHE_NAME = "le-beef-painel-v53";
+const CACHE_NAME = "le-beef-painel-v54";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -24,7 +24,7 @@ const APP_SHELL = [
   "./table-reservation-override.css?v=1",
   "./table-reservation-details.css?v=1",
   "./table-reservation-final.css?v=1",
-  "./table-reservation-harmony.css?v=2",
+  "./table-reservation-harmony.css?v=3",
   "./access.js",
   "./theme.js?v=1",
   "./excel-export.js?v=34",
