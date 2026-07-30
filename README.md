@@ -4,7 +4,7 @@ Site estático em HTML, CSS e JavaScript, pronto para publicar no GitHub Pages, 
 
 ## Login individual, permissões e histórico
 
-A versão 4.2.0 aprimora o modo de **mesas/bistrôs + vendas unitárias**. Os mapas oficiais agora já exibem as mesas em suas posições corretas, e cada área clicável coincide com o desenho do Salão ou Mezanino. A numeração continua única entre tipos e áreas. Uma lupa abre o mapa em tela cheia no celular para facilitar a consulta e a abertura das reservas.
+A versão 4.3.0 deixa as reservas de mesas tão rápidas de consultar quanto as vendas avulsas: lista compacta, busca por responsável ou telefone e detalhes somente ao abrir a reserva. Mesas/bistrôs também aparecem nos indicadores superiores e em “Ver todas”, sem alterar o controle de estoque dos ingressos avulsos.
 
 Nas reservas, a primeira pessoa é a responsável e informa nome e telefone. Os demais ocupantes precisam somente do nome. O total é calculado automaticamente pelo valor por pessoa/cadeira definido no evento. As reservas entram no faturamento, no fechamento por vendedor, no histórico e na planilha Excel.
 
@@ -23,7 +23,7 @@ As permissões são aplicadas na interface e nas regras do Realtime Database. Co
 
 ## Atualização obrigatória no Firebase
 
-Na atualização para a versão 4.2.0, envie todos os arquivos do pacote ao GitHub Pages, inclusive os novos mapas. As reservas aparecem em uma lista separada e possuem um Excel exclusivo; o Excel principal contém somente participantes de vendas unitárias. Eventos e vendas antigas continuam disponíveis normalmente; esta versão não exige alteração nas regras do banco de dados.
+Na atualização para a versão 4.3.0, envie todos os arquivos do pacote ao GitHub Pages. As reservas aparecem em uma lista separada e possuem um Excel exclusivo; o Excel principal contém somente participantes de vendas unitárias. Eventos e vendas antigas continuam disponíveis normalmente; esta versão não exige alteração nas regras do banco de dados.
 
 As instruções completas estão em [FIREBASE-SETUP.md](FIREBASE-SETUP.md).
 

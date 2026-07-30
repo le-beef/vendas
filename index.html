@@ -41,7 +41,7 @@
     <link rel="stylesheet" href="payment-closing.css?v=28" />
     <link rel="stylesheet" href="event-access.css?v=18" />
     <link rel="stylesheet" href="theme.css?v=4" />
-    <link rel="stylesheet" href="table-map.css?v=4" />
+    <link rel="stylesheet" href="table-map.css?v=5" />
     <style id="topbar-critical-styles">
       html { scroll-padding-top: 84px; }
       body { padding-top: 84px !important; }
@@ -128,7 +128,7 @@
 
         <section class="metrics" aria-label="Resumo do evento selecionado">
           <article class="revenue-card" data-roles="admin,seller"><span>Faturamento total</span><strong id="revenue">R$ 0,00</strong><div class="revenue-breakdown" aria-label="Situação dos pagamentos"><div class="revenue-detail confirmed"><small>Confirmados</small><b id="revenuePaid">R$ 0,00</b></div><div class="revenue-detail pending"><small>Pendentes</small><b id="revenuePending">R$ 0,00</b></div></div><button id="openFinancialReport" class="financial-report-button" type="button" data-roles="admin">Ver relatório financeiro <span aria-hidden="true">→</span></button></article>
-          <article class="ticket-stock-card"><span>Ingressos vendidos</span><strong id="sold">0</strong><small><b id="available">0</b> disponíveis para venda</small><button class="metric-detail-button" type="button" data-toggle-metric-details="ticketStockBreakdown" aria-expanded="false">Detalhar</button><div id="ticketStockBreakdown" class="ticket-stock-breakdown" aria-label="Ingressos vendidos e ainda disponíveis por tipo" hidden></div></article>
+          <article class="ticket-stock-card"><span>Ingressos vendidos</span><strong id="sold">0</strong><small><b id="available">0</b> disponíveis para venda</small><small id="tableSalesMetric" class="table-sales-metric" hidden></small><button class="metric-detail-button" type="button" data-toggle-metric-details="ticketStockBreakdown" aria-expanded="false">Detalhar</button><div id="ticketStockBreakdown" class="ticket-stock-breakdown" aria-label="Ingressos vendidos e ainda disponíveis por tipo" hidden></div></article>
           <article class="ticket-checkin-card"><span>Check-ins</span><strong id="checkins">0</strong><small>participantes presentes</small><button class="metric-detail-button" type="button" data-toggle-metric-details="ticketCheckinBreakdown" aria-expanded="false">Detalhar</button><div id="ticketCheckinBreakdown" class="ticket-checkin-breakdown" aria-label="Check-ins e entradas aguardando por tipo de ingresso" hidden></div></article>
         </section>
 
@@ -141,6 +141,7 @@
 
         <article id="tableReservationsPanel" class="panel table-reservations-panel" hidden>
           <div class="panel-heading table-reservations-heading"><div><p class="eyebrow">OCUPAÇÃO</p><h2>Reservas de mesas e bistrôs</h2><p>Lista separada das vendas unitárias, com responsáveis e ocupantes.</p></div><button id="exportTableReservations" class="button secondary" type="button" data-roles="admin,seller">Excel das reservas</button></div>
+          <div class="participant-search-row table-reservation-search-row"><label class="participant-search"><span class="search-glyph" aria-hidden="true"></span><span class="sr-only">Buscar reserva por responsável ou telefone</span><input id="tableReservationSearch" type="search" inputmode="search" autocomplete="off" placeholder="Buscar responsável ou telefone" /></label></div>
           <div id="tableReservationsList" class="table-reservations-list"></div>
         </article>
 
@@ -176,7 +177,7 @@
       </section>
     </main>
 
-    <footer class="site-footer">Le Beef | Versão: 4.2.0</footer>
+    <footer class="site-footer">Le Beef | Versão: 4.3.0</footer>
 
     <button class="fab" data-open="saleModal" data-roles="admin,seller" aria-label="Registrar venda">+</button>
 
@@ -300,6 +301,6 @@
     <script src="access.js"></script>
     <script src="theme.js?v=1"></script>
     <script src="excel-export.js?v=34"></script>
-    <script type="module" src="app.js?v=45"></script>
+    <script type="module" src="app.js?v=46"></script>
   </body>
 </html>
