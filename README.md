@@ -4,7 +4,7 @@ Site estático em HTML, CSS e JavaScript, pronto para publicar no GitHub Pages, 
 
 ## Login individual, permissões e histórico
 
-A versão 4.5.4 separa definitivamente as listagens: “Ver todas” dos participantes mostra somente vendas individuais, enquanto as reservas permanecem exclusivamente no “Ver todas” de mesas e bistrôs.
+A versão 4.6.0 traz uma revisão geral de estabilidade, acessibilidade visual, modo noturno, limpeza de código e atualização do funcionamento offline do aplicativo. As listagens continuam separadas: “Ver todas” dos participantes mostra somente vendas individuais, enquanto as reservas permanecem exclusivamente no “Ver todas” de mesas e bistrôs.
 
 Nas reservas, a primeira pessoa é a responsável e informa nome e telefone. Os demais ocupantes precisam somente do nome. O total é calculado automaticamente pelo valor por pessoa/cadeira definido no evento. As reservas entram no faturamento, no fechamento por vendedor, no histórico e na planilha Excel.
 
@@ -23,7 +23,7 @@ As permissões são aplicadas na interface e nas regras do Realtime Database. Co
 
 ## Atualização obrigatória no Firebase
 
-Na atualização para a versão 4.5.4, envie todos os arquivos do pacote ao GitHub Pages. Eventos e vendas antigas continuam disponíveis normalmente; esta versão não exige alteração nas regras do banco de dados.
+Na atualização para a versão 4.6.0, envie todos os arquivos do pacote ao GitHub Pages. Eventos e vendas antigas continuam disponíveis normalmente; esta versão não exige alteração nas regras do banco de dados.
 
 As instruções completas estão em [FIREBASE-SETUP.md](FIREBASE-SETUP.md).
 

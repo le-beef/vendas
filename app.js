@@ -23,8 +23,6 @@ let eventMapDraft = { areas: [], furniture: [] };
 let activeMapEditorArea = "";
 let activeMapViewerArea = "";
 let activeMapTool = "";
-let selectedMapFurnitureId = "";
-let mapPointerAction = null;
 let firebaseApp;
 let auth;
 let db;
@@ -191,7 +189,6 @@ function packagesFor(event) {
     return { ...item, id: item.id || "", name: item.name || (packageKind === "courtesy" ? "Cortesia" : "Pacote"), packageKind, items: packageItems, regularPrice: Number(item.regularPrice ?? regularPrice), discountType, discountValue, discountAmount, discountPercent, price };
   }).filter((item) => item.id && item.name && item.items.length);
 }
-function packageCompositionText(packageItem, event) { return packageItem.items.map((component) => { const type = ticketTypesFor(event).find((item) => item.id === component.ticketTypeId); return `${component.quantity}× ${type?.name || "Ingresso"}`; }).join(" + "); }
 function packageTicketCount(packageItem) { return packageItem.items.reduce((sum, component) => sum + Number(component.quantity || 0), 0); }
 function saleItems(sale, event = state.events.find((item) => item.id === sale?.eventId)) {
   const storedItems = Array.isArray(sale?.items) ? sale.items : Object.values(sale?.items || {});
@@ -683,7 +680,6 @@ function resetEventMapDraft(event = null) {
   eventMapDraft = migrateFurnitureToPreset(event?.tableMap);
   activeMapEditorArea = eventMapDraft.areas[0] || "";
   activeMapTool = "table";
-  selectedMapFurnitureId = "";
   document.querySelectorAll('#eventForm [name="mapArea"]').forEach((input) => { input.checked = eventMapDraft.areas.includes(input.value); });
   renderMapEditor();
 }
@@ -706,63 +702,6 @@ function togglePresetSlot(slotId) {
     const number = Math.max(0, ...eventMapDraft.furniture.map((item) => Number(item.number || 0))) + 1;
     eventMapDraft.furniture.push({ ...slot, kind: activeMapTool, number });
   }
-  renderMapEditor();
-}
-
-function addFurnitureAtPointer(pointerEvent) {
-  if (!activeMapTool || !activeMapEditorArea) return;
-  const stage = $("tableMapEditor");
-  const rect = stage.getBoundingClientRect();
-  const x = Math.min(96, Math.max(4, (pointerEvent.clientX - rect.left) / rect.width * 100));
-  const y = Math.min(96, Math.max(4, (pointerEvent.clientY - rect.top) / rect.height * 100));
-  const sameKind = eventMapDraft.furniture.filter((item) => item.area === activeMapEditorArea && item.kind === activeMapTool);
-  const number = Math.max(0, ...sameKind.map((item) => Number(item.number || 0))) + 1;
-  const item = { id: newEntityId("movel"), area: activeMapEditorArea, kind: activeMapTool, number, x, y, width: activeMapTool === "bistro" ? 9 : 11, height: activeMapTool === "bistro" ? 7 : 11 };
-  eventMapDraft.furniture.push(item);
-  selectedMapFurnitureId = item.id;
-  renderMapEditor();
-}
-
-function handleMapPointerDown(event) {
-  const furnitureElement = event.target.closest("[data-map-furniture]");
-  if (!furnitureElement) {
-    if (event.target.closest(".map-empty-hint") || event.target === $("tableMapEditor")) addFurnitureAtPointer(event);
-    return;
-  }
-  event.preventDefault();
-  event.stopPropagation();
-  selectedMapFurnitureId = furnitureElement.dataset.mapFurniture;
-  const item = eventMapDraft.furniture.find((entry) => entry.id === selectedMapFurnitureId);
-  if (!item) return;
-  document.querySelectorAll("#tableMapEditor .map-furniture").forEach((element) => element.classList.toggle("is-selected", element.dataset.mapFurniture === selectedMapFurnitureId));
-  const rect = $("tableMapEditor").getBoundingClientRect();
-  mapPointerAction = { type: event.target.closest("[data-map-resize]") ? "resize" : "move", pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, rect, item, initial: { x: item.x, y: item.y, width: item.width, height: item.height }, element: furnitureElement };
-  furnitureElement.setPointerCapture?.(event.pointerId);
-}
-
-function handleMapPointerMove(event) {
-  if (!mapPointerAction || mapPointerAction.pointerId !== event.pointerId) return;
-  event.preventDefault();
-  const deltaX = (event.clientX - mapPointerAction.startX) / mapPointerAction.rect.width * 100;
-  const deltaY = (event.clientY - mapPointerAction.startY) / mapPointerAction.rect.height * 100;
-  const { item, initial, element } = mapPointerAction;
-  if (mapPointerAction.type === "move") {
-    item.x = Math.min(96, Math.max(4, initial.x + deltaX));
-    item.y = Math.min(96, Math.max(4, initial.y + deltaY));
-    element.style.left = `${item.x}%`;
-    element.style.top = `${item.y}%`;
-  } else {
-    item.width = Math.min(24, Math.max(5, initial.width + deltaX * 2));
-    item.height = Math.min(24, Math.max(5, initial.height + deltaY * 2));
-    element.style.width = `${item.width}%`;
-    element.style.height = `${item.height}%`;
-  }
-}
-
-function handleMapPointerUp(event) {
-  if (!mapPointerAction || mapPointerAction.pointerId !== event.pointerId) return;
-  mapPointerAction.element.releasePointerCapture?.(event.pointerId);
-  mapPointerAction = null;
   renderMapEditor();
 }
 
@@ -1409,13 +1348,12 @@ document.querySelectorAll('#eventForm [name="mapArea"]').forEach((input) => inpu
     eventMapDraft.areas = eventMapDraft.areas.filter((area) => area !== input.value);
     eventMapDraft.furniture = eventMapDraft.furniture.filter((item) => item.area !== input.value);
     if (activeMapEditorArea === input.value) activeMapEditorArea = eventMapDraft.areas[0] || "";
-    selectedMapFurnitureId = "";
   }
   renderMapEditor();
 }));
 document.querySelectorAll("[data-map-tool]").forEach((button) => button.addEventListener("click", () => { activeMapTool = activeMapTool === button.dataset.mapTool ? "" : button.dataset.mapTool; renderMapEditor(); }));
 $("tableMapEditor").addEventListener("click", (event) => { const slot = event.target.closest("[data-map-slot]"); if (slot) togglePresetSlot(slot.dataset.mapSlot); });
-$("mapEditorAreaTabs").addEventListener("click", (event) => { const button = event.target.closest("[data-editor-map-area]"); if (!button) return; activeMapEditorArea = button.dataset.editorMapArea; selectedMapFurnitureId = ""; renderMapEditor(); });
+$("mapEditorAreaTabs").addEventListener("click", (event) => { const button = event.target.closest("[data-editor-map-area]"); if (!button) return; activeMapEditorArea = button.dataset.editorMapArea; renderMapEditor(); });
 $("tableMapAreaTabs").addEventListener("click", (event) => { const button = event.target.closest("[data-view-map-area]"); if (!button) return; activeMapViewerArea = button.dataset.viewMapArea; const selectedEvent = state.events.find((item) => item.id === selectedEventId); renderTableMapPanel(selectedEvent, state.sales.filter((sale) => sale.eventId === selectedEventId)); });
 $("tableMapViewer").addEventListener("click", (event) => { const furniture = event.target.closest("[data-reserve-furniture]"); if (furniture) openTableReservation(furniture.dataset.reserveFurniture); });
 $("openMapZoom").addEventListener("click", () => { const selectedEvent = state.events.find((item) => item.id === selectedEventId); renderMapZoom(selectedEvent, state.sales.filter((sale) => sale.eventId === selectedEventId)); $("mapZoomModal").showModal(); requestAnimationFrame(() => { const canvas = $("mapZoomCanvas"); canvas.scrollLeft = 0; canvas.scrollTop = 0; }); });

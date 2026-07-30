@@ -374,3 +374,64 @@ html[data-theme="dark"] .map-editor-help {
 }
 [data-theme="dark"] .table-reservation-card{border-color:#334155;background:#172033}[data-theme="dark"] .map-preset-slot.is-inactive{border-color:#60a5fa;background:#1e3a5fcc}[data-theme="dark"] .table-reservation-card small{color:#94a3b8}
 [data-theme="dark"] .map-zoom-shell,[data-theme="dark"] .map-zoom-tabs{background:#0f172a}[data-theme="dark"] .map-zoom-button{border-color:#475569;background:#172033;color:#93c5fd}[data-theme="dark"] .map-zoom-help{color:#94a3b8}
+
+/* Auditoria visual 4.6.0: contraste e consistência dos componentes recentes. */
+:where(button,a,input,select,textarea,summary):focus-visible{outline:3px solid #60a5fa;outline-offset:2px}
+html[data-theme="dark"] .close{border:1px solid #344761;background:#16243a;color:#dbeafe}
+html[data-theme="dark"] .close:hover{border-color:#60a5fa;background:#1d3352;color:#fff}
+html[data-theme="dark"] .financial-report-button,
+html[data-theme="dark"] .filter-count,
+html[data-theme="dark"] .all-sales-total,
+html[data-theme="dark"] .sale-items-summary{
+  border-color:#315176;
+  background:#17345a;
+  color:#bfdbfe;
+}
+html[data-theme="dark"] .financial-report-button:hover,
+html[data-theme="dark"] .financial-report-button:focus-visible{border-color:#60a5fa;background:#1d4ed8;color:#fff}
+html[data-theme="dark"] .all-sales-total span,
+html[data-theme="dark"] .sale-items-summary small{color:#93c5fd}
+html[data-theme="dark"] .all-sales-total strong,
+html[data-theme="dark"] .sale-items-summary strong{color:#f1f5f9}
+html[data-theme="dark"] .sale-items-field,
+html[data-theme="dark"] .sale-ticket-item-row,
+html[data-theme="dark"] .package-row,
+html[data-theme="dark"] .packages-empty,
+html[data-theme="dark"] .whatsapp-contact-card,
+html[data-theme="dark"] .whatsapp-option,
+html[data-theme="dark"] .table-reservation-expanded{
+  border-color:#344761;
+  background:#0e192a;
+  color:#d7e0ed;
+}
+html[data-theme="dark"] .sale-ticket-item-row,
+html[data-theme="dark"] .whatsapp-option{background:#111c2f}
+html[data-theme="dark"] .packages-empty,
+html[data-theme="dark"] .package-summary,
+html[data-theme="dark"] .package-composition,
+html[data-theme="dark"] .payment-details,
+html[data-theme="dark"] .table-reservation-expanded small{color:#9aa8bd!important}
+html[data-theme="dark"] .package-summary strong,
+html[data-theme="dark"] .package-item-name,
+html[data-theme="dark"] .whatsapp-contact-card strong,
+html[data-theme="dark"] .table-reservation-expanded strong,
+html[data-theme="dark"] .table-reservation-expanded span{color:#f1f5f9}
+html[data-theme="dark"] .payment{background:#3b2516;color:#fdba74}
+html[data-theme="dark"] .payment.paid{background:#123629;color:#6ee7b7}
+html[data-theme="dark"] .status{background:#17345a;color:#93c5fd}
+html[data-theme="dark"] .status.checked{background:#123629;color:#6ee7b7}
+html[data-theme="dark"] .edit-button{border-color:#315176;background:#17345a;color:#93c5fd}
+html[data-theme="dark"] .whatsapp-button{border-color:#176b45;background:#123629;color:#6ee7b7}
+html[data-theme="dark"] .table-reservation-card:nth-child(even){border-color:#315176;background:#142844}
+html[data-theme="dark"] .table-reservation-card:hover,
+html[data-theme="dark"] .table-reservation-card:focus-within{border-color:#60a5fa;box-shadow:0 0 0 2px #60a5fa22}
+html[data-theme="dark"] .table-reservation-expanded-actions{border-color:#344761}
+html[data-theme="dark"] .map-zoom-canvas{background:#09111f}
+html[data-theme="dark"] .map-area-tabs button:not(.is-active){border-color:#385071;background:#16243a;color:#bfdbfe}
+html[data-theme="dark"] .role-readonly{color:#9aa8bd}
+@media(max-width:700px){
+  html[data-theme="dark"] .financial-table-wrap tr,
+  html[data-theme="dark"] .all-table-reservations-modal tr.sales-row{border-color:#2a3a52!important;background:#111c2f!important}
+  html[data-theme="dark"] .financial-table-wrap tr:nth-child(even),
+  html[data-theme="dark"] .all-table-reservations-modal tr.sales-row:nth-child(even){background:#142844!important}
+}
