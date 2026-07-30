@@ -1,0 +1,29 @@
+/* Versão 4.5.1: reservas em harmonia com os cartões de participantes no celular. */
+@media(max-width:700px){
+  .table-reservations-panel .table-reservations-heading{display:flex!important;flex-direction:row!important;align-items:flex-start!important;gap:10px;padding:18px 16px 14px}
+  .table-reservations-heading>div:first-child{min-width:0;flex:1}
+  .table-reservations-heading h2{font-size:18px;line-height:1.1}
+  .table-reservations-heading p{max-width:210px;font-size:11px;line-height:1.35}
+  .table-reservations-panel .participant-tools{width:auto!important;min-width:max-content;align-self:center;gap:7px}
+  .table-reservations-panel .participant-tool-row{gap:7px}
+  .table-reservations-panel .ticket-filter>summary,.table-reservations-panel .view-all-button{min-height:38px;padding:8px 11px}
+  .table-reservations-panel .filter-count{align-self:flex-end;font-size:8px;white-space:nowrap}
+  .table-reservation-export{display:none!important}
+  .table-reservation-card{overflow:hidden}
+  .table-reservation-card:not(.is-expanded)>.table-reservation-expanded{display:none!important}
+  .table-reservation-card.is-expanded>.table-reservation-expanded{display:grid!important;grid-template-columns:1fr 1fr;width:100%;min-width:0;gap:12px}
+  .table-reservation-card.is-expanded>.table-reservation-expanded>div{display:grid!important;min-width:0;gap:4px}
+  .table-reservation-card.is-expanded>.table-reservation-expanded>.table-reservation-expanded-contact,.table-reservation-card.is-expanded>.table-reservation-expanded>.table-reservation-expanded-actions{grid-column:1/-1}
+  .table-reservation-card.is-expanded>.table-reservation-expanded>.table-reservation-expanded-contact{display:flex!important}
+  .table-reservation-card.is-expanded>.table-reservation-expanded>.table-reservation-expanded-actions{display:grid!important;grid-template-columns:1fr 1fr;width:100%}
+  .table-reservation-card:not(.is-expanded) .table-reservation-payment{display:flex!important;align-items:center;gap:5px;white-space:nowrap}
+  .table-reservation-card:not(.is-expanded) .table-reservation-payment .payment-display{display:flex;align-items:center;gap:4px}
+  .table-reservation-card:not(.is-expanded) .table-reservation-payment .payment-details{display:block!important;overflow:hidden;max-width:82px;color:#64748b;font-size:7px!important;text-overflow:ellipsis;white-space:nowrap}
+}
+@media(max-width:390px){
+  .table-reservations-panel .table-reservations-heading{padding:16px 12px 13px}
+  .table-reservations-heading h2{font-size:16px}
+  .table-reservations-heading p{max-width:170px;font-size:9px}
+  .table-reservations-panel .ticket-filter>summary,.table-reservations-panel .view-all-button{min-height:34px;padding:7px 9px;font-size:10px}
+  .table-reservations-panel .participant-tools{gap:5px}
+}

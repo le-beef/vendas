@@ -4,7 +4,7 @@ Site estático em HTML, CSS e JavaScript, pronto para publicar no GitHub Pages, 
 
 ## Login individual, permissões e histórico
 
-A versão 4.5.0 faz as reservas de mesas seguirem o mesmo comportamento das vendas avulsas: “Detalhar” expande o próprio cartão, enquanto “Editar” é a única ação que abre o formulário. A prévia inclui mesa ou bistrô, e “Ver todas” exibe cartões adaptados ao celular.
+A versão 4.5.1 harmoniza o cabeçalho e os cartões de reservas com os participantes no celular. A listagem fechada mostra somente responsável, mesa ou bistrô, valor, WhatsApp, pagamento com data e “Detalhar”; o conteúdo completo e as ações permanecem ocultos até a expansão.
 
 Nas reservas, a primeira pessoa é a responsável e informa nome e telefone. Os demais ocupantes precisam somente do nome. O total é calculado automaticamente pelo valor por pessoa/cadeira definido no evento. As reservas entram no faturamento, no fechamento por vendedor, no histórico e na planilha Excel.
 
@@ -23,7 +23,7 @@ As permissões são aplicadas na interface e nas regras do Realtime Database. Co
 
 ## Atualização obrigatória no Firebase
 
-Na atualização para a versão 4.5.0, envie todos os arquivos do pacote ao GitHub Pages. Eventos e vendas antigas continuam disponíveis normalmente; esta versão não exige alteração nas regras do banco de dados.
+Na atualização para a versão 4.5.1, envie todos os arquivos do pacote ao GitHub Pages. Eventos e vendas antigas continuam disponíveis normalmente; esta versão não exige alteração nas regras do banco de dados.
 
 As instruções completas estão em [FIREBASE-SETUP.md](FIREBASE-SETUP.md).
 
