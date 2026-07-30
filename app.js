@@ -580,14 +580,15 @@ function toggleSellerTicketReport() { const report = $("sellerTicketReport"); co
 
 function presetSlotsFor(area) {
   const slots = [];
-  const add = (x, y, width = 7.6, height = 7.6) => slots.push({ id: `slot-${area}-${String(slots.length + 1).padStart(2, "0")}`, area, x, y, width, height });
+  const add = (x, y, width = 7.2, height = 7.2) => slots.push({ id: `slot-${area}-${String(slots.length + 1).padStart(2, "0")}`, area, x, y, width, height });
   if (area === "salao") {
-    [7, 16, 25, 34, 43, 52].forEach((x) => add(x, 9));
-    [10, 19, 28, 37, 46, 55].forEach((x) => add(x, 18));
-    [28, 38, 48, 58, 68].forEach((y) => [19, 28, 37, 46, 55].forEach((x) => add(x, y)));
+    [8.4, 22, 31.5, 41.1, 50.5, 60.2].forEach((x) => add(x, 14.4));
+    [12.3, 22, 31.5, 41.1, 50.5, 60.2].forEach((x) => add(x, 23.2));
+    [34.4, 44, 53.6, 63.4].forEach((y) => [22, 31.5, 41.1, 50.5, 60.2].forEach((x) => add(x, y)));
   } else {
-    [11, 18, 25, 32, 39, 46, 53].forEach((y) => add(53, y, 6.8, 6.8));
-    [76, 85].forEach((y, row) => (row ? [31, 40, 49, 58] : [27, 36, 45, 54, 63]).forEach((x) => add(x, y, 6.8, 6.8)));
+    [15.2, 25.8, 36.4, 47.1, 57.8, 68.5].forEach((y) => add(56.5, y, 7, 7));
+    [28.8, 38.9, 48.4].forEach((x) => add(x, 77.6, 7, 7));
+    [36.2, 45.9, 56.5].forEach((x) => add(x, 88.4, 7, 7));
   }
   return slots;
 }
@@ -613,8 +614,8 @@ function mapFurnitureHtml(item, editor = false, reservation = null) {
   const content = `<img src="${item.kind === "bistro" ? "bistro-icon.png" : "mesa-icon.png"}" alt="" /><span class="map-furniture-number">${String(item.number).padStart(2, "0")}</span>${occupancy}`;
   const style = `left:${item.x}%;top:${item.y}%;width:${item.width}%;height:${item.height}%`;
   return editor
-    ? `<button class="map-furniture map-preset-slot is-active" type="button" data-map-slot="${item.slotId || item.id}" style="${style}" aria-label="${escapeHtml(label)}">${content}</button>`
-    : `<button class="map-furniture ${status}" type="button" data-reserve-furniture="${item.id}" style="${style}" aria-label="${escapeHtml(`${label}${reservation ? `, reservada para ${reservation.buyerName}` : ", livre"}`)}">${content}</button>`;
+    ? `<button class="map-furniture map-preset-slot kind-${item.kind} is-active" type="button" data-map-slot="${item.slotId || item.id}" style="${style}" aria-label="${escapeHtml(label)}">${content}</button>`
+    : `<button class="map-furniture kind-${item.kind} ${status}" type="button" data-reserve-furniture="${item.id}" style="${style}" aria-label="${escapeHtml(`${label}${reservation ? `, reservada para ${reservation.buyerName}` : ", livre"}`)}">${content}</button>`;
 }
 
 function updateMapEditorTabs() {
@@ -747,7 +748,7 @@ function tableReservationsFor(eventId) { return state.sales.filter((sale) => sal
 
 function renderTableMapPanel(event, eventSales) {
   const panel = $("tableMapPanel");
-  const tableMap = normalizeTableMap(event?.tableMap);
+  const tableMap = migrateFurnitureToPreset(event?.tableMap);
   const visible = Boolean(event && eventUsesTableMap(event));
   panel.hidden = !visible;
   if (!visible) return;
@@ -761,6 +762,20 @@ function renderTableMapPanel(event, eventSales) {
   const occupied = furniture.filter((item) => reservations.some((sale) => sale.furnitureId === item.id)).length;
   const paid = furniture.filter((item) => reservations.some((sale) => sale.furnitureId === item.id && sale.paid)).length;
   $("tableMapSummary").innerHTML = `<span>${furniture.length} móveis</span><span>${occupied} reservados</span><span>${Math.max(0, furniture.length - occupied)} livres</span><span>${paid} pagos</span>`;
+  renderMapZoom(event, eventSales);
+}
+
+function renderMapZoom(event, eventSales) {
+  if (!event || !eventUsesTableMap(event)) return;
+  const tableMap = migrateFurnitureToPreset(event.tableMap);
+  if (!tableMap.areas.includes(activeMapViewerArea)) activeMapViewerArea = tableMap.areas[0];
+  $("mapZoomTitle").textContent = `Mapa de ${event.name}`;
+  $("tableMapZoomAreaTabs").innerHTML = tableMap.areas.map((area) => `<button class="${area === activeMapViewerArea ? "is-active" : ""}" type="button" data-zoom-map-area="${area}" role="tab" aria-selected="${area === activeMapViewerArea}">${mapAreaLabel(area)}</button>`).join("");
+  const reservations = eventSales.filter(isTableReservation);
+  const stage = $("tableMapZoomViewer");
+  stage.dataset.area = activeMapViewerArea;
+  const furniture = tableMap.furniture.filter((item) => item.area === activeMapViewerArea);
+  stage.innerHTML = furniture.map((item) => mapFurnitureHtml(item, false, reservations.find((sale) => sale.furnitureId === item.id))).join("") || `<div class="map-empty-hint">Nenhuma mesa ou bistrô configurado nesta área.</div>`;
 }
 
 function renderTableReservationsList(event, eventSales) {
@@ -1351,6 +1366,9 @@ $("tableMapEditor").addEventListener("click", (event) => { const slot = event.ta
 $("mapEditorAreaTabs").addEventListener("click", (event) => { const button = event.target.closest("[data-editor-map-area]"); if (!button) return; activeMapEditorArea = button.dataset.editorMapArea; selectedMapFurnitureId = ""; renderMapEditor(); });
 $("tableMapAreaTabs").addEventListener("click", (event) => { const button = event.target.closest("[data-view-map-area]"); if (!button) return; activeMapViewerArea = button.dataset.viewMapArea; const selectedEvent = state.events.find((item) => item.id === selectedEventId); renderTableMapPanel(selectedEvent, state.sales.filter((sale) => sale.eventId === selectedEventId)); });
 $("tableMapViewer").addEventListener("click", (event) => { const furniture = event.target.closest("[data-reserve-furniture]"); if (furniture) openTableReservation(furniture.dataset.reserveFurniture); });
+$("openMapZoom").addEventListener("click", () => { const selectedEvent = state.events.find((item) => item.id === selectedEventId); renderMapZoom(selectedEvent, state.sales.filter((sale) => sale.eventId === selectedEventId)); $("mapZoomModal").showModal(); requestAnimationFrame(() => { const canvas = $("mapZoomCanvas"); canvas.scrollLeft = Math.max(0, (canvas.scrollWidth - canvas.clientWidth) / 2); canvas.scrollTop = 0; }); });
+$("tableMapZoomAreaTabs").addEventListener("click", (event) => { const button = event.target.closest("[data-zoom-map-area]"); if (!button) return; activeMapViewerArea = button.dataset.zoomMapArea; const selectedEvent = state.events.find((item) => item.id === selectedEventId); renderTableMapPanel(selectedEvent, state.sales.filter((sale) => sale.eventId === selectedEventId)); });
+$("tableMapZoomViewer").addEventListener("click", (event) => { const furniture = event.target.closest("[data-reserve-furniture]"); if (!furniture) return; $("mapZoomModal").close(); openTableReservation(furniture.dataset.reserveFurniture); });
 $("tableReservationsList").addEventListener("click", (event) => { const button = event.target.closest("[data-open-table-reservation]"); if (button) openTableReservation(button.dataset.openTableReservation); });
 $("exportTableReservations").addEventListener("click", () => { if (requireRole(["admin", "seller"])) window.exportSalesXlsx(state.sales, state.events, selectedEventId, "tables"); });
 $("addTableOccupant").addEventListener("click", () => addTableOccupantRow());

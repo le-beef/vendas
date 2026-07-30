@@ -40,8 +40,8 @@
     <link rel="stylesheet" href="audit-log.css?v=27" />
     <link rel="stylesheet" href="payment-closing.css?v=28" />
     <link rel="stylesheet" href="event-access.css?v=18" />
-    <link rel="stylesheet" href="theme.css?v=3" />
-    <link rel="stylesheet" href="table-map.css?v=3" />
+    <link rel="stylesheet" href="theme.css?v=4" />
+    <link rel="stylesheet" href="table-map.css?v=4" />
     <style id="topbar-critical-styles">
       html { scroll-padding-top: 84px; }
       body { padding-top: 84px !important; }
@@ -135,7 +135,7 @@
         <article id="tableMapPanel" class="panel table-map-panel" hidden>
           <div class="panel-heading table-map-panel-heading"><div><p class="eyebrow">RESERVAS</p><h2>Mapa de mesas</h2><p>Selecione uma mesa ou bistrô para registrar ou consultar os ocupantes.</p></div><div id="tableMapLegend" class="table-map-legend"><span><i class="is-free"></i>Livre</span><span><i class="is-pending"></i>Pendente</span><span><i class="is-paid"></i>Pago</span></div></div>
           <div id="tableMapAreaTabs" class="map-area-tabs" role="tablist" aria-label="Áreas do evento"></div>
-          <div id="tableMapViewer" class="table-map-stage table-map-viewer" aria-label="Mapa das mesas do evento"></div>
+          <div class="table-map-viewer-shell"><div id="tableMapViewer" class="table-map-stage table-map-viewer" aria-label="Mapa das mesas do evento"></div><button id="openMapZoom" class="map-zoom-button" type="button" aria-label="Ampliar mapa" title="Ampliar mapa"><span aria-hidden="true"></span></button></div>
           <div id="tableMapSummary" class="table-map-summary"></div>
         </article>
 
@@ -176,7 +176,7 @@
       </section>
     </main>
 
-    <footer class="site-footer">Le Beef | Versão: 4.1.1</footer>
+    <footer class="site-footer">Le Beef | Versão: 4.2.0</footer>
 
     <button class="fab" data-open="saleModal" data-roles="admin,seller" aria-label="Registrar venda">+</button>
 
@@ -235,6 +235,15 @@
       </form>
     </dialog>
 
+    <dialog id="mapZoomModal" class="map-zoom-modal">
+      <div class="map-zoom-shell">
+        <div class="map-zoom-heading"><div><p class="eyebrow">MAPA AMPLIADO</p><h2 id="mapZoomTitle">Mapa de mesas</h2></div><button class="close" type="button" data-close="mapZoomModal" aria-label="Fechar">×</button></div>
+        <div id="tableMapZoomAreaTabs" class="map-area-tabs map-zoom-tabs" role="tablist" aria-label="Áreas do mapa ampliado"></div>
+        <div id="mapZoomCanvas" class="map-zoom-canvas"><div id="tableMapZoomViewer" class="table-map-stage table-map-zoom-viewer" aria-label="Mapa ampliado das mesas"></div></div>
+        <p class="map-zoom-help">Toque numa mesa ou bistrô para abrir a reserva.</p>
+      </div>
+    </dialog>
+
     <dialog id="paymentConfirmationModal" class="payment-confirmation-modal">
       <form id="paymentConfirmationForm">
         <div class="modal-heading"><div><p class="eyebrow">PAGAMENTO</p><h2>Confirmar recebimento</h2><p id="paymentConfirmationParticipant">Participante</p></div><button class="close" type="button" data-close="paymentConfirmationModal" aria-label="Fechar">×</button></div>
@@ -291,6 +300,6 @@
     <script src="access.js"></script>
     <script src="theme.js?v=1"></script>
     <script src="excel-export.js?v=34"></script>
-    <script type="module" src="app.js?v=44"></script>
+    <script type="module" src="app.js?v=45"></script>
   </body>
 </html>
