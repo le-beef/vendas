@@ -17,6 +17,8 @@ let selectedPaymentFilter = "all";
 let selectedEntryFilter = "all";
 let participantSearchQuery = "";
 let tableReservationSearchQuery = "";
+let tableReservationAreaFilter = "all";
+let tableReservationPaymentFilter = "all";
 let eventMapDraft = { areas: [], furniture: [] };
 let activeMapEditorArea = "";
 let activeMapViewerArea = "";
@@ -321,6 +323,16 @@ function matchesTableReservationSearch(sale) {
   const text = [sale.reservationLabel, sale.buyerName, ...occupants].map(normalizedSearch).join(" ");
   const queryDigits = query.replace(/\D/g, "");
   return text.includes(normalizedSearch(query)) || Boolean(queryDigits && String(sale.buyerPhone || "").replace(/\D/g, "").includes(queryDigits));
+}
+function matchesTableReservationFilters(sale) {
+  const matchesArea = tableReservationAreaFilter === "all" || sale.reservationArea === tableReservationAreaFilter;
+  const matchesPayment = tableReservationPaymentFilter === "all" || (tableReservationPaymentFilter === "paid" ? sale.paid : !sale.paid);
+  return matchesArea && matchesPayment && matchesTableReservationSearch(sale);
+}
+function resetTableReservationFilters() {
+  tableReservationSearchQuery = "";
+  tableReservationAreaFilter = "all";
+  tableReservationPaymentFilter = "all";
 }
 function resetParticipantFilters() {
   selectedTicketTypeFilter = "all";
@@ -793,14 +805,28 @@ function renderTableReservationsList(event, eventSales) {
   panel.hidden = !visible;
   if (!visible) return;
   $("tableReservationSearch").value = tableReservationSearchQuery;
-  const reservations = eventSales.filter(isTableReservation).filter(matchesTableReservationSearch).sort((a, b) => String(a.reservationLabel || "").localeCompare(String(b.reservationLabel || ""), "pt-BR", { numeric: true }));
+  $("tableReservationAreaFilter").value = tableReservationAreaFilter;
+  $("tableReservationPaymentFilter").value = tableReservationPaymentFilter;
+  const allReservations = eventSales.filter(isTableReservation).sort((a, b) => String(a.reservationLabel || "").localeCompare(String(b.reservationLabel || ""), "pt-BR", { numeric: true }));
+  const reservations = allReservations.filter(matchesTableReservationFilters);
+  const filteredPeople = reservations.reduce((sum, sale) => sum + saleQuantity(sale, event), 0);
+  const filterCount = Number(tableReservationAreaFilter !== "all") + Number(tableReservationPaymentFilter !== "all");
+  const filterLabel = tableReservationPaymentFilter === "paid" ? "Pago" : tableReservationPaymentFilter === "pending" ? "Pendente" : tableReservationAreaFilter === "salao" ? "Salão" : tableReservationAreaFilter === "mezanino" ? "Mezanino" : "Todos";
+  $("tableReservationFilterLabel").textContent = filterCount > 1 ? `${filterCount} filtros` : filterLabel;
+  $("tableReservationCount").textContent = `${reservations.length} ${reservations.length === 1 ? "reservada" : "reservadas"} • ${filteredPeople} ${filteredPeople === 1 ? "pessoa" : "pessoas"}`;
+  $("clearTableReservationSearch").hidden = !tableReservationSearchQuery;
   const canManage = hasRole("admin", "seller");
   $("tableReservationsList").innerHTML = reservations.length ? reservations.map((sale) => {
     const occupants = Array.isArray(sale.occupants) ? sale.occupants : Object.values(sale.occupants || {});
     const payment = sale.paid ? `<span class="payment paid">✓ Pago</span>${paymentDetailsHtml(sale)}` : `<span class="payment">Pendente</span>`;
     const actions = canManage ? `<button class="delete-button table-reservation-delete" type="button" data-delete-sale="${sale.id}">Excluir</button>` : "";
-    return `<article class="table-reservation-card" data-open-table-reservation="${sale.furnitureId}" tabindex="0" role="button" aria-label="Abrir detalhes de ${escapeHtml(sale.reservationLabel || "reserva")}"><div class="table-reservation-main"><strong>${escapeHtml(sale.reservationLabel || "Reserva")}</strong><small>${escapeHtml(sale.buyerName || "Sem responsável")} · ${occupants.length || sale.quantity || 1}</small></div><div class="table-reservation-contact"><span>${escapeHtml(formatPhoneDisplay(sale.buyerPhone) || "Sem telefone")}</span>${whatsappButtonHtml(sale, event.name)}</div><div class="table-reservation-payment">${payment}</div><div class="table-reservation-total"><strong>${money.format(saleTotal(sale, event))}</strong><button class="participant-detail-toggle" type="button" data-open-table-reservation="${sale.furnitureId}">Detalhar</button></div>${actions}</article>`;
+    return `<article class="table-reservation-card" data-open-table-reservation="${sale.furnitureId}" tabindex="0" role="button" aria-label="Abrir detalhes de ${escapeHtml(sale.reservationLabel || "reserva")}"><div class="table-reservation-main"><strong>${escapeHtml(sale.buyerName || "Sem responsável")}</strong><small>${escapeHtml(sale.reservationLabel || "Reserva")} · ${occupants.length || sale.quantity || 1}</small></div><div class="table-reservation-total"><strong>${money.format(saleTotal(sale, event))}</strong></div><div class="table-reservation-contact">${whatsappButtonHtml(sale, event.name)}</div><div class="table-reservation-payment">${payment}</div><button class="participant-detail-toggle" type="button" data-open-table-reservation="${sale.furnitureId}">Detalhar</button>${actions}</article>`;
   }).join("") : `<div class="empty">${tableReservationSearchQuery ? "Nenhuma reserva encontrada." : "Nenhuma reserva registrada neste evento."}</div>`;
+  const totalAllReservations = allReservations.reduce((sum, sale) => sum + saleTotal(sale, event), 0);
+  const paymentForTableReservation = (sale) => sale.paid ? `<span class="payment paid">✓ Pago</span>${paymentDetailsHtml(sale)}` : `<span class="payment">Pendente</span>`;
+  $("allTableReservationsTitle").textContent = `Reservas — ${event.name}`;
+  $("allTableReservationsTotal").textContent = money.format(totalAllReservations);
+  $("allTableReservationsList").innerHTML = allReservations.length ? allReservations.map((sale) => { const occupants = Array.isArray(sale.occupants) ? sale.occupants : Object.values(sale.occupants || {}); return `<tr class="table-reservation-all-row"><td><strong>${escapeHtml(sale.buyerName || "Sem responsável")}</strong><small>${occupants.length || sale.quantity || 1} pessoas</small></td><td><strong>${escapeHtml(sale.reservationLabel || "Reserva")}</strong><small>${escapeHtml(mapAreaLabel(sale.reservationArea || ""))}</small></td><td class="sale-note"><span class="phone-line"><strong>${escapeHtml(formatPhoneDisplay(sale.buyerPhone) || "Não informado")}</strong>${whatsappButtonHtml(sale, event.name)}</span><small>${escapeHtml(occupants.join(", "))}</small></td><td>${escapeHtml(event.name)}</td><td class="financial-column">${money.format(saleTotal(sale, event))}</td><td class="financial-column">${paymentForTableReservation(sale)}</td><td><button class="edit-button" type="button" data-open-table-reservation="${sale.furnitureId}">Detalhar</button>${canManage ? `<button class="delete-button" data-delete-sale="${sale.id}">Excluir</button>` : ""}</td></tr>`; }).join("") : `<tr><td colspan="7" class="empty">Nenhuma reserva neste evento.</td></tr>`;
 }
 
 function addTableOccupantRow(name = "") {
@@ -841,6 +867,7 @@ function syncTableReservationPaymentFields(useToday = false) {
 
 function openTableReservation(furnitureId) {
   if ($("allSalesModal").open) $("allSalesModal").close();
+  if ($("allTableReservationsModal").open) $("allTableReservationsModal").close();
   if (!requireRole(["admin", "seller"], "Seu perfil permite consultar o mapa, mas não alterar reservas.")) return;
   const event = state.events.find((item) => item.id === selectedEventId);
   const furniture = normalizeTableMap(event?.tableMap).furniture.find((item) => item.id === furnitureId);
@@ -1366,6 +1393,10 @@ $("participantSearch").addEventListener("input", (event) => { participantSearchQ
 $("participantSearch").addEventListener("keydown", (event) => { if (event.key === "Escape") { participantSearchQuery = ""; render(); event.currentTarget.focus(); } });
 $("tableReservationSearch").addEventListener("input", (event) => { tableReservationSearchQuery = event.currentTarget.value; render(); });
 $("tableReservationSearch").addEventListener("keydown", (event) => { if (event.key === "Escape") { tableReservationSearchQuery = ""; render(); event.currentTarget.focus(); } });
+$("clearTableReservationSearch").addEventListener("click", () => { tableReservationSearchQuery = ""; render(); $("tableReservationSearch").focus(); });
+$("applyTableReservationFilters").addEventListener("click", () => { tableReservationAreaFilter = $("tableReservationAreaFilter").value; tableReservationPaymentFilter = $("tableReservationPaymentFilter").value; document.querySelector(".table-reservation-filter").open = false; render(); });
+$("clearTableReservationFiltersMenu").addEventListener("click", () => { resetTableReservationFilters(); document.querySelector(".table-reservation-filter").open = false; render(); });
+$("openAllTableReservations").addEventListener("click", () => $("allTableReservationsModal").showModal());
 document.querySelectorAll("[data-clear-participant-filters]").forEach((button) => button.addEventListener("click", () => { resetParticipantFilters(); document.querySelector(".ticket-filter").open = false; render(); $("participantSearch").focus(); }));
 $("eventsList").addEventListener("click", (event) => { if (event.target.closest("[data-select-event]")) resetParticipantFilters(); });
 $("eventMode").addEventListener("change", syncEventMapSettings);
@@ -1388,12 +1419,13 @@ $("tableMapEditor").addEventListener("click", (event) => { const slot = event.ta
 $("mapEditorAreaTabs").addEventListener("click", (event) => { const button = event.target.closest("[data-editor-map-area]"); if (!button) return; activeMapEditorArea = button.dataset.editorMapArea; selectedMapFurnitureId = ""; renderMapEditor(); });
 $("tableMapAreaTabs").addEventListener("click", (event) => { const button = event.target.closest("[data-view-map-area]"); if (!button) return; activeMapViewerArea = button.dataset.viewMapArea; const selectedEvent = state.events.find((item) => item.id === selectedEventId); renderTableMapPanel(selectedEvent, state.sales.filter((sale) => sale.eventId === selectedEventId)); });
 $("tableMapViewer").addEventListener("click", (event) => { const furniture = event.target.closest("[data-reserve-furniture]"); if (furniture) openTableReservation(furniture.dataset.reserveFurniture); });
-$("openMapZoom").addEventListener("click", () => { const selectedEvent = state.events.find((item) => item.id === selectedEventId); renderMapZoom(selectedEvent, state.sales.filter((sale) => sale.eventId === selectedEventId)); $("mapZoomModal").showModal(); requestAnimationFrame(() => { const canvas = $("mapZoomCanvas"); canvas.scrollLeft = Math.max(0, (canvas.scrollWidth - canvas.clientWidth) / 2); canvas.scrollTop = 0; }); });
+$("openMapZoom").addEventListener("click", () => { const selectedEvent = state.events.find((item) => item.id === selectedEventId); renderMapZoom(selectedEvent, state.sales.filter((sale) => sale.eventId === selectedEventId)); $("mapZoomModal").showModal(); requestAnimationFrame(() => { const canvas = $("mapZoomCanvas"); canvas.scrollLeft = 0; canvas.scrollTop = 0; }); });
 $("tableMapZoomAreaTabs").addEventListener("click", (event) => { const button = event.target.closest("[data-zoom-map-area]"); if (!button) return; activeMapViewerArea = button.dataset.zoomMapArea; const selectedEvent = state.events.find((item) => item.id === selectedEventId); renderTableMapPanel(selectedEvent, state.sales.filter((sale) => sale.eventId === selectedEventId)); });
 $("tableMapZoomViewer").addEventListener("click", (event) => { const furniture = event.target.closest("[data-reserve-furniture]"); if (!furniture) return; $("mapZoomModal").close(); openTableReservation(furniture.dataset.reserveFurniture); });
 $("tableReservationsList").addEventListener("click", (event) => { if (event.target.closest("[data-delete-sale], [data-whatsapp]")) return; const reservation = event.target.closest("[data-open-table-reservation]"); if (reservation) openTableReservation(reservation.dataset.openTableReservation); });
 $("tableReservationsList").addEventListener("keydown", (event) => { if ((event.key === "Enter" || event.key === " ") && event.target.matches("[data-open-table-reservation]")) { event.preventDefault(); openTableReservation(event.target.dataset.openTableReservation); } });
 $("allSalesList").addEventListener("click", (event) => { const reservation = event.target.closest("[data-open-table-reservation]"); if (reservation) openTableReservation(reservation.dataset.openTableReservation); });
+$("allTableReservationsList").addEventListener("click", (event) => { const reservation = event.target.closest("[data-open-table-reservation]"); if (reservation) openTableReservation(reservation.dataset.openTableReservation); });
 $("exportTableReservations").addEventListener("click", () => { if (requireRole(["admin", "seller"])) window.exportSalesXlsx(state.sales, state.events, selectedEventId, "tables"); });
 $("addTableOccupant").addEventListener("click", () => addTableOccupantRow());
 $("tableOccupantsList").addEventListener("click", (event) => { const remove = event.target.closest("[data-remove-table-occupant]"); if (!remove) return; remove.closest(".table-occupant-row").remove(); updateTableReservationTotal(); });
