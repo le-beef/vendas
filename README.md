@@ -4,7 +4,7 @@ Site estático em HTML, CSS e JavaScript, pronto para publicar no GitHub Pages, 
 
 ## Login individual, permissões e histórico
 
-A versão 4.4.0 corrige a visualização ampliada do mapa no celular: o mapa abre ajustado à largura da tela e permite ampliar ou reduzir com o gesto de pinça. A lista de mesas e bistrôs agora segue o mesmo padrão das vendas avulsas, com cabeçalho azul, filtros, busca, contador, “Ver todas” e cartões compactos com o ícone do WhatsApp.
+A versão 4.5.0 faz as reservas de mesas seguirem o mesmo comportamento das vendas avulsas: “Detalhar” expande o próprio cartão, enquanto “Editar” é a única ação que abre o formulário. A prévia inclui mesa ou bistrô, e “Ver todas” exibe cartões adaptados ao celular.
 
 Nas reservas, a primeira pessoa é a responsável e informa nome e telefone. Os demais ocupantes precisam somente do nome. O total é calculado automaticamente pelo valor por pessoa/cadeira definido no evento. As reservas entram no faturamento, no fechamento por vendedor, no histórico e na planilha Excel.
 
@@ -23,7 +23,7 @@ As permissões são aplicadas na interface e nas regras do Realtime Database. Co
 
 ## Atualização obrigatória no Firebase
 
-Na atualização para a versão 4.4.0, envie todos os arquivos do pacote ao GitHub Pages. Eventos e vendas antigas continuam disponíveis normalmente; esta versão não exige alteração nas regras do banco de dados.
+Na atualização para a versão 4.5.0, envie todos os arquivos do pacote ao GitHub Pages. Eventos e vendas antigas continuam disponíveis normalmente; esta versão não exige alteração nas regras do banco de dados.
 
 As instruções completas estão em [FIREBASE-SETUP.md](FIREBASE-SETUP.md).
 
