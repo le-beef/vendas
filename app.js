@@ -652,13 +652,14 @@ function syncEventMapSettings() {
     eventMapDraft.areas = ["salao"];
     activeMapEditorArea = "salao";
   }
+  if (mixed && !activeMapTool) activeMapTool = "table";
   renderMapEditor();
 }
 
 function resetEventMapDraft(event = null) {
   eventMapDraft = migrateFurnitureToPreset(event?.tableMap);
   activeMapEditorArea = eventMapDraft.areas[0] || "";
-  activeMapTool = "";
+  activeMapTool = "table";
   selectedMapFurnitureId = "";
   document.querySelectorAll('#eventForm [name="mapArea"]').forEach((input) => { input.checked = eventMapDraft.areas.includes(input.value); });
   renderMapEditor();
