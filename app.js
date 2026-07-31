@@ -1450,6 +1450,7 @@ $("tableReservationsList").addEventListener("keydown", (event) => { if ((event.k
 $("allSalesList").addEventListener("click", (event) => { const reservation = event.target.closest("[data-open-table-reservation]"); if (reservation) openTableReservation(reservation.dataset.openTableReservation); });
 $("allTableReservationsList").addEventListener("click", (event) => { const reservation = event.target.closest("[data-open-table-reservation]"); if (reservation) openTableReservation(reservation.dataset.openTableReservation); });
 $("exportTableReservations").addEventListener("click", () => { if (requireRole(["admin", "event_manager", "seller"])) window.exportSalesXlsx(state.sales, state.events, selectedEventId, "tables"); });
+$("exportParticipants").addEventListener("click", () => { if (requireRole(["admin", "event_manager", "seller"])) window.exportSalesXlsx(state.sales, state.events, selectedEventId, "unit"); });
 $("addTableOccupant").addEventListener("click", () => addTableOccupantRow());
 $("tableOccupantsList").addEventListener("click", (event) => { const remove = event.target.closest("[data-remove-table-occupant]"); if (!remove) return; remove.closest(".table-occupant-row").remove(); updateTableReservationTotal(); });
 $("tableReservationForm").elements.paymentStatus.addEventListener("change", () => syncTableReservationPaymentFields(true));

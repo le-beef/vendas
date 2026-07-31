@@ -29,3 +29,47 @@
   .table-reservations-panel .ticket-filter>summary,.table-reservations-panel .view-all-button{min-height:34px;padding:7px 9px;font-size:10px}
   .table-reservations-panel .participant-tools{gap:5px}
 }
+
+/* Versão 4.9.2: reservas e participantes com a mesma estrutura visual. */
+.table-reservations-body{min-height:112px;border-radius:0 0 14px 14px;background:#fff}
+.table-reservations-list .empty{display:flex;min-height:112px;align-items:center;justify-content:center;padding:24px;text-align:center;color:#667085}
+.sales-panel tbody .empty{width:100%;min-height:112px;text-align:center;color:#667085}
+.participant-export{display:flex}
+@media(max-width:700px){
+  .table-reservations-panel .table-reservations-heading,
+  .sales-panel>.panel-heading{display:flex!important;flex-direction:row!important;align-items:flex-start!important;gap:10px;padding:18px 16px 14px}
+  .table-reservations-heading>div:first-child,
+  .sales-panel>.panel-heading>div:first-child{min-width:0;flex:1}
+  .table-reservations-heading h2,
+  .sales-panel>.panel-heading h2{font-size:18px;line-height:1.1}
+  .table-reservations-heading p,
+  .sales-panel>.panel-heading p{max-width:210px;font-size:11px;line-height:1.35}
+  .table-reservations-panel .participant-tools,
+  .sales-panel>.panel-heading .participant-tools{width:auto!important;min-width:max-content;align-self:center;gap:7px}
+  .table-reservations-panel .participant-tool-row,
+  .sales-panel>.panel-heading .participant-tool-row{gap:7px}
+  .table-reservations-panel .ticket-filter>summary,
+  .table-reservations-panel .view-all-button,
+  .sales-panel .ticket-filter>summary,
+  .sales-panel .view-all-button{min-height:38px;padding:8px 11px}
+  .table-reservations-panel .filter-count,
+  .sales-panel .filter-count{align-self:flex-end;font-size:8px;white-space:nowrap}
+  .table-reservation-export{display:flex!important;width:100%;padding:0 10px 10px}
+  .table-reservation-export .button{width:100%;min-height:40px}
+  .table-reservations-body{min-height:102px}
+  .table-reservations-list .empty,
+  .sales-panel tbody .empty{display:flex!important;min-height:102px;align-items:center;justify-content:center;padding:24px 14px!important;text-align:center!important}
+  .sales-panel tbody tr:has(.empty){display:block;width:100%}
+}
+@media(max-width:390px){
+  .table-reservations-panel .table-reservations-heading,
+  .sales-panel>.panel-heading{padding:16px 12px 13px}
+  .table-reservations-heading h2,
+  .sales-panel>.panel-heading h2{font-size:16px}
+  .table-reservations-heading p,
+  .sales-panel>.panel-heading p{max-width:170px;font-size:9px}
+  .table-reservations-panel .ticket-filter>summary,
+  .table-reservations-panel .view-all-button,
+  .sales-panel .ticket-filter>summary,
+  .sales-panel .view-all-button{min-height:34px;padding:7px 9px;font-size:10px}
+}

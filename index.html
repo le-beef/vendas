@@ -44,8 +44,8 @@
     <link rel="stylesheet" href="table-reservation-override.css?v=1" />
     <link rel="stylesheet" href="table-reservation-details.css?v=2" />
     <link rel="stylesheet" href="table-reservation-final.css?v=1" />
-    <link rel="stylesheet" href="table-reservation-harmony.css?v=3" />
-    <link rel="stylesheet" href="theme.css?v=7" />
+    <link rel="stylesheet" href="table-reservation-harmony.css?v=4" />
+    <link rel="stylesheet" href="theme.css?v=8" />
     <style id="topbar-critical-styles">
       html { scroll-padding-top: 84px; }
       body { padding-top: 84px !important; }
@@ -155,12 +155,13 @@
           <div class="panel-heading table-reservations-heading"><div><p class="eyebrow">RESERVAS</p><h2 id="tableReservationsTitle">Mesas e bistrôs</h2><p>Reservas deste evento, atualizadas em tempo real.</p></div><div class="participant-tools"><div class="participant-tool-row"><details class="ticket-filter table-reservation-filter"><summary aria-label="Filtrar reservas"><span class="filter-glyph" aria-hidden="true"></span><span id="tableReservationFilterLabel">Todos</span></summary><div class="filter-menu"><label>Área<select id="tableReservationAreaFilter"><option value="all">Todas</option><option value="salao">Salão</option><option value="mezanino">Mezanino</option></select></label><label>Situação do pagamento<select id="tableReservationPaymentFilter"><option value="all">Todos</option><option value="paid">Pago</option><option value="pending">Pendente</option></select></label><div class="filter-actions"><button id="clearTableReservationFiltersMenu" class="filter-clear-button" type="button">Limpar filtros</button><button id="applyTableReservationFilters" class="filter-apply-button" type="button">Aplicar filtros</button></div></div></details><button class="view-all-button" id="openAllTableReservations" type="button">Ver todas</button></div><span id="tableReservationCount" class="filter-count">0 reservadas • 0 pessoas</span></div></div>
           <div class="participant-search-row table-reservation-search-row"><label class="participant-search"><span class="search-glyph" aria-hidden="true"></span><span class="sr-only">Buscar reserva por responsável ou telefone</span><input id="tableReservationSearch" type="search" inputmode="search" autocomplete="off" placeholder="Buscar por responsável ou telefone" /></label><button id="clearTableReservationSearch" class="clear-participant-filters" type="button" hidden>Limpar</button></div>
           <div class="table-reservation-export"><button id="exportTableReservations" class="button secondary" type="button" data-roles="admin,event_manager,seller">Excel das reservas</button></div>
-          <div id="tableReservationsList" class="table-reservations-list"></div>
+          <div class="table-reservations-body"><div id="tableReservationsList" class="table-reservations-list"></div></div>
         </article>
 
         <article class="panel sales-panel">
           <div class="panel-heading"><div><p class="eyebrow">PARTICIPANTES</p><h2 id="salesPanelTitle">Vendas recentes</h2><p>Somente as vendas deste evento, atualizadas em tempo real.</p></div><div class="participant-tools"><div class="participant-tool-row"><details class="ticket-filter"><summary aria-label="Filtrar participantes"><span class="filter-glyph" aria-hidden="true"></span><span id="filterLabel">Todos</span></summary><div class="filter-menu"><label>Tipo de ingresso<select id="ticketTypeFilter"><option value="all">Todos</option></select></label><label data-roles="admin,seller">Situação do pagamento<select id="paymentStatusFilter"><option value="all">Todos</option><option value="paid">Pago</option><option value="pending">Pendente</option></select></label><label>Situação da entrada<select id="entryStatusFilter"><option value="all">Todos</option><option value="checked">Check-in realizado</option><option value="waiting">Aguardando entrada</option></select></label><div class="filter-actions"><button id="clearParticipantFiltersMenu" class="filter-clear-button" type="button" data-clear-participant-filters>Limpar filtros</button><button id="applyParticipantFilters" class="filter-apply-button" type="button">Aplicar filtros</button></div></div></details><button class="view-all-button" data-open="allSalesModal">Ver todas</button></div><span id="filterCount" class="filter-count">0 vendidos • 0 disponíveis</span></div></div>
           <div class="participant-search-row"><label class="participant-search"><span class="search-glyph" aria-hidden="true"></span><span class="sr-only">Buscar participante por nome ou telefone</span><input id="participantSearch" type="search" inputmode="search" autocomplete="off" placeholder="Buscar por nome ou telefone" /></label><button id="clearParticipantFilters" class="clear-participant-filters" type="button" data-clear-participant-filters hidden>Limpar</button></div>
+          <div class="table-reservation-export participant-export"><button id="exportParticipants" class="button secondary" type="button" data-roles="admin,event_manager,seller">Excel dos participantes</button></div>
           <div class="table-wrap"><table><thead><tr><th>Participante</th><th>Tipo</th><th>Observação</th><th class="financial-column">Valor</th><th class="financial-column">Pagamento</th><th>Entrada</th><th>Ações</th></tr></thead><tbody id="salesList"></tbody></table></div>
         </article>
       </section>
@@ -190,7 +191,7 @@
       </section>
     </main>
 
-    <footer class="site-footer">Le Beef | Versão: 4.9.1</footer>
+    <footer class="site-footer">Le Beef | Versão: 4.9.2</footer>
 
     <button class="fab" data-open="saleModal" data-roles="admin,event_manager,seller" aria-label="Registrar venda">+</button>
 
@@ -318,6 +319,6 @@
     <script src="pwa.js"></script>
     <script src="theme.js?v=1"></script>
     <script src="excel-export.js?v=35"></script>
-    <script type="module" src="app.js?v=57"></script>
+    <script type="module" src="app.js?v=58"></script>
   </body>
 </html>

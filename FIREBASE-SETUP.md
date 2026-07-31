@@ -1,10 +1,10 @@
-# Configuração de segurança, financeiro e mapas — Le Beef 4.9.1
+# Configuração de segurança, financeiro e mapas — Le Beef 4.9.2
 
 Os eventos e participantes já cadastrados não serão apagados.
 
 ## 1. Publicar o site e marcar os eventos
 
-1. Publique todos os arquivos da versão 4.9.1 no GitHub Pages.
+1. Publique todos os arquivos da versão 4.9.2 no GitHub Pages.
 2. Entre com a conta de administrador.
 3. No menu da conta, abra **Gerenciar usuários**.
 4. Ao criar um gerente do evento, vendedor ou usuário da portaria, marque um ou mais **Eventos permitidos**.

@@ -443,6 +443,16 @@ html[data-theme="dark"] .revenue-card > .ticket-checkin-breakdown {
   border-color: #385071;
   background: #16243a;
 }
+
+html[data-theme="dark"] .table-reservations-body,
+html[data-theme="dark"] .sales-panel .table-wrap {
+  background: #111c2f;
+}
+
+html[data-theme="dark"] .table-reservations-list .empty,
+html[data-theme="dark"] .sales-panel tbody .empty {
+  color: #9aa8bd;
+}
 @media(max-width:700px){
   html[data-theme="dark"] .financial-table-wrap tr,
   html[data-theme="dark"] .all-table-reservations-modal tr.sales-row{border-color:#2a3a52!important;background:#111c2f!important}
