@@ -429,6 +429,20 @@ html[data-theme="dark"] .table-reservation-expanded-actions{border-color:#344761
 html[data-theme="dark"] .map-zoom-canvas{background:#09111f}
 html[data-theme="dark"] .map-area-tabs button:not(.is-active){border-color:#385071;background:#16243a;color:#bfdbfe}
 html[data-theme="dark"] .role-readonly{color:#9aa8bd}
+html[data-theme="dark"] .table-occupant-checkin-row{border-color:#34445d;background:#111c2f}
+html[data-theme="dark"] .table-occupant-checkin-row>span{color:#e2e8f0}
+html[data-theme="dark"] .table-reservation-all-checkins{border-color:#34445d}
+
+html[data-theme="dark"] .compact-metric,
+html[data-theme="dark"] .revenue-breakdown {
+  border-color: #2a3a52;
+}
+
+html[data-theme="dark"] .revenue-card > .ticket-stock-breakdown,
+html[data-theme="dark"] .revenue-card > .ticket-checkin-breakdown {
+  border-color: #385071;
+  background: #16243a;
+}
 @media(max-width:700px){
   html[data-theme="dark"] .financial-table-wrap tr,
   html[data-theme="dark"] .all-table-reservations-modal tr.sales-row{border-color:#2a3a52!important;background:#111c2f!important}

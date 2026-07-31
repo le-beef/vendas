@@ -4,7 +4,7 @@ Site estático em HTML, CSS e JavaScript, pronto para publicar no GitHub Pages, 
 
 ## Login individual, permissões e histórico
 
-A versão 4.9.0 permite editar a configuração de eventos mesmo depois de vendas e reservas, preservando automaticamente as mesas já reservadas. Também adiciona o perfil Gerente do evento, com administração completa somente dos eventos atribuídos pelo administrador.
+A versão 4.9.1 compacta o resumo do evento: faturamento, ingressos vendidos e check-ins agora ficam reunidos no mesmo cartão, aproveitando melhor a tela do celular. Ela mantém a edição segura de eventos com vendas/reservas e o perfil Gerente do evento da versão 4.9.0.
 
 Nas reservas, a primeira pessoa é a responsável e informa nome e telefone. Os demais ocupantes precisam somente do nome. O total é calculado automaticamente pelo valor por pessoa/cadeira definido no evento. As reservas entram no faturamento, no fechamento por vendedor, no histórico e na planilha Excel.
 
@@ -24,7 +24,7 @@ As permissões são aplicadas na interface e nas regras do Realtime Database. Co
 
 ## Atualização obrigatória no Firebase
 
-Na atualização para a versão 4.9.0, envie todos os arquivos do pacote ao GitHub Pages e publique o arquivo `database.rules.json` no Firebase Realtime Database. Essa publicação das regras é obrigatória para o novo perfil Gerente do evento funcionar. Eventos, vendas e reservas antigas continuam disponíveis normalmente.
+Na atualização para a versão 4.9.1, envie todos os arquivos do pacote ao GitHub Pages. As regras do Firebase continuam iguais às da versão 4.9.0; publique `database.rules.json` somente se ainda não tiver aplicado aquela atualização. Eventos, vendas e reservas antigas continuam disponíveis normalmente.
 
 As instruções completas estão em [FIREBASE-SETUP.md](FIREBASE-SETUP.md).
 
