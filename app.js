@@ -180,6 +180,13 @@ function reservationOccupants(sale) {
   if (!names.length && sale?.buyerName) names.push(String(sale.buyerName).trim());
   return names;
 }
+function reservationOccupantPricing(sale) {
+  const stored = Array.isArray(sale?.occupantPricing) ? sale.occupantPricing : Object.keys(sale?.occupantPricing || {}).sort((a, b) => Number(a) - Number(b)).map((key) => sale.occupantPricing[key]);
+  return reservationOccupants(sale).map((_, index) => {
+    const item = stored[index] || {};
+    return { discountType: item.discountType === "fixed" ? "fixed" : "percent", discountValue: Math.max(0, Number(item.discountValue || 0)) };
+  });
+}
 function reservationOccupantCheckins(sale) {
   const stored = sale?.occupantCheckins;
   const values = Array.isArray(stored) ? stored : Object.keys(stored || {}).sort((a, b) => Number(a) - Number(b)).map((key) => stored[key]);
@@ -635,6 +642,13 @@ function tableReservationCheckinsHtml(sale) {
     return `<div class="table-occupant-checkin-row"><span>${escapeHtml(name)}</span><button class="status ${checked ? "checked" : ""}" type="button" data-table-occupant-checkin="${sale.id}" data-occupant-index="${index}">${checked ? "✓ Check-in" : "Fazer check-in"}</button></div>`;
   }).join("")}</div>`;
 }
+function tableReservationDiscountHtml(sale) {
+  const discount = Math.max(0, Number(sale?.discountTotal || 0));
+  if (!discount) return "";
+  const names = reservationOccupants(sale);
+  const details = reservationOccupantPricing(sale).map((item, index) => item.discountValue ? `${escapeHtml(names[index] || `Pessoa ${index + 1}`)}: ${item.discountType === "fixed" ? money.format(item.discountValue) : `${item.discountValue}%`}` : "").filter(Boolean).join(" · ");
+  return `<div><small>Desconto nas cadeiras</small><strong>${money.format(discount)}</strong>${details ? `<span>${details}</span>` : ""}</div>`;
+}
 function toggleMetricDetails(button) { const details = $(button.dataset.toggleMetricDetails); if (!details) return; const expanded = details.hidden; details.hidden = !expanded; button.setAttribute("aria-expanded", String(expanded)); button.textContent = expanded ? "Ocultar" : "Detalhar"; }
 function toggleSellerTicketReport() { const report = $("sellerTicketReport"); const button = $("sellerDetailsToggle"); const expanded = report.hidden; report.hidden = !expanded; button.setAttribute("aria-expanded", String(expanded)); button.textContent = expanded ? "Ocultar" : "Detalhar"; }
 
@@ -802,7 +816,7 @@ function renderTableReservationsList(event, eventSales) {
     const payment = sale.paid ? `<span class="payment paid">✓ Pago</span>${paymentDetailsHtml(sale)}` : `<span class="payment">Pendente</span>`;
     const actions = canManage ? `<button class="delete-button table-reservation-delete" type="button" data-delete-sale="${sale.id}">Excluir</button>` : "";
     const peopleCount = occupants.length || sale.quantity || 1;
-    const details = `<div class="table-reservation-expanded"><div><small>Mesa / bistrô</small><strong>${escapeHtml(sale.reservationLabel || "Reserva")}</strong></div><div><small>Responsável</small><strong>${escapeHtml(sale.buyerName || "Sem responsável")}</strong></div><div><small>Quantidade de pessoas</small><strong>${peopleCount} ${peopleCount === 1 ? "pessoa" : "pessoas"}</strong></div><div class="table-reservation-expanded-contact"><small>Contato</small><span>${escapeHtml(formatPhoneDisplay(sale.buyerPhone) || "Não informado")}</span>${whatsappButtonHtml(sale, event.name)}</div><div><small>Ocupantes</small><span>${escapeHtml(occupants.join(", ") || "Nenhum ocupante informado")}</span></div><div class="table-reservation-expanded-checkins"><small>Entradas (${reservationCheckinCount(sale)}/${peopleCount})</small>${tableReservationCheckinsHtml(sale)}</div><div><small>Pagamento</small>${payment}</div><div class="table-reservation-expanded-actions"><button class="edit-button" type="button" data-open-table-reservation="${sale.furnitureId}">Editar</button>${actions}</div></div>`;
+    const details = `<div class="table-reservation-expanded"><div><small>Mesa / bistrô</small><strong>${escapeHtml(sale.reservationLabel || "Reserva")}</strong></div><div><small>Responsável</small><strong>${escapeHtml(sale.buyerName || "Sem responsável")}</strong></div><div><small>Quantidade de pessoas</small><strong>${peopleCount} ${peopleCount === 1 ? "pessoa" : "pessoas"}</strong></div>${tableReservationDiscountHtml(sale)}<div class="table-reservation-expanded-contact"><small>Contato</small><span>${escapeHtml(formatPhoneDisplay(sale.buyerPhone) || "Não informado")}</span>${whatsappButtonHtml(sale, event.name)}</div><div><small>Ocupantes</small><span>${escapeHtml(occupants.join(", ") || "Nenhum ocupante informado")}</span></div><div class="table-reservation-expanded-checkins"><small>Entradas (${reservationCheckinCount(sale)}/${peopleCount})</small>${tableReservationCheckinsHtml(sale)}</div><div><small>Pagamento</small>${payment}</div><div class="table-reservation-expanded-actions"><button class="edit-button" type="button" data-open-table-reservation="${sale.furnitureId}">Editar</button>${actions}</div></div>`;
     return `<article class="table-reservation-card" aria-expanded="false"><div class="table-reservation-main"><strong>${escapeHtml(sale.buyerName || "Sem responsável")}</strong><small>${escapeHtml(sale.reservationLabel || "Reserva")} · ${peopleCount} ${peopleCount === 1 ? "pessoa" : "pessoas"} · ${reservationCheckinCount(sale)}/${peopleCount} check-ins</small></div><div class="table-reservation-total"><strong>${money.format(saleTotal(sale, event))}</strong></div><div class="table-reservation-contact">${whatsappButtonHtml(sale, event.name)}</div><div class="table-reservation-payment">${payment}</div><button class="participant-detail-toggle" type="button" data-toggle-table-reservation-details>Detalhar</button>${details}</article>`;
   }).join("") : `<div class="empty">${tableReservationSearchQuery ? "Nenhuma reserva encontrada." : "Nenhuma reserva registrada neste evento."}</div>`;
   const totalAllReservations = allReservations.reduce((sum, sale) => sum + saleTotal(sale, event), 0);
@@ -812,10 +826,39 @@ function renderTableReservationsList(event, eventSales) {
   $("allTableReservationsList").innerHTML = allReservations.length ? allReservations.map((sale) => { const occupants = reservationOccupants(sale); const peopleCount = occupants.length || sale.quantity || 1; return `<tr class="sales-row table-reservation-all-row"><td data-label="Responsável"><strong>${escapeHtml(sale.buyerName || "Sem responsável")}</strong><small>${peopleCount} pessoas · ${reservationCheckinCount(sale)}/${peopleCount} check-ins</small></td><td data-label="Mesa / bistrô"><strong>${escapeHtml(sale.reservationLabel || "Reserva")}</strong><small>${escapeHtml(mapAreaLabel(sale.reservationArea || ""))}</small></td><td class="sale-note" data-label="Contato / ocupantes"><span class="phone-line"><strong>${escapeHtml(formatPhoneDisplay(sale.buyerPhone) || "Não informado")}</strong>${whatsappButtonHtml(sale, event.name)}</span><small>${escapeHtml(occupants.join(", "))}</small><div class="table-reservation-all-checkins"><small>Entradas (${reservationCheckinCount(sale)}/${peopleCount})</small>${tableReservationCheckinsHtml(sale)}</div></td><td data-label="Evento">${escapeHtml(event.name)}</td><td class="financial-column" data-label="Valor">${money.format(saleTotal(sale, event))}</td><td class="financial-column" data-label="Pagamento">${paymentForTableReservation(sale)}</td><td data-label="Ações"><button class="edit-button" type="button" data-open-table-reservation="${sale.furnitureId}">Editar</button>${canManage ? `<button class="delete-button" data-delete-sale="${sale.id}">Excluir</button>` : ""}</td></tr>`; }).join("") : `<tr><td colspan="7" class="empty">Nenhuma reserva neste evento.</td></tr>`;
 }
 
-function addTableOccupantRow(name = "") {
+function chairDiscountControlHtml(pricing = {}, label = "Desconto desta cadeira") {
+  const type = pricing.discountType === "fixed" ? "fixed" : "percent";
+  const value = Math.max(0, Number(pricing.discountValue || 0));
+  const active = value > 0;
+  const symbol = type === "fixed" ? "R$" : "%";
+  return `<div class="chair-discount-control${active ? " is-active" : ""}" data-chair-discount data-discount-type="${type}"><button class="chair-discount-toggle" type="button" data-toggle-chair-discount aria-expanded="${active}" title="${active ? "Alterar tipo do desconto" : "Adicionar desconto"}">${symbol}</button><label ${active ? "" : "hidden"}><span class="chair-discount-prefix">${symbol}</span><input class="chair-discount-value" type="number" min="0" max="${type === "percent" ? "100" : "999999"}" step="0.01" value="${value}" inputmode="decimal" aria-label="${label}" /></label></div>`;
+}
+
+function setChairDiscountControl(control, pricing = {}) {
+  if (!control) return;
+  const type = pricing.discountType === "fixed" ? "fixed" : "percent";
+  const value = Math.max(0, Number(pricing.discountValue || 0));
+  const active = value > 0;
+  const symbol = type === "fixed" ? "R$" : "%";
+  control.dataset.discountType = type;
+  control.classList.toggle("is-active", active);
+  const button = control.querySelector("[data-toggle-chair-discount]");
+  const label = control.querySelector("label");
+  const prefix = control.querySelector(".chair-discount-prefix");
+  const input = control.querySelector(".chair-discount-value");
+  button.textContent = symbol;
+  button.setAttribute("aria-expanded", String(active));
+  button.title = active ? "Alterar tipo do desconto" : "Adicionar desconto";
+  label.hidden = !active;
+  prefix.textContent = symbol;
+  input.value = String(value);
+  input.max = type === "percent" ? "100" : "999999";
+}
+
+function addTableOccupantRow(name = "", pricing = {}) {
   const row = document.createElement("div");
   row.className = "table-occupant-row";
-  row.innerHTML = `<input class="table-occupant-name" required placeholder="Nome do participante" value="${escapeHtml(name)}" /><button class="close" type="button" data-remove-table-occupant aria-label="Remover participante">×</button>`;
+  row.innerHTML = `<input class="table-occupant-name" required placeholder="Nome do participante" value="${escapeHtml(name)}" />${chairDiscountControlHtml(pricing, "Desconto da cadeira deste participante")}<button class="close" type="button" data-remove-table-occupant aria-label="Remover participante">×</button>`;
   $("tableOccupantsList").append(row);
   updateTableReservationTotal();
 }
@@ -826,14 +869,28 @@ function tableReservationNames() {
   return [responsible, ...others].filter(Boolean);
 }
 
+function tableReservationPricing(chairPrice) {
+  return [...document.querySelectorAll("#tableReservationForm [data-chair-discount]")].map((control) => {
+    const discountType = control.dataset.discountType === "fixed" ? "fixed" : "percent";
+    const rawValue = control.classList.contains("is-active") ? Math.max(0, Number(control.querySelector(".chair-discount-value")?.value || 0)) : 0;
+    const discountValue = discountType === "percent" ? Math.min(100, rawValue) : Math.min(chairPrice, rawValue);
+    const discountAmount = discountType === "percent" ? chairPrice * discountValue / 100 : discountValue;
+    return { discountType, discountValue, regularPrice: chairPrice, discountAmount: Math.round(discountAmount * 100) / 100, finalPrice: Math.round(Math.max(0, chairPrice - discountAmount) * 100) / 100 };
+  });
+}
+
 function updateTableReservationTotal() {
   const form = $("tableReservationForm");
   const event = state.events.find((item) => item.id === form.elements.eventId.value);
   const people = Math.max(1, 1 + document.querySelectorAll(".table-occupant-row").length);
   const chairPrice = Math.max(0, Number(event?.chairPrice || 0));
+  const pricing = tableReservationPricing(chairPrice);
+  const total = pricing.reduce((sum, item) => sum + item.finalPrice, 0);
+  const discount = Math.max(0, people * chairPrice - total);
   $("tableReservationPeople").textContent = people;
   $("tableReservationUnitPrice").textContent = money.format(chairPrice);
-  $("tableReservationTotal").textContent = money.format(people * chairPrice);
+  $("tableReservationDiscount").textContent = money.format(discount);
+  $("tableReservationTotal").textContent = money.format(total);
 }
 
 function syncTableReservationPaymentFields(useToday = false) {
@@ -869,7 +926,9 @@ function openTableReservation(furnitureId) {
   form.elements.paymentDate.value = reservation?.paymentDate || "";
   form.elements.notes.value = reservation?.notes || "";
   $("tableOccupantsList").innerHTML = "";
-  reservationOccupants(reservation).slice(1).forEach((name) => addTableOccupantRow(name));
+  const storedPricing = reservationOccupantPricing(reservation);
+  setChairDiscountControl($("responsibleChairDiscount"), storedPricing[0]);
+  reservationOccupants(reservation).slice(1).forEach((name, index) => addTableOccupantRow(name, storedPricing[index + 1]));
   $("tableReservationTitle").textContent = `${furnitureKindLabel(furniture.kind)} ${String(furniture.number).padStart(2, "0")}`;
   $("tableReservationArea").textContent = `${mapAreaLabel(furniture.area)} · ${money.format(Number(event.chairPrice || 0))} por pessoa`;
   $("deleteTableReservation").hidden = !reservation;
@@ -891,7 +950,10 @@ async function saveTableReservation(data) {
   if (occupiedByAnother) throw new Error("Esta mesa já possui uma reserva.");
   const chairPrice = Math.max(0, Number(event.chairPrice || 0));
   const quantity = names.length;
-  const total = chairPrice * quantity;
+  const occupantPricing = tableReservationPricing(chairPrice).slice(0, quantity);
+  const regularTotal = chairPrice * quantity;
+  const total = occupantPricing.reduce((sum, item) => sum + item.finalPrice, 0);
+  const discountTotal = Math.round((regularTotal - total) * 100) / 100;
   const paid = data.paymentStatus === "paid";
   const paymentMethod = paid ? String(data.paymentMethod || "") : "";
   const paymentDate = paid ? String(data.paymentDate || "") : "";
@@ -899,18 +961,18 @@ async function saveTableReservation(data) {
   if (paid && !paymentDate) throw new Error("Informe a data do pagamento.");
   const timestamp = isDemo ? Date.now() : serverTimestamp();
   const label = `${furnitureKindLabel(furniture.kind)} ${String(furniture.number).padStart(2, "0")} — ${mapAreaLabel(furniture.area)}`;
-  const items = [{ kind: "ticket", ticketTypeId: `chair:${furniture.area}`, ticketTypeName: `Cadeira — ${mapAreaLabel(furniture.area)}`, unitPrice: chairPrice, quantity, subtotal: total }];
+  const items = [{ kind: "ticket", ticketTypeId: `chair:${furniture.area}`, ticketTypeName: `Cadeira — ${mapAreaLabel(furniture.area)}`, unitPrice: chairPrice, quantity, regularSubtotal: regularTotal, discountTotal, subtotal: total }];
   const previousCheckins = reservationOccupantCheckins(current);
-  const saleData = { eventId: event.id, reservationType: "table", furnitureId: furniture.id, furnitureKind: furniture.kind, furnitureNumber: furniture.number, mapArea: furniture.area, reservationLabel: label, occupants: names, occupantCheckins: names.map((_, index) => Boolean(previousCheckins[index])), ticketTypeId: `chair:${furniture.area}`, ticketTypeName: `Cadeira — ${mapAreaLabel(furniture.area)}`, items, buyerName: names[0], buyerPhone: String(data.buyerPhone || "").trim(), buyerEmail: String(data.buyerEmail || "").trim(), notes: String(data.notes || "").trim(), courtesy: false, paid, paymentMethod, paymentDate, quantity, total, checkedIn: current?.checkedIn || false, updatedAt: timestamp };
+  const saleData = { eventId: event.id, reservationType: "table", furnitureId: furniture.id, furnitureKind: furniture.kind, furnitureNumber: furniture.number, mapArea: furniture.area, reservationLabel: label, occupants: names, occupantPricing, occupantCheckins: names.map((_, index) => Boolean(previousCheckins[index])), ticketTypeId: `chair:${furniture.area}`, ticketTypeName: `Cadeira — ${mapAreaLabel(furniture.area)}`, items, buyerName: names[0], buyerPhone: String(data.buyerPhone || "").trim(), buyerEmail: String(data.buyerEmail || "").trim(), notes: String(data.notes || "").trim(), courtesy: false, paid, paymentMethod, paymentDate, quantity, regularTotal, discountTotal, total, checkedIn: current?.checkedIn || false, updatedAt: timestamp };
   if (isDemo) {
     if (current) {
       const updated = { ...current, ...saleData };
       state.sales = state.sales.map((sale) => sale.id === current.id ? updated : sale);
-      appendDemoAudit("edited", updated, `Atualizou a reserva da ${label} para ${quantity} pessoas.`);
+      appendDemoAudit("edited", updated, `Atualizou a reserva da ${label} para ${quantity} pessoas${discountTotal ? `, com ${money.format(discountTotal)} de desconto` : ""}.`);
     } else {
       const created = { id: crypto.randomUUID(), ...saleData, createdByUid: currentUser.uid, createdByName: currentUserProfile.name || currentUser.email, createdByEmail: currentUser.email || currentUserProfile.email || "", createdAt: timestamp };
       state.sales.push(created);
-      appendDemoAudit("created", created, `Criou a reserva da ${label} para ${quantity} pessoas.`);
+      appendDemoAudit("created", created, `Criou a reserva da ${label} para ${quantity} pessoas${discountTotal ? `, com ${money.format(discountTotal)} de desconto` : ""}.`);
     }
     persistDemo();
     render();
@@ -920,7 +982,7 @@ async function saveTableReservation(data) {
     if (!current) Object.assign(stored, { createdByUid: currentUser.uid, createdByName: currentUserProfile.name || currentUser.email, createdByEmail: currentUser.email || currentUserProfile.email || "", createdAt: timestamp });
     const logId = push(ref(db, "auditLogs")).key;
     const action = current ? "edited" : "created";
-    await update(ref(db), { [`sales/${saleId}`]: Object.fromEntries(Object.entries(stored).filter(([key]) => key !== "id")), [`auditLogs/${logId}`]: auditLogData(action, stored, `${current ? "Atualizou" : "Criou"} a reserva da ${label} para ${quantity} pessoas.`, timestamp) });
+    await update(ref(db), { [`sales/${saleId}`]: Object.fromEntries(Object.entries(stored).filter(([key]) => key !== "id")), [`auditLogs/${logId}`]: auditLogData(action, stored, `${current ? "Atualizou" : "Criou"} a reserva da ${label} para ${quantity} pessoas${discountTotal ? `, com ${money.format(discountTotal)} de desconto` : ""}.`, timestamp) });
   }
   toast(current ? "Reserva atualizada." : "Reserva criada.");
 }
@@ -1474,6 +1536,32 @@ $("exportTableReservations").addEventListener("click", () => { if (requireRole([
 $("exportParticipants").addEventListener("click", () => { if (requireRole(["admin", "event_manager", "seller"])) window.exportSalesXlsx(state.sales, state.events, selectedEventId, "unit"); });
 $("addTableOccupant").addEventListener("click", () => addTableOccupantRow());
 $("tableOccupantsList").addEventListener("click", (event) => { const remove = event.target.closest("[data-remove-table-occupant]"); if (!remove) return; remove.closest(".table-occupant-row").remove(); updateTableReservationTotal(); });
+$("tableReservationForm").addEventListener("click", (event) => {
+  const button = event.target.closest("[data-toggle-chair-discount]");
+  if (!button) return;
+  const control = button.closest("[data-chair-discount]");
+  const input = control.querySelector(".chair-discount-value");
+  const label = control.querySelector("label");
+  const prefix = control.querySelector(".chair-discount-prefix");
+  if (!control.classList.contains("is-active")) {
+    control.classList.add("is-active");
+    label.hidden = false;
+    button.setAttribute("aria-expanded", "true");
+    button.title = "Alterar para desconto em reais";
+  } else {
+    const type = control.dataset.discountType === "fixed" ? "percent" : "fixed";
+    const symbol = type === "fixed" ? "R$" : "%";
+    control.dataset.discountType = type;
+    button.textContent = symbol;
+    prefix.textContent = symbol;
+    input.max = type === "percent" ? "100" : "999999";
+    button.title = type === "percent" ? "Alterar para desconto em reais" : "Alterar para desconto em porcentagem";
+  }
+  input.focus();
+  input.select();
+  updateTableReservationTotal();
+});
+$("tableReservationForm").addEventListener("input", (event) => { if (event.target.matches(".chair-discount-value")) updateTableReservationTotal(); });
 $("tableReservationForm").elements.paymentStatus.addEventListener("change", () => syncTableReservationPaymentFields(true));
 $("tableReservationForm").elements.buyerPhone.addEventListener("blur", (event) => { event.currentTarget.value = formatPhoneDisplay(event.currentTarget.value); });
 $("deleteTableReservation").addEventListener("click", async () => { const id = $("tableReservationForm").elements.saleId.value; if (!id) return; if (await deleteSale(id)) $("tableReservationModal").close(); });

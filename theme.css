@@ -374,6 +374,7 @@ html[data-theme="dark"] .map-editor-help {
 }
 [data-theme="dark"] .table-reservation-card{border-color:#334155;background:#172033}[data-theme="dark"] .map-preset-slot.is-inactive{border-color:#60a5fa;background:#1e3a5fcc}[data-theme="dark"] .table-reservation-card small{color:#94a3b8}
 [data-theme="dark"] .map-zoom-shell,[data-theme="dark"] .map-zoom-tabs{background:#0f172a}[data-theme="dark"] .map-zoom-button{border-color:#475569;background:#172033;color:#93c5fd}[data-theme="dark"] .map-zoom-help{color:#94a3b8}
+[data-theme="dark"] .chair-discount-line{border-color:#334155;color:#cbd5e1}[data-theme="dark"] .chair-discount-toggle{border-color:#315176;background:#17345a;color:#93c5fd}[data-theme="dark"] .chair-discount-control.is-active .chair-discount-toggle{border-color:#60a5fa;background:#2563eb;color:#fff}[data-theme="dark"] .chair-discount-prefix{color:#94a3b8}
 
 /* Auditoria visual 4.6.0: contraste e consistência dos componentes recentes. */
 :where(button,a,input,select,textarea,summary):focus-visible{outline:3px solid #60a5fa;outline-offset:2px}

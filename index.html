@@ -40,12 +40,12 @@
     <link rel="stylesheet" href="audit-log.css?v=27" />
     <link rel="stylesheet" href="payment-closing.css?v=28" />
     <link rel="stylesheet" href="event-access.css?v=18" />
-    <link rel="stylesheet" href="table-map.css?v=6" />
+    <link rel="stylesheet" href="table-map.css?v=7" />
     <link rel="stylesheet" href="table-reservation-override.css?v=1" />
     <link rel="stylesheet" href="table-reservation-details.css?v=2" />
     <link rel="stylesheet" href="table-reservation-final.css?v=1" />
     <link rel="stylesheet" href="table-reservation-harmony.css?v=4" />
-    <link rel="stylesheet" href="theme.css?v=9" />
+    <link rel="stylesheet" href="theme.css?v=10" />
     <style id="topbar-critical-styles">
       html { scroll-padding-top: 84px; }
       body { padding-top: 84px !important; }
@@ -191,7 +191,7 @@
       </section>
     </main>
 
-    <footer class="site-footer">Le Beef | Versão: 4.10.0</footer>
+    <footer class="site-footer">Le Beef | Versão: 4.11.0</footer>
 
     <button class="fab" data-open="saleModal" data-roles="admin,event_manager,seller" aria-label="Registrar venda">+</button>
 
@@ -240,9 +240,9 @@
       <form id="tableReservationForm">
         <div class="modal-heading"><div><p class="eyebrow">RESERVA DE MESA</p><h2 id="tableReservationTitle">Mesa</h2><p id="tableReservationArea">Área do evento</p></div><button class="close" type="button" data-close="tableReservationModal" aria-label="Fechar">×</button></div>
         <input name="eventId" type="hidden" /><input name="furnitureId" type="hidden" /><input name="saleId" type="hidden" />
-        <div class="reservation-responsible"><span class="field-label">Responsável pela mesa</span><label>Nome completo<input name="buyerName" required placeholder="Nome do responsável" /></label><div class="two-columns"><label>Telefone<input name="buyerPhone" type="tel" required placeholder="(00) 00000-0000" /></label><label>E-mail (opcional)<input name="buyerEmail" type="email" placeholder="nome@exemplo.com" /></label></div></div>
+        <div class="reservation-responsible"><span class="field-label">Responsável pela mesa</span><label>Nome completo<input name="buyerName" required placeholder="Nome do responsável" /></label><div class="two-columns"><label>Telefone<input name="buyerPhone" type="tel" required placeholder="(00) 00000-0000" /></label><label>E-mail (opcional)<input name="buyerEmail" type="email" placeholder="nome@exemplo.com" /></label></div><div class="chair-discount-line"><span>Desconto desta cadeira</span><div id="responsibleChairDiscount" class="chair-discount-control" data-chair-discount data-discount-type="percent"><button class="chair-discount-toggle" type="button" data-toggle-chair-discount aria-expanded="false" title="Adicionar desconto">%</button><label hidden><span class="chair-discount-prefix">%</span><input class="chair-discount-value" type="number" min="0" max="100" step="0.01" value="0" inputmode="decimal" aria-label="Desconto da cadeira do responsável" /></label></div></div></div>
         <div class="reservation-occupants-field"><div class="field-label"><span>Outros participantes</span><button id="addTableOccupant" class="text-button" type="button">+ Adicionar pessoa</button></div><p class="field-help">O responsável já conta como a primeira pessoa. Para os demais, informe somente o nome.</p><div id="tableOccupantsList" class="table-occupants-list"></div></div>
-        <div class="reservation-total-summary"><span><small>Total de pessoas</small><strong id="tableReservationPeople">1</strong></span><span><small>Valor por pessoa</small><strong id="tableReservationUnitPrice">R$ 0,00</strong></span><span><small>Total da reserva</small><strong id="tableReservationTotal">R$ 0,00</strong></span></div>
+        <div class="reservation-total-summary"><span><small>Total de pessoas</small><strong id="tableReservationPeople">1</strong></span><span><small>Valor por pessoa</small><strong id="tableReservationUnitPrice">R$ 0,00</strong></span><span><small>Descontos</small><strong id="tableReservationDiscount">R$ 0,00</strong></span><span><small>Total da reserva</small><strong id="tableReservationTotal">R$ 0,00</strong></span></div>
         <div class="two-columns payment-status-fields"><label>Pagamento<select name="paymentStatus" required><option value="paid">Pago</option><option value="pending">Pendente</option></select></label><label>Forma de pagamento<select name="paymentMethod"><option value="">Selecione</option><option value="pix">Pix</option><option value="cash">Dinheiro</option><option value="credit_card">Cartão de crédito</option><option value="debit_card">Cartão de débito</option><option value="bank_transfer">Transferência</option><option value="other">Outro</option></select></label></div>
         <label class="payment-date-field">Data do pagamento<input name="paymentDate" type="date" /></label>
         <label>Observações (opcional)<textarea name="notes" rows="3" placeholder="Informações sobre a reserva"></textarea></label>
@@ -318,7 +318,7 @@
     <div id="toast" role="status" aria-live="polite"></div>
     <script src="pwa.js"></script>
     <script src="theme.js?v=1"></script>
-    <script src="excel-export.js?v=35"></script>
-    <script type="module" src="app.js?v=59"></script>
+    <script src="excel-export.js?v=36"></script>
+    <script type="module" src="app.js?v=60"></script>
   </body>
 </html>

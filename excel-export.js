@@ -21,6 +21,7 @@
   };
   const textCell = (address, value, style) => `<c r="${address}" t="inlineStr" s="${style}"><is><t>${xml(value)}</t></is></c>`;
   const numberCell = (address, value, style) => `<c r="${address}" s="${style}"><v>${Number(value || 0)}</v></c>`;
+  const moneyText = (value) => Number(value || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
   window.exportSalesXlsx = (sales, events, eventId, mode = "unit") => {
     const paymentMethods = { pix: "PIX", cash: "DINHEIRO", credit_card: "CARTÃO DE CRÉDITO", debit_card: "CARTÃO DE DÉBITO", bank_transfer: "TRANSFERÊNCIA", other: "OUTRO", courtesy: "CORTESIA" };
     const paymentDate = (value) => value ? new Date(`${value}T12:00:00`).toLocaleDateString("pt-BR") : "";
@@ -39,14 +40,33 @@
     const selectedEvent = events.find((event) => event.id === eventId);
     const allSelectedSales = eventId ? sales.filter((sale) => sale.eventId === eventId) : sales;
     const selectedSales = allSelectedSales.filter((sale) => mode === "tables" ? sale.reservationType === "table" : sale.reservationType !== "table");
+    const reservationOccupants = (sale) => {
+      const stored = Array.isArray(sale.occupants) ? sale.occupants : Object.values(sale.occupants || {});
+      const names = stored.map((name) => String(name || "").trim()).filter(Boolean);
+      if (!names.length && sale.buyerName) names.push(String(sale.buyerName).trim());
+      return names;
+    };
+    const reservationCheckins = (sale) => {
+      const stored = Array.isArray(sale.occupantCheckins) ? sale.occupantCheckins : Object.keys(sale.occupantCheckins || {}).sort((a, b) => Number(a) - Number(b)).map((key) => sale.occupantCheckins[key]);
+      return reservationOccupants(sale).map((name, index) => `${name}: ${stored[index] ? "SIM" : "NÃO"}`).join(", ");
+    };
+    const reservationDiscounts = (sale) => {
+      const stored = Array.isArray(sale.occupantPricing) ? sale.occupantPricing : Object.keys(sale.occupantPricing || {}).sort((a, b) => Number(a) - Number(b)).map((key) => sale.occupantPricing[key]);
+      return reservationOccupants(sale).map((name, index) => {
+        const item = stored[index] || {};
+        const value = Math.max(0, Number(item.discountValue || 0));
+        if (!value) return "";
+        return `${name}: ${item.discountType === "fixed" ? moneyText(value) : `${value}%`}`;
+      }).filter(Boolean).join(", ") || "SEM DESCONTO";
+    };
     const header = mode === "tables"
-      ? ["EVENTO", "ÁREA", "MESA / BISTRÔ", "RESPONSÁVEL", "TELEFONE", "OCUPANTES", "QTD.", "VALOR", "PAGAMENTO", "FORMA DE PAGAMENTO", "DATA DO PAGAMENTO", "VENDEDOR", "OBSERVAÇÃO"]
+      ? ["EVENTO", "ÁREA", "MESA / BISTRÔ", "RESPONSÁVEL", "TELEFONE", "OCUPANTES", "DESCONTOS DAS CADEIRAS", "QTD.", "VALOR", "PAGAMENTO", "FORMA DE PAGAMENTO", "DATA DO PAGAMENTO", "VENDEDOR", "OBSERVAÇÃO", "ENTRADAS"]
       : ["EVENTO", "TIPO DE INGRESSO", "PARTICIPANTE", "TELEFONE / CONTATO", "OBSERVAÇÃO", "QTD.", "VALOR", "PAGAMENTO", "FORMA DE PAGAMENTO", "DATA DO PAGAMENTO", "VENDEDOR", "ENTRADA"];
     const rows = mode === "tables"
-      ? selectedSales.map((sale) => [eventName(sale.eventId), sale.reservationArea === "mezanino" ? "MEZANINO" : "SALÃO", sale.reservationLabel || "RESERVA", sale.buyerName || "", sale.buyerPhone || "", (Array.isArray(sale.occupants) ? sale.occupants : Object.values(sale.occupants || {})).join(", "), Number(sale.quantity || 0), Number(sale.total || 0), sale.paid ? "PAGO" : "PENDENTE", sale.paid ? paymentMethods[sale.paymentMethod] || "NÃO INFORMADA" : "", sale.paid ? paymentDate(sale.paymentDate) : "", sale.createdByName || "VENDAS ANTERIORES", sale.notes || ""])
+      ? selectedSales.map((sale) => [eventName(sale.eventId), (sale.mapArea || sale.reservationArea) === "mezanino" ? "MEZANINO" : "SALÃO", sale.reservationLabel || "RESERVA", sale.buyerName || "", sale.buyerPhone || "", reservationOccupants(sale).join(", "), reservationDiscounts(sale), Number(sale.quantity || 0), Number(sale.total || 0), sale.paid ? "PAGO" : "PENDENTE", sale.paid ? paymentMethods[sale.paymentMethod] || "NÃO INFORMADA" : "", sale.paid ? paymentDate(sale.paymentDate) : "", sale.createdByName || "VENDAS ANTERIORES", sale.notes || "", reservationCheckins(sale)])
       : selectedSales.flatMap((sale) => saleItems(sale).map((item) => { const courtesy = sale.courtesy || sale.paymentMethod === "courtesy" || /^CORTESIA:/i.test(item.ticketTypeName); return [eventName(sale.eventId), item.ticketTypeName, sale.buyerName || "", sale.buyerPhone || "", sale.notes || "", item.quantity, item.subtotal, courtesy ? "CORTESIA" : sale.paid ? "PAGO" : "PENDENTE", courtesy ? "CORTESIA" : sale.paid ? paymentMethods[sale.paymentMethod] || "NÃO INFORMADA" : "", courtesy ? "" : sale.paid ? paymentDate(sale.paymentDate) : "", sale.createdByName || "VENDAS ANTERIORES", sale.checkedIn ? "SIM" : "NÃO"]; }));
     const sheetRows = [`<row r="1">${header.map((cell, i) => textCell(`${column(i)}1`, cell, 1)).join("")}</row>`];
-    rows.forEach((row, index) => { const r = index + 2, style = index % 2 ? 2 : 0, moneyStyle = index % 2 ? 4 : 3, quantityIndex = mode === "tables" ? 6 : 5, moneyIndex = mode === "tables" ? 7 : 6; sheetRows.push(`<row r="${r}">${row.map((cell, i) => i === quantityIndex ? numberCell(`${column(i)}${r}`, cell, style) : i === moneyIndex ? numberCell(`${column(i)}${r}`, cell, moneyStyle) : textCell(`${column(i)}${r}`, cell, style)).join("")}</row>`); });
+    rows.forEach((row, index) => { const r = index + 2, style = index % 2 ? 2 : 0, moneyStyle = index % 2 ? 4 : 3, quantityIndex = mode === "tables" ? 7 : 5, moneyIndex = mode === "tables" ? 8 : 6; sheetRows.push(`<row r="${r}">${row.map((cell, i) => i === quantityIndex ? numberCell(`${column(i)}${r}`, cell, style) : i === moneyIndex ? numberCell(`${column(i)}${r}`, cell, moneyStyle) : textCell(`${column(i)}${r}`, cell, style)).join("")}</row>`); });
     const sheet = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><cols><col min="1" max="1" width="25" customWidth="1"/><col min="2" max="2" width="49" customWidth="1"/><col min="3" max="3" width="28" customWidth="1"/><col min="4" max="4" width="21" customWidth="1"/><col min="5" max="5" width="34" customWidth="1"/><col min="6" max="6" width="9" customWidth="1"/><col min="7" max="7" width="16" customWidth="1"/><col min="8" max="8" width="15" customWidth="1"/><col min="9" max="9" width="23" customWidth="1"/><col min="10" max="10" width="21" customWidth="1"/><col min="11" max="11" width="25" customWidth="1"/><col min="12" max="12" width="14" customWidth="1"/></cols><sheetData>${sheetRows.join("")}</sheetData></worksheet>`;
     const styles = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><numFmts count="1"><numFmt numFmtId="164" formatCode="R$ #,##0.00"/></numFmts><fonts count="2"><font><sz val="11"/><name val="Arial"/></font><font><b/><color rgb="FFFFFFFF"/><sz val="12"/><name val="Arial"/></font></fonts><fills count="4"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FF000000"/><bgColor indexed="64"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFB0B0B0"/><bgColor indexed="64"/></patternFill></fill></fills><borders count="2"><border><left/><right/><top/><bottom/></border><border><left style="thin"><color rgb="FF000000"/></left><right style="thin"><color rgb="FF000000"/></right><top style="thin"><color rgb="FF000000"/></top><bottom style="thin"><color rgb="FF000000"/></bottom></border></borders><cellXfs count="5"><xf numFmtId="0" fontId="0" fillId="0" borderId="1" applyBorder="1"/><xf numFmtId="0" fontId="1" fillId="2" borderId="1" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf><xf numFmtId="0" fontId="0" fillId="3" borderId="1" applyFill="1" applyBorder="1"/><xf numFmtId="164" fontId="0" fillId="0" borderId="1" applyNumberFormat="1" applyBorder="1"/><xf numFmtId="164" fontId="0" fillId="3" borderId="1" applyNumberFormat="1" applyFill="1" applyBorder="1"/></cellXfs></styleSheet>`;
     const files = [
