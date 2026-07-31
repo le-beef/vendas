@@ -1,10 +1,10 @@
-# Configuração de segurança, financeiro e mapas — Le Beef 4.6.0
+# Configuração de segurança, financeiro e mapas — Le Beef 4.8.0
 
 Os eventos e participantes já cadastrados não serão apagados.
 
 ## 1. Publicar o site e marcar os eventos
 
-1. Publique todos os arquivos da versão 4.6.0 no GitHub Pages.
+1. Publique todos os arquivos da versão 4.8.0 no GitHub Pages.
 2. Entre com a conta de administrador.
 3. No menu da conta, abra **Gerenciar usuários**.
 4. Ao criar um vendedor ou usuário da portaria, marque um ou mais **Eventos permitidos**.
@@ -35,7 +35,7 @@ As novas regras garantem que:
 3. Clique em **Histórico** no cabeçalho do evento.
 4. Consulte a ação, o participante, o usuário responsável, o perfil, a data e o horário.
 
-O histórico registra ações realizadas depois da publicação das regras da versão 3.4.0. Na versão 4.6.0, eventos podem armazenar a configuração visual do mapa, e as reservas de mesas/bistrôs são gravadas junto às vendas existentes. A estrutura de permissões do Firebase permanece compatível e não exige novas regras.
+O histórico registra ações realizadas depois da publicação das regras da versão 3.4.0. Na versão 4.8.0, o salão possui 40 posições predefinidas e cada ocupante das mesas/bistrôs continua com check-in individual. Se as regras da versão 4.7.0 ainda não foram publicadas, publique-as para permitir que usuários da portaria atualizem essas entradas.
 
 O perfil é gravado assim:
 

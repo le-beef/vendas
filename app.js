@@ -155,6 +155,18 @@ function ticketTypesFor(event) {
 }
 function eventCapacity(event) { return ticketTypesFor(event).reduce((sum, item) => sum + Number(item.capacity || 0), 0); }
 function isTableReservation(sale) { return sale?.reservationType === "table" && Boolean(sale.furnitureId); }
+function reservationOccupants(sale) {
+  const stored = Array.isArray(sale?.occupants) ? sale.occupants : Object.values(sale?.occupants || {});
+  const names = stored.map((name) => String(name || "").trim()).filter(Boolean);
+  if (!names.length && sale?.buyerName) names.push(String(sale.buyerName).trim());
+  return names;
+}
+function reservationOccupantCheckins(sale) {
+  const stored = sale?.occupantCheckins;
+  const values = Array.isArray(stored) ? stored : Object.keys(stored || {}).sort((a, b) => Number(a) - Number(b)).map((key) => stored[key]);
+  return reservationOccupants(sale).map((_, index) => Boolean(values[index]));
+}
+function reservationCheckinCount(sale) { return reservationOccupantCheckins(sale).filter(Boolean).length; }
 function eventUsesTableMap(event) { return event?.eventMode === "mixed" && normalizeTableMap(event?.tableMap).areas.length > 0; }
 function mapAreaLabel(area) { return area === "mezanino" ? "Mezanino" : "Salão"; }
 function furnitureKindLabel(kind) { return kind === "bistro" ? "Bistrô" : "Mesa"; }
@@ -594,16 +606,27 @@ function getSaleTicketItems() {
 function addSaleEditButtons() { if (!hasRole("admin", "seller")) return; document.querySelectorAll("[data-sale-row]").forEach((row) => { const actions = row.lastElementChild; if (!actions?.querySelector("[data-edit-sale]")) { const button = document.createElement("button"); button.type = "button"; button.className = "edit-button"; button.dataset.editSale = row.dataset.saleRow; button.textContent = "Editar"; actions.prepend(button); } }); }
 function toggleParticipantCard(row) { if (!row) return; const expanded = row.classList.toggle("is-expanded"); row.setAttribute("aria-expanded", String(expanded)); const button = row.querySelector("[data-toggle-sale-details]"); if (button) button.textContent = expanded ? "Ocultar detalhes" : "Detalhar"; }
 function toggleTableReservationCard(card) { if (!card) return; const expanded = card.classList.toggle("is-expanded"); card.setAttribute("aria-expanded", String(expanded)); const button = card.querySelector("[data-toggle-table-reservation-details]"); if (button) button.textContent = expanded ? "Ocultar detalhes" : "Detalhar"; }
+function tableReservationCheckinsHtml(sale) {
+  const occupants = reservationOccupants(sale);
+  const checkins = reservationOccupantCheckins(sale);
+  if (!occupants.length) return `<span class="table-checkin-empty">Nenhum ocupante informado.</span>`;
+  return `<div class="table-occupant-checkin-list">${occupants.map((name, index) => {
+    const checked = checkins[index];
+    return `<div class="table-occupant-checkin-row"><span>${escapeHtml(name)}</span><button class="status ${checked ? "checked" : ""}" type="button" data-table-occupant-checkin="${sale.id}" data-occupant-index="${index}">${checked ? "✓ Check-in" : "Fazer check-in"}</button></div>`;
+  }).join("")}</div>`;
+}
 function toggleMetricDetails(button) { const details = $(button.dataset.toggleMetricDetails); if (!details) return; const expanded = details.hidden; details.hidden = !expanded; button.setAttribute("aria-expanded", String(expanded)); button.textContent = expanded ? "Ocultar" : "Detalhar"; }
 function toggleSellerTicketReport() { const report = $("sellerTicketReport"); const button = $("sellerDetailsToggle"); const expanded = report.hidden; report.hidden = !expanded; button.setAttribute("aria-expanded", String(expanded)); button.textContent = expanded ? "Ocultar" : "Detalhar"; }
 
 function presetSlotsFor(area) {
   const slots = [];
-  const add = (x, y, width = 7.2, height = 7.2) => slots.push({ id: `slot-${area}-${String(slots.length + 1).padStart(2, "0")}`, area, x, y, width, height });
+  const add = (x, y, width = 6.4, height = 6.4) => slots.push({ id: `slot-${area}-${String(slots.length + 1).padStart(2, "0")}`, area, x, y, width, height });
   if (area === "salao") {
-    [8.4, 22, 31.5, 41.1, 50.5, 60.2].forEach((x) => add(x, 14.4));
-    [12.3, 22, 31.5, 41.1, 50.5, 60.2].forEach((x) => add(x, 23.2));
-    [34.4, 44, 53.6, 63.4].forEach((y) => [22, 31.5, 41.1, 50.5, 60.2].forEach((x) => add(x, y)));
+    const topColumns = [12.3, 21.9, 31.4, 41, 50.5, 60.1];
+    const mainColumns = [21.9, 31.4, 41, 50.5, 60.1];
+    [13.6, 22.4].forEach((y) => topColumns.forEach((x) => add(x, y)));
+    [30.6, 39.1, 47.8, 56.4, 65.1].forEach((y) => mainColumns.forEach((x) => add(x, y)));
+    [31.4, 41, 50.5].forEach((x) => add(x, 73.7));
   } else {
     [15.2, 25.8, 36.4, 47.1, 57.8, 68.5].forEach((y) => add(56.5, y, 7, 7));
     [28.8, 38.9, 48.4].forEach((x) => add(x, 77.6, 7, 7));
@@ -761,14 +784,14 @@ function renderTableReservationsList(event, eventSales) {
     const payment = sale.paid ? `<span class="payment paid">✓ Pago</span>${paymentDetailsHtml(sale)}` : `<span class="payment">Pendente</span>`;
     const actions = canManage ? `<button class="delete-button table-reservation-delete" type="button" data-delete-sale="${sale.id}">Excluir</button>` : "";
     const peopleCount = occupants.length || sale.quantity || 1;
-    const details = `<div class="table-reservation-expanded"><div><small>Mesa / bistrô</small><strong>${escapeHtml(sale.reservationLabel || "Reserva")}</strong></div><div><small>Responsável</small><strong>${escapeHtml(sale.buyerName || "Sem responsável")}</strong></div><div><small>Quantidade de pessoas</small><strong>${peopleCount} ${peopleCount === 1 ? "pessoa" : "pessoas"}</strong></div><div class="table-reservation-expanded-contact"><small>Contato</small><span>${escapeHtml(formatPhoneDisplay(sale.buyerPhone) || "Não informado")}</span>${whatsappButtonHtml(sale, event.name)}</div><div><small>Ocupantes</small><span>${escapeHtml(occupants.join(", ") || "Nenhum ocupante informado")}</span></div><div><small>Pagamento</small>${payment}</div><div class="table-reservation-expanded-actions"><button class="edit-button" type="button" data-open-table-reservation="${sale.furnitureId}">Editar</button>${actions}</div></div>`;
-    return `<article class="table-reservation-card" aria-expanded="false"><div class="table-reservation-main"><strong>${escapeHtml(sale.buyerName || "Sem responsável")}</strong><small>${escapeHtml(sale.reservationLabel || "Reserva")} · ${peopleCount} ${peopleCount === 1 ? "pessoa" : "pessoas"}</small></div><div class="table-reservation-total"><strong>${money.format(saleTotal(sale, event))}</strong></div><div class="table-reservation-contact">${whatsappButtonHtml(sale, event.name)}</div><div class="table-reservation-payment">${payment}</div><button class="participant-detail-toggle" type="button" data-toggle-table-reservation-details>Detalhar</button>${details}</article>`;
+    const details = `<div class="table-reservation-expanded"><div><small>Mesa / bistrô</small><strong>${escapeHtml(sale.reservationLabel || "Reserva")}</strong></div><div><small>Responsável</small><strong>${escapeHtml(sale.buyerName || "Sem responsável")}</strong></div><div><small>Quantidade de pessoas</small><strong>${peopleCount} ${peopleCount === 1 ? "pessoa" : "pessoas"}</strong></div><div class="table-reservation-expanded-contact"><small>Contato</small><span>${escapeHtml(formatPhoneDisplay(sale.buyerPhone) || "Não informado")}</span>${whatsappButtonHtml(sale, event.name)}</div><div><small>Ocupantes</small><span>${escapeHtml(occupants.join(", ") || "Nenhum ocupante informado")}</span></div><div class="table-reservation-expanded-checkins"><small>Entradas (${reservationCheckinCount(sale)}/${peopleCount})</small>${tableReservationCheckinsHtml(sale)}</div><div><small>Pagamento</small>${payment}</div><div class="table-reservation-expanded-actions"><button class="edit-button" type="button" data-open-table-reservation="${sale.furnitureId}">Editar</button>${actions}</div></div>`;
+    return `<article class="table-reservation-card" aria-expanded="false"><div class="table-reservation-main"><strong>${escapeHtml(sale.buyerName || "Sem responsável")}</strong><small>${escapeHtml(sale.reservationLabel || "Reserva")} · ${peopleCount} ${peopleCount === 1 ? "pessoa" : "pessoas"} · ${reservationCheckinCount(sale)}/${peopleCount} check-ins</small></div><div class="table-reservation-total"><strong>${money.format(saleTotal(sale, event))}</strong></div><div class="table-reservation-contact">${whatsappButtonHtml(sale, event.name)}</div><div class="table-reservation-payment">${payment}</div><button class="participant-detail-toggle" type="button" data-toggle-table-reservation-details>Detalhar</button>${details}</article>`;
   }).join("") : `<div class="empty">${tableReservationSearchQuery ? "Nenhuma reserva encontrada." : "Nenhuma reserva registrada neste evento."}</div>`;
   const totalAllReservations = allReservations.reduce((sum, sale) => sum + saleTotal(sale, event), 0);
   const paymentForTableReservation = (sale) => sale.paid ? `<span class="payment paid">✓ Pago</span>${paymentDetailsHtml(sale)}` : `<span class="payment">Pendente</span>`;
   $("allTableReservationsTitle").textContent = `Reservas — ${event.name}`;
   $("allTableReservationsTotal").textContent = money.format(totalAllReservations);
-  $("allTableReservationsList").innerHTML = allReservations.length ? allReservations.map((sale) => { const occupants = Array.isArray(sale.occupants) ? sale.occupants : Object.values(sale.occupants || {}); return `<tr class="sales-row table-reservation-all-row"><td data-label="Responsável"><strong>${escapeHtml(sale.buyerName || "Sem responsável")}</strong><small>${occupants.length || sale.quantity || 1} pessoas</small></td><td data-label="Mesa / bistrô"><strong>${escapeHtml(sale.reservationLabel || "Reserva")}</strong><small>${escapeHtml(mapAreaLabel(sale.reservationArea || ""))}</small></td><td class="sale-note" data-label="Contato / ocupantes"><span class="phone-line"><strong>${escapeHtml(formatPhoneDisplay(sale.buyerPhone) || "Não informado")}</strong>${whatsappButtonHtml(sale, event.name)}</span><small>${escapeHtml(occupants.join(", "))}</small></td><td data-label="Evento">${escapeHtml(event.name)}</td><td class="financial-column" data-label="Valor">${money.format(saleTotal(sale, event))}</td><td class="financial-column" data-label="Pagamento">${paymentForTableReservation(sale)}</td><td data-label="Ações"><button class="edit-button" type="button" data-open-table-reservation="${sale.furnitureId}">Editar</button>${canManage ? `<button class="delete-button" data-delete-sale="${sale.id}">Excluir</button>` : ""}</td></tr>`; }).join("") : `<tr><td colspan="7" class="empty">Nenhuma reserva neste evento.</td></tr>`;
+  $("allTableReservationsList").innerHTML = allReservations.length ? allReservations.map((sale) => { const occupants = reservationOccupants(sale); const peopleCount = occupants.length || sale.quantity || 1; return `<tr class="sales-row table-reservation-all-row"><td data-label="Responsável"><strong>${escapeHtml(sale.buyerName || "Sem responsável")}</strong><small>${peopleCount} pessoas · ${reservationCheckinCount(sale)}/${peopleCount} check-ins</small></td><td data-label="Mesa / bistrô"><strong>${escapeHtml(sale.reservationLabel || "Reserva")}</strong><small>${escapeHtml(mapAreaLabel(sale.reservationArea || ""))}</small></td><td class="sale-note" data-label="Contato / ocupantes"><span class="phone-line"><strong>${escapeHtml(formatPhoneDisplay(sale.buyerPhone) || "Não informado")}</strong>${whatsappButtonHtml(sale, event.name)}</span><small>${escapeHtml(occupants.join(", "))}</small><div class="table-reservation-all-checkins"><small>Entradas (${reservationCheckinCount(sale)}/${peopleCount})</small>${tableReservationCheckinsHtml(sale)}</div></td><td data-label="Evento">${escapeHtml(event.name)}</td><td class="financial-column" data-label="Valor">${money.format(saleTotal(sale, event))}</td><td class="financial-column" data-label="Pagamento">${paymentForTableReservation(sale)}</td><td data-label="Ações"><button class="edit-button" type="button" data-open-table-reservation="${sale.furnitureId}">Editar</button>${canManage ? `<button class="delete-button" data-delete-sale="${sale.id}">Excluir</button>` : ""}</td></tr>`; }).join("") : `<tr><td colspan="7" class="empty">Nenhuma reserva neste evento.</td></tr>`;
 }
 
 function addTableOccupantRow(name = "") {
@@ -828,7 +851,7 @@ function openTableReservation(furnitureId) {
   form.elements.paymentDate.value = reservation?.paymentDate || "";
   form.elements.notes.value = reservation?.notes || "";
   $("tableOccupantsList").innerHTML = "";
-  (reservation?.occupants || []).slice(1).forEach((name) => addTableOccupantRow(name));
+  reservationOccupants(reservation).slice(1).forEach((name) => addTableOccupantRow(name));
   $("tableReservationTitle").textContent = `${furnitureKindLabel(furniture.kind)} ${String(furniture.number).padStart(2, "0")}`;
   $("tableReservationArea").textContent = `${mapAreaLabel(furniture.area)} · ${money.format(Number(event.chairPrice || 0))} por pessoa`;
   $("deleteTableReservation").hidden = !reservation;
@@ -859,7 +882,8 @@ async function saveTableReservation(data) {
   const timestamp = isDemo ? Date.now() : serverTimestamp();
   const label = `${furnitureKindLabel(furniture.kind)} ${String(furniture.number).padStart(2, "0")} — ${mapAreaLabel(furniture.area)}`;
   const items = [{ kind: "ticket", ticketTypeId: `chair:${furniture.area}`, ticketTypeName: `Cadeira — ${mapAreaLabel(furniture.area)}`, unitPrice: chairPrice, quantity, subtotal: total }];
-  const saleData = { eventId: event.id, reservationType: "table", furnitureId: furniture.id, furnitureKind: furniture.kind, furnitureNumber: furniture.number, mapArea: furniture.area, reservationLabel: label, occupants: names, ticketTypeId: `chair:${furniture.area}`, ticketTypeName: `Cadeira — ${mapAreaLabel(furniture.area)}`, items, buyerName: names[0], buyerPhone: String(data.buyerPhone || "").trim(), buyerEmail: String(data.buyerEmail || "").trim(), notes: String(data.notes || "").trim(), courtesy: false, paid, paymentMethod, paymentDate, quantity, total, checkedIn: current?.checkedIn || false, updatedAt: timestamp };
+  const previousCheckins = reservationOccupantCheckins(current);
+  const saleData = { eventId: event.id, reservationType: "table", furnitureId: furniture.id, furnitureKind: furniture.kind, furnitureNumber: furniture.number, mapArea: furniture.area, reservationLabel: label, occupants: names, occupantCheckins: names.map((_, index) => Boolean(previousCheckins[index])), ticketTypeId: `chair:${furniture.area}`, ticketTypeName: `Cadeira — ${mapAreaLabel(furniture.area)}`, items, buyerName: names[0], buyerPhone: String(data.buyerPhone || "").trim(), buyerEmail: String(data.buyerEmail || "").trim(), notes: String(data.notes || "").trim(), courtesy: false, paid, paymentMethod, paymentDate, quantity, total, checkedIn: current?.checkedIn || false, updatedAt: timestamp };
   if (isDemo) {
     if (current) {
       const updated = { ...current, ...saleData };
@@ -1090,7 +1114,9 @@ function render() {
   const revenuePaid = selectedSales.filter((sale) => sale.paid).reduce((sum, sale) => sum + saleTotal(sale, selectedEvent), 0);
   const revenuePending = selectedSales.filter((sale) => !sale.paid).reduce((sum, sale) => sum + saleTotal(sale, selectedEvent), 0);
   const revenueTotal = revenuePaid + revenuePending;
-  const checkins = unitSales.filter((sale) => sale.checkedIn).reduce((sum, sale) => sum + saleQuantity(sale, selectedEvent), 0);
+  const unitCheckins = unitSales.filter((sale) => sale.checkedIn).reduce((sum, sale) => sum + saleQuantity(sale, selectedEvent), 0);
+  const tableCheckins = tableReservations.reduce((sum, sale) => sum + reservationCheckinCount(sale), 0);
+  const checkins = unitCheckins + tableCheckins;
   $("selectedEventArea").hidden = !selectedEvent;
   $("ticketTypeFilter").innerHTML = `<option value="all">Todos</option>${availableTicketTypes.map((type) => `<option value="${type.id}">${escapeHtml(type.name)}</option>`).join("")}`;
   $("ticketTypeFilter").value = selectedTicketTypeFilter;
@@ -1116,12 +1142,12 @@ function render() {
     const typeAvailable = Math.max(0, Number(type.capacity || 0) - typeSold);
     return `<div class="ticket-stock-row"><strong title="${escapeHtml(type.name)}">${escapeHtml(type.name)}</strong><span><b>${typeSold}</b> ${typeSold === 1 ? "vendido" : "vendidos"} <i aria-hidden="true">•</i> <b>${typeAvailable}</b> ${typeAvailable === 1 ? "disponível" : "disponíveis"}</span></div>`;
   }).join("")}${tableReservations.length ? `<div class="ticket-stock-row table-stock-row"><strong>Mesas/bistrôs</strong><span><b>${tableReservations.length}</b> reservas <i aria-hidden="true">•</i> <b>${tablePeople}</b> pessoas</span></div>` : ""}`;
-  $("ticketCheckinBreakdown").innerHTML = availableTicketTypes.map((type) => {
+  $("ticketCheckinBreakdown").innerHTML = `${availableTicketTypes.map((type) => {
     const typeSold = selectedSales.reduce((sum, sale) => sum + saleTypeQuantity(sale, type, selectedEvent), 0);
     const typeCheckins = selectedSales.filter((sale) => sale.checkedIn).reduce((sum, sale) => sum + saleTypeQuantity(sale, type, selectedEvent), 0);
     const typeWaiting = Math.max(0, typeSold - typeCheckins);
     return `<div class="ticket-stock-row"><strong title="${escapeHtml(type.name)}">${escapeHtml(type.name)}</strong><span><b>${typeCheckins}</b> check-in${typeCheckins === 1 ? "" : "s"} <i aria-hidden="true">•</i> <b>${typeWaiting}</b> aguardando</span></div>`;
-  }).join("");
+  }).join("")}${tableReservations.length ? `<div class="ticket-stock-row table-checkin-row"><strong>Mesas/bistrôs</strong><span><b>${tableCheckins}</b> check-in${tableCheckins === 1 ? "" : "s"} <i aria-hidden="true">•</i> <b>${Math.max(0, tablePeople - tableCheckins)}</b> aguardando</span></div>` : ""}`;
   renderFinancialReport(hasRole("admin") ? selectedEvent : undefined, hasRole("admin") ? selectedSales : []);
   renderTableMapPanel(selectedEvent, selectedSales);
   renderTableReservationsList(selectedEvent, selectedSales);
@@ -1227,6 +1253,32 @@ async function toggleCheckin(id) {
   const details = value ? "Realizou o check-in do participante." : "Desfez o check-in do participante.";
   if (isDemo) { sale.checkedIn = value; appendDemoAudit("checkin", sale, details); persistDemo(); render(); }
   else { const logId = push(ref(db, "auditLogs")).key; await update(ref(db), { [`sales/${id}/checkedIn`]: value, [`auditLogs/${logId}`]: auditLogData("checkin", sale, details) }); }
+}
+async function toggleTableOccupantCheckin(id, occupantIndex) {
+  if (!requireRole(["admin", "seller", "door"])) return;
+  const sale = state.sales.find((item) => item.id === id);
+  const occupants = reservationOccupants(sale);
+  const index = Number(occupantIndex);
+  if (!sale || !isTableReservation(sale) || !Number.isInteger(index) || index < 0 || index >= occupants.length) return;
+  const checkins = reservationOccupantCheckins(sale);
+  const value = !checkins[index];
+  checkins[index] = value;
+  const participantName = occupants[index];
+  const details = value
+    ? `Realizou o check-in de ${participantName} na ${sale.reservationLabel || "reserva"}.`
+    : `Desfez o check-in de ${participantName} na ${sale.reservationLabel || "reserva"}.`;
+  if (isDemo) {
+    sale.occupantCheckins = checkins;
+    appendDemoAudit("checkin", sale, details);
+    persistDemo();
+    render();
+  } else {
+    const logId = push(ref(db, "auditLogs")).key;
+    await update(ref(db), {
+      [`sales/${id}/occupantCheckins/${index}`]: value,
+      [`auditLogs/${logId}`]: auditLogData("checkin", sale, details)
+    });
+  }
 }
 async function togglePayment(id) {
   if (!requireRole(["admin", "seller"])) return;
@@ -1372,6 +1424,13 @@ $("deleteTableReservation").addEventListener("click", async () => { const id = $
 $("eventForm").addEventListener("submit", async (event) => { event.preventDefault(); const form = event.currentTarget; try { const data = Object.fromEntries(new FormData(form)); data.ticketTypes = getTicketTypes(); if (!data.ticketTypes.length) throw new Error("Informe ao menos um tipo ou lote com valor e quantidade."); data.packages = getPackages(data.ticketTypes); data.tableMap = { areas: [...eventMapDraft.areas], furniture: eventMapDraft.furniture.map((item) => ({ ...item })) }; await saveEvent(data, form.dataset.editId); form.reset(); resetPackages(); resetTicketTypes(); resetEventMapDraft(); $("eventModal").close(); } catch (error) { toast(error.message); } });
 $("saleForm").addEventListener("submit", async (event) => { event.preventDefault(); const form = event.currentTarget; try { const data = Object.fromEntries(new FormData(form)); data.items = getSaleTicketItems(); await saveSale(data, form.dataset.editId); form.reset(); $("saleTicketItemsList").innerHTML = ""; $("saleModal").close(); } catch (error) { toast(error.message); } });
 $("tableReservationForm").addEventListener("submit", async (event) => { event.preventDefault(); const form = event.currentTarget; try { const data = Object.fromEntries(new FormData(form)); await saveTableReservation(data); form.reset(); $("tableOccupantsList").innerHTML = ""; $("tableReservationModal").close(); } catch (error) { toast(error.message); } });
+document.addEventListener("click", (event) => {
+  const occupantCheckin = event.target.closest("[data-table-occupant-checkin]");
+  if (!occupantCheckin) return;
+  event.preventDefault();
+  event.stopPropagation();
+  toggleTableOccupantCheckin(occupantCheckin.dataset.tableOccupantCheckin, occupantCheckin.dataset.occupantIndex);
+});
 $("paymentConfirmationForm").addEventListener("submit", async (event) => { event.preventDefault(); const form = event.currentTarget; const button = form.querySelector('[type="submit"]'); button.disabled = true; try { await confirmSalePayment(Object.fromEntries(new FormData(form))); form.reset(); $("paymentConfirmationModal").close(); toast("Pagamento confirmado."); } catch (error) { toast(error.message); } finally { button.disabled = false; } });
 document.addEventListener("click", (event) => { const whatsappTrigger = event.target.closest("[data-whatsapp]"); if (whatsappTrigger) { event.preventDefault(); openWhatsappChooser(whatsappTrigger); return; } const whatsappApp = event.target.closest("[data-whatsapp-app]"); if (whatsappApp) { launchWhatsapp(whatsappApp.dataset.whatsappApp); return; } const metricDetails = event.target.closest("[data-toggle-metric-details]"); if (metricDetails) { toggleMetricDetails(metricDetails); return; } const participantDetails = event.target.closest("[data-toggle-sale-details]"); if (participantDetails) { toggleParticipantCard(participantDetails.closest("[data-sale-row]")); return; } const addPackageComponent = event.target.closest("[data-add-package-component]"); if (addPackageComponent) { const packageRow = addPackageComponent.closest(".package-row"); if (packageRow.querySelectorAll(".package-component-row").length >= draftTicketTypes().filter((item) => item.name).length) return toast("Todos os tipos de ingresso já foram adicionados aqui."); addPackageComponentRow(packageRow); refreshPackageTicketOptions(); return; } const removePackageComponent = event.target.closest("[data-remove-package-component]"); if (removePackageComponent) { const packageRow = removePackageComponent.closest(".package-row"); if (packageRow.querySelectorAll(".package-component-row").length === 1) return toast("O pacote ou cortesia precisa ter pelo menos um ingresso."); removePackageComponent.closest(".package-component-row").remove(); refreshPackageTicketOptions(); return; } const removePackage = event.target.closest("[data-remove-package]"); if (removePackage) { removePackage.closest(".package-row").remove(); refreshPackageTicketOptions(); return; } const removeTicket = event.target.closest("[data-remove-ticket]"); if (removeTicket) { if (document.querySelectorAll(".ticket-type-row").length === 1) return toast("O evento precisa de pelo menos um tipo de ingresso."); removeTicket.closest(".ticket-type-row").remove(); refreshPackageTicketOptions(); return; } const removeSaleTicket = event.target.closest("[data-remove-sale-ticket]"); if (removeSaleTicket) { const rows = document.querySelectorAll(".sale-ticket-item-row"); if (rows.length === 1) return toast("A venda precisa de pelo menos um item."); removeSaleTicket.closest(".sale-ticket-item-row").remove(); populateSaleTicketItemOptions(); return; } const deleteEventButton = event.target.closest("[data-delete-event]"); if (deleteEventButton) { event.preventDefault(); event.stopPropagation(); deleteEvent(deleteEventButton.dataset.deleteEvent); return; } const selectedAction = event.target.closest("[data-selected-action]"); if (selectedAction) { const action = selectedAction.dataset.selectedAction; if (action === "sale") openNewSale(selectedEventId); if (action === "edit") openEditEvent(selectedEventId); if (action === "history") openAuditHistory(selectedEventId); if (action === "export" && requireRole(["admin", "seller"])) window.exportSalesXlsx(state.sales, state.events, selectedEventId, "unit"); if (action === "delete") deleteEvent(selectedEventId); return; } const selectEvent = event.target.closest("[data-select-event]"); if (selectEvent) { selectedEventId = selectEvent.dataset.selectEvent; render(); return; } const editSaleButton = event.target.closest("[data-edit-sale]"); if (editSaleButton) { openEditSale(editSaleButton.dataset.editSale); return; } const deleteSaleButton = event.target.closest("[data-delete-sale]"); if (deleteSaleButton) { deleteSale(deleteSaleButton.dataset.deleteSale); return; } const checkin = event.target.closest("[data-checkin]"); if (checkin) { toggleCheckin(checkin.dataset.checkin); return; } const paid = event.target.closest("[data-paid]"); if (paid) { togglePayment(paid.dataset.paid); return; } });
 document.addEventListener("click", (event) => { const toggle = event.target.closest?.("[data-toggle-package-discount]"); if (!toggle) return; event.preventDefault(); event.stopImmediatePropagation(); togglePackageDiscountType(toggle.closest(".package-row")); }, true);
