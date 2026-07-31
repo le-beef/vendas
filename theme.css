@@ -453,6 +453,28 @@ html[data-theme="dark"] .table-reservations-list .empty,
 html[data-theme="dark"] .sales-panel tbody .empty {
   color: #9aa8bd;
 }
+
+html[data-theme="dark"] .password-visibility {
+  color: #9aa8bd;
+}
+
+html[data-theme="dark"] .password-visibility:hover,
+html[data-theme="dark"] .password-visibility:focus-visible {
+  background: #1d3150;
+  color: #bfdbfe;
+}
+
+html[data-theme="dark"] .managed-user-actions .delete-user {
+  border-color: #7f3540;
+  background: #321923;
+  color: #fda4af;
+}
+
+html[data-theme="dark"] .managed-user-actions .delete-user:hover,
+html[data-theme="dark"] .managed-user-actions .delete-user:focus-visible {
+  border-color: #fb7185;
+  background: #4a1d29;
+}
 @media(max-width:700px){
   html[data-theme="dark"] .financial-table-wrap tr,
   html[data-theme="dark"] .all-table-reservations-modal tr.sales-row{border-color:#2a3a52!important;background:#111c2f!important}

@@ -954,7 +954,8 @@ function renderUsers() {
     const selectedIds = allowedEventIds(user).filter((eventId) => state.events.some((event) => event.id === eventId));
     const eventSummary = user.role === "admin" ? "Todos os eventos" : `${selectedIds.length} ${selectedIds.length === 1 ? "evento permitido" : "eventos permitidos"}`;
     const accessEditor = user.role === "admin" ? `<div class="user-event-access admin-access"><strong>Acesso aos eventos</strong><span>Administrador visualiza todos.</span></div>` : `<details class="user-event-access" data-event-access-user="${user.id}"><summary><span>Acesso aos eventos</span><strong>${eventSummary}</strong></summary><div class="user-event-options">${eventAccessCheckboxes(selectedIds)}</div><button class="save-user-events" type="button" data-save-user-events="${user.id}">Salvar eventos permitidos</button></details>`;
-    return `<article class="managed-user ${user.active ? "" : "is-inactive"}"><div class="managed-user-main"><span class="managed-user-avatar">${escapeHtml(userInitials(user.name, user.email))}</span><div class="managed-user-copy"><strong>${escapeHtml(user.name || "Sem nome")}${isCurrent ? " (você)" : ""}</strong><small>${escapeHtml(user.email || "E-mail não informado")}</small><em>${user.active ? "Acesso ativo" : "Acesso bloqueado"}</em></div></div><select data-user-role="${user.id}" aria-label="Perfil de ${escapeHtml(user.name || user.email)}" ${isCurrent ? "disabled" : ""}><option value="admin" ${user.role === "admin" ? "selected" : ""}>Administrador</option><option value="event_manager" ${user.role === "event_manager" ? "selected" : ""}>Gerente do evento</option><option value="seller" ${user.role === "seller" ? "selected" : ""}>Vendedor</option><option value="door" ${user.role === "door" ? "selected" : ""}>Portaria</option></select><div class="managed-user-actions"><button type="button" data-reset-user="${user.id}">Redefinir senha</button>${isCurrent ? `<button type="button" disabled>Conta atual</button>` : `<button class="deactivate" type="button" data-toggle-user="${user.id}">${user.active ? "Bloquear" : "Ativar"}</button>`}</div>${accessEditor}</article>`;
+    const accountActions = isCurrent ? `<button type="button" disabled>Conta atual</button>` : `<button class="deactivate" type="button" data-toggle-user="${user.id}">${user.active ? "Bloquear" : "Ativar"}</button><button class="delete-user" type="button" data-delete-user="${user.id}">Excluir</button>`;
+    return `<article class="managed-user ${user.active ? "" : "is-inactive"}"><div class="managed-user-main"><span class="managed-user-avatar">${escapeHtml(userInitials(user.name, user.email))}</span><div class="managed-user-copy"><strong>${escapeHtml(user.name || "Sem nome")}${isCurrent ? " (você)" : ""}</strong><small>${escapeHtml(user.email || "E-mail não informado")}</small><em>${user.active ? "Acesso ativo" : "Acesso bloqueado"}</em></div></div><select data-user-role="${user.id}" aria-label="Perfil de ${escapeHtml(user.name || user.email)}" ${isCurrent ? "disabled" : ""}><option value="admin" ${user.role === "admin" ? "selected" : ""}>Administrador</option><option value="event_manager" ${user.role === "event_manager" ? "selected" : ""}>Gerente do evento</option><option value="seller" ${user.role === "seller" ? "selected" : ""}>Vendedor</option><option value="door" ${user.role === "door" ? "selected" : ""}>Portaria</option></select><div class="managed-user-actions"><button type="button" data-reset-user="${user.id}">Redefinir senha</button>${accountActions}</div>${accessEditor}</article>`;
   }).join("") : `<div class="empty">Nenhum usuário cadastrado.</div>`;
 }
 async function createManagedUser(data) {
@@ -984,6 +985,15 @@ async function updateManagedUserEvents(uid, eventIds) {
 }
 async function toggleManagedUser(uid) { if (!requireRole(["admin"]) || uid === currentUser?.uid) return; const user = state.users.find((item) => item.id === uid); if (!user) return; const active = !user.active; if (!confirm(`${active ? "Ativar" : "Bloquear"} o acesso de ${user.name || user.email}?`)) return; await update(ref(db, `users/${uid}`), { active, updatedAt: Date.now(), updatedBy: currentUser.uid }); toast(active ? "Acesso ativado." : "Acesso bloqueado."); }
 async function resetManagedUserPassword(uid) { if (!requireRole(["admin"])) return; const user = state.users.find((item) => item.id === uid); if (!user?.email) return; await sendPasswordResetEmail(auth, user.email); toast("E-mail para redefinição de senha enviado."); }
+async function deleteManagedUser(uid) {
+  if (!requireRole(["admin"]) || uid === currentUser?.uid) return;
+  const user = state.users.find((item) => item.id === uid);
+  if (!user) return;
+  if (!confirm(`Excluir o usuário “${user.name || user.email}” do painel? Ele perderá o acesso imediatamente. As vendas e os históricos feitos por ele serão mantidos.`)) return;
+  if (isDemo) throw new Error("A exclusão de usuários funciona somente no site conectado ao Firebase.");
+  await update(ref(db), { [`users/${uid}`]: null });
+  toast("Usuário excluído do painel.");
+}
 
 function sellerForSale(sale) {
   const creationLog = state.auditLogs.find((log) => log.saleId === sale.id && log.action === "created");
@@ -1353,6 +1363,16 @@ async function deleteSale(id) {
 }
 async function deleteEvent(id) { if (!requireRole(["admin"], "Somente administradores podem excluir eventos.")) return; const event = state.events.find((item) => item.id === id); if (!event || !confirm(`Excluir o evento “${event.name}” e todas as vendas e históricos dele? Esta ação não pode ser desfeita.`)) return; const changes = { [`events/${id}`]: null }; state.sales.filter((sale) => sale.eventId === id).forEach((sale) => { changes[`sales/${sale.id}`] = null; }); state.auditLogs.filter((log) => log.eventId === id).forEach((log) => { changes[`auditLogs/${log.id}`] = null; }); if (isDemo) { state.events = state.events.filter((item) => item.id !== id); state.sales = state.sales.filter((sale) => sale.eventId !== id); state.auditLogs = state.auditLogs.filter((log) => log.eventId !== id); persistDemo(); render(); } else { await update(ref(db), changes); } toast("Evento, vendas e históricos vinculados excluídos."); }
 function toast(message) { const el = $("toast"); el.textContent = message; el.classList.add("visible"); setTimeout(() => el.classList.remove("visible"), 3200); }
+function setPasswordVisibility(button, visible) {
+  const input = $(button.dataset.togglePassword);
+  if (!input) return;
+  input.type = visible ? "text" : "password";
+  button.classList.toggle("is-visible", visible);
+  button.setAttribute("aria-pressed", String(visible));
+  button.setAttribute("aria-label", visible ? "Ocultar senha" : "Mostrar senha");
+  button.title = visible ? "Ocultar senha" : "Mostrar senha";
+}
+function hidePasswords(container = document) { container.querySelectorAll("[data-toggle-password]").forEach((button) => setPasswordVisibility(button, false)); }
 function syncSalePaymentFields(useToday = false) {
   const form = $("saleForm");
   const courtesy = form.classList.contains("sale-is-courtesy");
@@ -1373,6 +1393,7 @@ function openEditSale(id) { if (!requireRole(["admin", "event_manager", "seller"
 
 document.querySelectorAll("[data-open]").forEach((button) => button.addEventListener("click", () => { if (button.dataset.open === "eventModal") return openNewEvent(); if (button.dataset.open === "saleModal") return openNewSale(selectedEventId); $(button.dataset.open).showModal(); }));
 document.querySelectorAll("[data-close]").forEach((button) => button.addEventListener("click", () => $(button.dataset.close).close()));
+document.querySelectorAll("[data-toggle-password]").forEach((button) => button.addEventListener("click", () => setPasswordVisibility(button, $(button.dataset.togglePassword)?.type === "password")));
 $("addTicketType").addEventListener("click", () => addTicketTypeRow());
 $("addPackage").addEventListener("click", () => addPackageRow());
 $("addCourtesy").addEventListener("click", () => addPackageRow({}, "courtesy"));
@@ -1394,15 +1415,15 @@ $("sellerClosingToday").addEventListener("click", () => { const today = todayInp
 $("sellerClosingAll").addEventListener("click", () => { $("sellerClosingStart").value = ""; $("sellerClosingEnd").value = ""; render(); });
 $("sellerDetailsToggle").addEventListener("click", toggleSellerTicketReport);
 $("accessModal").addEventListener("cancel", (event) => event.preventDefault());
-$("accessForm").addEventListener("submit", async (event) => { event.preventDefault(); if (!auth) return; const button = $("accessSubmitButton"); button.disabled = true; button.textContent = "Entrando..."; $("accessError").textContent = ""; try { await signInWithEmailAndPassword(auth, $("accessEmail").value.trim(), $("accessPassword").value); $("accessPassword").value = ""; } catch (error) { $("accessError").textContent = authErrorMessage(error); } finally { button.disabled = false; button.textContent = "Entrar no painel"; } });
+$("accessForm").addEventListener("submit", async (event) => { event.preventDefault(); if (!auth) return; const button = $("accessSubmitButton"); button.disabled = true; button.textContent = "Entrando..."; $("accessError").textContent = ""; try { await signInWithEmailAndPassword(auth, $("accessEmail").value.trim(), $("accessPassword").value); $("accessPassword").value = ""; hidePasswords($("accessForm")); } catch (error) { $("accessError").textContent = authErrorMessage(error); } finally { button.disabled = false; button.textContent = "Entrar no painel"; } });
 $("resetPasswordButton").addEventListener("click", async () => { const email = $("accessEmail").value.trim(); if (!auth) { $("accessError").textContent = "O Firebase ainda está carregando. Tente novamente."; return; } if (!email) { $("accessError").textContent = "Digite seu e-mail para redefinir a senha."; $("accessEmail").focus(); return; } try { await sendPasswordResetEmail(auth, email); $("accessError").textContent = "Enviamos as instruções para o seu e-mail."; } catch (error) { $("accessError").textContent = authErrorMessage(error); } });
 $("logoutButton").addEventListener("click", async () => { $("userMenu").open = false; if (isDemo) { toast("O modo local usa um perfil de demonstração."); return; } await signOut(auth); });
 $("manageUsersButton").addEventListener("click", () => { if (!requireRole(["admin"])) return; $("userMenu").open = false; renderUsers(); $("userManagementModal").showModal(); });
 document.querySelector('#createUserForm [name="role"]').addEventListener("change", syncCreateUserEventAccess);
 $("createUserForm").addEventListener("reset", () => setTimeout(renderCreateUserEventOptions));
-$("createUserForm").addEventListener("submit", async (event) => { event.preventDefault(); const form = event.currentTarget; const button = $("createUserButton"); button.disabled = true; button.textContent = "Criando..."; try { await createManagedUser(Object.fromEntries(new FormData(form))); form.reset(); toast("Usuário criado com sucesso."); } catch (error) { toast(authErrorMessage(error)); } finally { button.disabled = false; button.textContent = "+ Criar usuário"; } });
+$("createUserForm").addEventListener("submit", async (event) => { event.preventDefault(); const form = event.currentTarget; const button = $("createUserButton"); button.disabled = true; button.textContent = "Criando..."; try { await createManagedUser(Object.fromEntries(new FormData(form))); form.reset(); hidePasswords(form); toast("Usuário criado com sucesso."); } catch (error) { toast(authErrorMessage(error)); } finally { button.disabled = false; button.textContent = "+ Criar usuário"; } });
 $("usersList").addEventListener("change", async (event) => { const select = event.target.closest("[data-user-role]"); if (!select) return; try { await updateManagedUserRole(select.dataset.userRole, select.value); } catch (error) { toast(error.message); renderUsers(); } });
-$("usersList").addEventListener("click", async (event) => { const toggle = event.target.closest("[data-toggle-user]"); const reset = event.target.closest("[data-reset-user]"); try { if (toggle) await toggleManagedUser(toggle.dataset.toggleUser); if (reset) await resetManagedUserPassword(reset.dataset.resetUser); } catch (error) { toast(authErrorMessage(error)); } });
+$("usersList").addEventListener("click", async (event) => { const toggle = event.target.closest("[data-toggle-user]"); const reset = event.target.closest("[data-reset-user]"); const removeUser = event.target.closest("[data-delete-user]"); try { if (toggle) await toggleManagedUser(toggle.dataset.toggleUser); if (reset) await resetManagedUserPassword(reset.dataset.resetUser); if (removeUser) await deleteManagedUser(removeUser.dataset.deleteUser); } catch (error) { toast(authErrorMessage(error)); } });
 $("usersList").addEventListener("click", async (event) => {
   const save = event.target.closest("[data-save-user-events]");
   if (!save) return;

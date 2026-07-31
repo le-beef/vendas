@@ -36,7 +36,7 @@
     <link rel="stylesheet" href="whatsapp.css?v=23" />
     <link rel="stylesheet" href="pwa.css?v=7" />
     <link rel="stylesheet" href="financial-report.css?v=20" />
-    <link rel="stylesheet" href="auth-permissions.css?v=17" />
+    <link rel="stylesheet" href="auth-permissions.css?v=18" />
     <link rel="stylesheet" href="audit-log.css?v=27" />
     <link rel="stylesheet" href="payment-closing.css?v=28" />
     <link rel="stylesheet" href="event-access.css?v=18" />
@@ -45,7 +45,7 @@
     <link rel="stylesheet" href="table-reservation-details.css?v=2" />
     <link rel="stylesheet" href="table-reservation-final.css?v=1" />
     <link rel="stylesheet" href="table-reservation-harmony.css?v=4" />
-    <link rel="stylesheet" href="theme.css?v=8" />
+    <link rel="stylesheet" href="theme.css?v=9" />
     <style id="topbar-critical-styles">
       html { scroll-padding-top: 84px; }
       body { padding-top: 84px !important; }
@@ -82,7 +82,7 @@
         <h1>Bem-vindo de volta.</h1>
         <p>Entre com sua conta individual para acessar o painel.</p>
         <label>E-mail<input id="accessEmail" name="email" type="email" autocomplete="username" required autofocus placeholder="nome@lebeef.com.br" /></label>
-        <label>Senha<input id="accessPassword" name="password" type="password" autocomplete="current-password" required placeholder="Sua senha" /></label>
+        <label>Senha<div class="password-input-wrap"><input id="accessPassword" name="password" type="password" autocomplete="current-password" required placeholder="Sua senha" /><button class="password-visibility" type="button" data-toggle-password="accessPassword" aria-label="Mostrar senha" aria-pressed="false" title="Mostrar senha"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"></path><circle cx="12" cy="12" r="3"></circle><path class="password-visibility-slash" d="M4 4l16 16"></path></svg></button></div></label>
         <p id="accessError" class="access-error" aria-live="polite"></p>
         <button id="accessSubmitButton" class="button primary full" type="submit">Entrar no painel</button>
         <button id="resetPasswordButton" class="access-reset-button" type="button">Esqueci minha senha</button>
@@ -191,7 +191,7 @@
       </section>
     </main>
 
-    <footer class="site-footer">Le Beef | Versão: 4.9.2</footer>
+    <footer class="site-footer">Le Beef | Versão: 4.10.0</footer>
 
     <button class="fab" data-open="saleModal" data-roles="admin,event_manager,seller" aria-label="Registrar venda">+</button>
 
@@ -285,10 +285,10 @@
         <form id="createUserForm" class="create-user-form">
           <fieldset id="createUserEventAccess" class="create-user-event-access"><legend>Eventos permitidos</legend><p id="createUserEventHint">Marque um ou mais eventos que esta pessoa poderá acessar.</p><div id="createUserEvents" class="user-event-options"></div></fieldset>
           <div class="two-columns"><label>Nome<input name="name" required placeholder="Nome da pessoa" /></label><label>E-mail<input name="email" type="email" required autocomplete="off" placeholder="nome@exemplo.com" /></label></div>
-          <div class="two-columns"><label>Senha inicial<input name="password" type="password" minlength="6" required autocomplete="new-password" placeholder="Mínimo de 6 caracteres" /></label><label>Perfil<select name="role" required><option value="seller">Vendedor</option><option value="door">Portaria</option><option value="event_manager">Gerente do evento</option><option value="admin">Administrador</option></select></label></div>
+          <div class="two-columns"><label>Senha inicial<div class="password-input-wrap"><input id="newUserPassword" name="password" type="password" minlength="6" required autocomplete="new-password" placeholder="Mínimo de 6 caracteres" /><button class="password-visibility" type="button" data-toggle-password="newUserPassword" aria-label="Mostrar senha" aria-pressed="false" title="Mostrar senha"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"></path><circle cx="12" cy="12" r="3"></circle><path class="password-visibility-slash" d="M4 4l16 16"></path></svg></button></div></label><label>Perfil<select name="role" required><option value="seller">Vendedor</option><option value="door">Portaria</option><option value="event_manager">Gerente do evento</option><option value="admin">Administrador</option></select></label></div>
           <button id="createUserButton" class="button primary" type="submit">+ Criar usuário</button>
         </form>
-        <div class="permission-guide"><div><strong>Administrador</strong><span>Acesso completo, eventos, financeiro e usuários.</span></div><div><strong>Vendedor</strong><span>Vendas, pagamentos, check-in e Excel.</span></div><div><strong>Portaria</strong><span>Consulta de participantes e check-in.</span></div></div>
+        <div class="permission-guide"><div><strong>Administrador</strong><span>Acesso completo, eventos, financeiro e usuários.</span></div><div><strong>Gerente do evento</strong><span>Administra somente os eventos atribuídos.</span></div><div><strong>Vendedor</strong><span>Vendas, pagamentos, check-in e Excel.</span></div><div><strong>Portaria</strong><span>Consulta de participantes e check-in.</span></div></div>
         <div class="users-section-heading"><div><p class="eyebrow">EQUIPE</p><h3>Usuários cadastrados</h3></div><span id="usersCount">0 usuários</span></div>
         <div id="usersList" class="users-list"><div class="empty">Carregando usuários...</div></div>
       </div>
@@ -319,6 +319,6 @@
     <script src="pwa.js"></script>
     <script src="theme.js?v=1"></script>
     <script src="excel-export.js?v=35"></script>
-    <script type="module" src="app.js?v=58"></script>
+    <script type="module" src="app.js?v=59"></script>
   </body>
 </html>
