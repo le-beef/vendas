@@ -10,7 +10,7 @@
         ".validate": "!newData.exists() || newData.hasChildren(['name', 'email', 'role', 'active'])",
         "name": { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 100" },
         "email": { ".validate": "newData.isString() && newData.val().length > 3 && newData.val().length <= 160" },
-        "role": { ".validate": "newData.val() === 'admin' || newData.val() === 'seller' || newData.val() === 'door'" },
+        "role": { ".validate": "newData.val() === 'admin' || newData.val() === 'event_manager' || newData.val() === 'seller' || newData.val() === 'door'" },
         "active": { ".validate": "newData.isBoolean()" },
         "eventIds": {
           "$eventId": { ".validate": "newData.val() === true && root.child('events').child($eventId).exists()" }
@@ -22,25 +22,31 @@
       ".indexOn": ["date"],
       "$eventId": {
         ".read": "auth != null && root.child('users').child(auth.uid).child('active').val() === true && (root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('eventIds').child($eventId).val() === true)",
-        ".write": "auth != null && root.child('users').child(auth.uid).child('active').val() === true && root.child('users').child(auth.uid).child('role').val() === 'admin'"
+        ".write": "auth != null && root.child('users').child(auth.uid).child('active').val() === true && (root.child('users').child(auth.uid).child('role').val() === 'admin' || (root.child('users').child(auth.uid).child('role').val() === 'event_manager' && root.child('users').child(auth.uid).child('eventIds').child($eventId).val() === true && data.exists() && newData.exists()))"
       }
     },
     "sales": {
-      ".read": "auth != null && root.child('users').child(auth.uid).child('active').val() === true && (root.child('users').child(auth.uid).child('role').val() === 'admin' || ((root.child('users').child(auth.uid).child('role').val() === 'seller' || root.child('users').child(auth.uid).child('role').val() === 'door') && query.orderByChild === 'eventId' && query.equalTo != null && root.child('users').child(auth.uid).child('eventIds').child(query.equalTo).val() === true))",
+      ".read": "auth != null && root.child('users').child(auth.uid).child('active').val() === true && (root.child('users').child(auth.uid).child('role').val() === 'admin' || ((root.child('users').child(auth.uid).child('role').val() === 'event_manager' || root.child('users').child(auth.uid).child('role').val() === 'seller' || root.child('users').child(auth.uid).child('role').val() === 'door') && query.orderByChild === 'eventId' && query.equalTo != null && root.child('users').child(auth.uid).child('eventIds').child(query.equalTo).val() === true))",
       ".indexOn": ["eventId", "ticketTypeId", "paid", "checkedIn"],
       "$saleId": {
-        ".write": "auth != null && root.child('users').child(auth.uid).child('active').val() === true && (root.child('users').child(auth.uid).child('role').val() === 'admin' || (root.child('users').child(auth.uid).child('role').val() === 'seller' && (!data.exists() || root.child('users').child(auth.uid).child('eventIds').child(data.child('eventId').val()).val() === true) && (!newData.exists() || root.child('users').child(auth.uid).child('eventIds').child(newData.child('eventId').val()).val() === true)))",
+        ".write": "auth != null && root.child('users').child(auth.uid).child('active').val() === true && (root.child('users').child(auth.uid).child('role').val() === 'admin' || ((root.child('users').child(auth.uid).child('role').val() === 'event_manager' || root.child('users').child(auth.uid).child('role').val() === 'seller') && (!data.exists() || root.child('users').child(auth.uid).child('eventIds').child(data.child('eventId').val()).val() === true) && (!newData.exists() || root.child('users').child(auth.uid).child('eventIds').child(newData.child('eventId').val()).val() === true)))",
         "checkedIn": {
           ".write": "auth != null && root.child('users').child(auth.uid).child('active').val() === true && root.child('users').child(auth.uid).child('role').val() === 'door' && root.child('users').child(auth.uid).child('eventIds').child(root.child('sales').child($saleId).child('eventId').val()).val() === true",
           ".validate": "newData.isBoolean()"
+        },
+        "occupantCheckins": {
+          "$index": {
+            ".write": "auth != null && root.child('users').child(auth.uid).child('active').val() === true && root.child('users').child(auth.uid).child('role').val() === 'door' && root.child('users').child(auth.uid).child('eventIds').child(root.child('sales').child($saleId).child('eventId').val()).val() === true",
+            ".validate": "newData.isBoolean()"
+          }
         }
       }
     },
     "auditLogs": {
-      ".read": "auth != null && root.child('users').child(auth.uid).child('active').val() === true && root.child('users').child(auth.uid).child('role').val() === 'admin'",
+      ".read": "auth != null && root.child('users').child(auth.uid).child('active').val() === true && (root.child('users').child(auth.uid).child('role').val() === 'admin' || (root.child('users').child(auth.uid).child('role').val() === 'event_manager' && query.orderByChild === 'eventId' && query.equalTo != null && root.child('users').child(auth.uid).child('eventIds').child(query.equalTo).val() === true))",
       ".indexOn": ["eventId", "timestamp"],
       "$logId": {
-        ".write": "auth != null && root.child('users').child(auth.uid).child('active').val() === true && ((!data.exists() && newData.exists() && newData.child('actorUid').val() === auth.uid && newData.child('actorRole').val() === root.child('users').child(auth.uid).child('role').val() && root.child('events').child(newData.child('eventId').val()).exists() && (root.child('users').child(auth.uid).child('role').val() === 'admin' || (root.child('users').child(auth.uid).child('role').val() === 'seller' && root.child('users').child(auth.uid).child('eventIds').child(newData.child('eventId').val()).val() === true) || (root.child('users').child(auth.uid).child('role').val() === 'door' && newData.child('action').val() === 'checkin' && root.child('users').child(auth.uid).child('eventIds').child(newData.child('eventId').val()).val() === true))) || (data.exists() && !newData.exists() && root.child('users').child(auth.uid).child('role').val() === 'admin'))",
+        ".write": "auth != null && root.child('users').child(auth.uid).child('active').val() === true && ((!data.exists() && newData.exists() && newData.child('actorUid').val() === auth.uid && newData.child('actorRole').val() === root.child('users').child(auth.uid).child('role').val() && root.child('events').child(newData.child('eventId').val()).exists() && (root.child('users').child(auth.uid).child('role').val() === 'admin' || (root.child('users').child(auth.uid).child('role').val() === 'event_manager' && root.child('users').child(auth.uid).child('eventIds').child(newData.child('eventId').val()).val() === true) || (root.child('users').child(auth.uid).child('role').val() === 'seller' && root.child('users').child(auth.uid).child('eventIds').child(newData.child('eventId').val()).val() === true) || (root.child('users').child(auth.uid).child('role').val() === 'door' && newData.child('action').val() === 'checkin' && root.child('users').child(auth.uid).child('eventIds').child(newData.child('eventId').val()).val() === true))) || (data.exists() && !newData.exists() && root.child('users').child(auth.uid).child('role').val() === 'admin'))",
         ".validate": "newData.hasChildren(['eventId', 'eventName', 'saleId', 'participantName', 'ticketTypeName', 'quantity', 'action', 'details', 'timestamp', 'actorUid', 'actorName', 'actorEmail', 'actorRole'])",
         "eventId": { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 120" },
         "eventName": { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 160" },
@@ -54,7 +60,7 @@
         "actorUid": { ".validate": "newData.isString() && newData.val() === auth.uid" },
         "actorName": { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 160" },
         "actorEmail": { ".validate": "newData.isString() && newData.val().length <= 160" },
-        "actorRole": { ".validate": "newData.val() === 'admin' || newData.val() === 'seller' || newData.val() === 'door'" }
+        "actorRole": { ".validate": "newData.val() === 'admin' || newData.val() === 'event_manager' || newData.val() === 'seller' || newData.val() === 'door'" }
       }
     }
   }

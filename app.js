@@ -33,7 +33,7 @@ let isDemo = !firebaseConfig.apiKey || !firebaseConfig.databaseURL || location.p
 
 const money = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 const $ = (id) => document.getElementById(id);
-const ROLE_LABELS = { admin: "Administrador", seller: "Vendedor", door: "Portaria" };
+const ROLE_LABELS = { admin: "Administrador", event_manager: "Gerente do evento", seller: "Vendedor", door: "Portaria" };
 const PAYMENT_METHOD_LABELS = { pix: "Pix", cash: "Dinheiro", credit_card: "Cartão de crédito", debit_card: "Cartão de débito", bank_transfer: "Transferência", other: "Outro", courtesy: "Cortesia" };
 
 function roleLabel(role) { return ROLE_LABELS[role] || "Sem perfil"; }
@@ -43,8 +43,14 @@ function paymentDateLabel(value) { return value ? new Date(`${value}T12:00:00`).
 function paymentDetailsHtml(sale) { if (sale.courtesy || sale.paymentMethod === "courtesy") return `<small class="payment-details">Sem cobrança</small>`; return sale.paid ? `<small class="payment-details">${escapeHtml(paymentMethodLabel(sale.paymentMethod))} · ${escapeHtml(paymentDateLabel(sale.paymentDate))}</small>` : ""; }
 function hasRole(...roles) { return Boolean(currentUserProfile?.active && roles.includes(currentUserProfile.role)); }
 function allowedEventIds(profile = currentUserProfile) { return Object.entries(profile?.eventIds || {}).filter(([, allowed]) => allowed === true).map(([eventId]) => eventId).sort(); }
+function canAdministerEvent(eventId) { return hasRole("admin") || (hasRole("event_manager") && allowedEventIds().includes(eventId)); }
 function eventAccessSignature(profile) { return allowedEventIds(profile).join("|"); }
-function requireRole(roles, message = "Seu perfil não permite realizar esta ação.") { if (hasRole(...roles)) return true; toast(message); return false; }
+function requireRole(roles, message = "Seu perfil não permite realizar esta ação.") {
+  const managerEquivalent = hasRole("event_manager") && roles.includes("admin") && roles.includes("seller");
+  if (hasRole(...roles) || managerEquivalent) return true;
+  toast(message);
+  return false;
+}
 function userInitials(name, email = "") { const source = String(name || email || "U").trim(); const parts = source.split(/\s+/).filter(Boolean); return (parts.length > 1 ? `${parts[0][0]}${parts.at(-1)[0]}` : source.slice(0, 2)).toLocaleUpperCase("pt-BR"); }
 function clearDataSubscriptions() { dataSubscriptions.forEach((unsubscribe) => unsubscribe()); dataSubscriptions = []; }
 function showAccessModal(message = "") { $("accessError").textContent = message; if (!$("accessModal").open) $("accessModal").showModal(); }
@@ -59,9 +65,13 @@ function authErrorMessage(error) {
   return error.message || "Não foi possível concluir a autenticação.";
 }
 function applyRolePermissions() {
-  document.body.classList.remove("role-admin", "role-seller", "role-door");
+  document.body.classList.remove("role-admin", "role-event_manager", "role-seller", "role-door");
   if (currentUserProfile?.role) document.body.classList.add(`role-${currentUserProfile.role}`);
-  document.querySelectorAll("[data-roles]").forEach((element) => { element.hidden = !String(element.dataset.roles).split(",").includes(currentUserProfile?.role); });
+  document.querySelectorAll("[data-roles]").forEach((element) => {
+    const roles = String(element.dataset.roles).split(",");
+    const managerEquivalent = currentUserProfile?.role === "event_manager" && roles.includes("admin") && roles.includes("seller");
+    element.hidden = !(roles.includes(currentUserProfile?.role) || managerEquivalent);
+  });
   $("userMenu").hidden = !currentUserProfile;
   if (!currentUserProfile) return;
   const displayName = currentUserProfile.name || currentUser?.email || "Usuário";
@@ -95,6 +105,7 @@ function attachRealtimeListeners() {
 
   const eventMap = new Map();
   const salesByEvent = new Map();
+  const auditLogsByEvent = new Map();
   state.events = [];
   state.sales = [];
   state.users = currentUserProfile ? [{ id: currentUser.uid, ...currentUserProfile }] : [];
@@ -112,6 +123,14 @@ function attachRealtimeListeners() {
       state.sales = [...salesByEvent.values()].flat();
       render();
     }, readError));
+    if (hasRole("event_manager")) {
+      const eventAuditQuery = query(ref(db, "auditLogs"), orderByChild("eventId"), equalTo(eventId));
+      dataSubscriptions.push(onValue(eventAuditQuery, (snapshot) => {
+        auditLogsByEvent.set(eventId, objectToArray(snapshot.val()));
+        state.auditLogs = [...auditLogsByEvent.values()].flat();
+        renderAuditHistory();
+      }, readError));
+    }
   });
 }
 async function handleAuthenticatedUser(user) {
@@ -311,7 +330,8 @@ function renderAuditHistory() {
   list.innerHTML = logs.length ? logs.map((log) => `<article class="audit-entry audit-${escapeHtml(log.action)}"><div class="audit-entry-marker" aria-hidden="true"></div><div class="audit-entry-content"><div class="audit-entry-heading"><span class="audit-action">${escapeHtml(actionLabels[log.action] || "Alteração")}</span><time>${escapeHtml(auditTimestampText(log.timestamp))}</time></div><strong>${escapeHtml(log.participantName || "Participante")}</strong><p>${escapeHtml(log.details || "Alteração registrada.")}</p><div class="audit-entry-meta"><span>Por <b>${escapeHtml(log.actorName || log.actorEmail || "Usuário")}</b></span><span>${escapeHtml(roleLabel(log.actorRole))}</span></div></div></article>`).join("") : `<div class="audit-empty"><span aria-hidden="true">◷</span><strong>Nenhuma alteração registrada</strong><p>As próximas ações realizadas nas vendas deste evento aparecerão aqui.</p></div>`;
 }
 function openAuditHistory(eventId) {
-  if (!requireRole(["admin"], "O histórico é exclusivo para administradores.")) return;
+  if (!requireRole(["admin", "event_manager"], "O histórico é exclusivo para administradores e gerentes do evento.")) return;
+  if (!canAdministerEvent(eventId)) return toast("Você não administra este evento.");
   selectedEventId = eventId;
   renderAuditHistory();
   if (!$("auditLogModal").open) $("auditLogModal").showModal();
@@ -603,7 +623,7 @@ function getSaleTicketItems() {
     return { kind: "package", packageKind: option.item.packageKind || "package", packageId: option.item.id, packageName: option.item.name, ticketTypeId: `package:${option.item.id}`, ticketTypeName: `${option.item.packageKind === "courtesy" ? "Cortesia" : "Pacote"}: ${option.item.name}`, unitPrice: Number(option.item.price || 0), quantity, subtotal: Number(option.item.price || 0) * quantity, components };
   });
 }
-function addSaleEditButtons() { if (!hasRole("admin", "seller")) return; document.querySelectorAll("[data-sale-row]").forEach((row) => { const actions = row.lastElementChild; if (!actions?.querySelector("[data-edit-sale]")) { const button = document.createElement("button"); button.type = "button"; button.className = "edit-button"; button.dataset.editSale = row.dataset.saleRow; button.textContent = "Editar"; actions.prepend(button); } }); }
+function addSaleEditButtons() { if (!hasRole("admin", "event_manager", "seller")) return; document.querySelectorAll("[data-sale-row]").forEach((row) => { const actions = row.lastElementChild; if (!actions?.querySelector("[data-edit-sale]")) { const button = document.createElement("button"); button.type = "button"; button.className = "edit-button"; button.dataset.editSale = row.dataset.saleRow; button.textContent = "Editar"; actions.prepend(button); } }); }
 function toggleParticipantCard(row) { if (!row) return; const expanded = row.classList.toggle("is-expanded"); row.setAttribute("aria-expanded", String(expanded)); const button = row.querySelector("[data-toggle-sale-details]"); if (button) button.textContent = expanded ? "Ocultar detalhes" : "Detalhar"; }
 function toggleTableReservationCard(card) { if (!card) return; const expanded = card.classList.toggle("is-expanded"); card.setAttribute("aria-expanded", String(expanded)); const button = card.querySelector("[data-toggle-table-reservation-details]"); if (button) button.textContent = expanded ? "Ocultar detalhes" : "Detalhar"; }
 function tableReservationCheckinsHtml(sale) {
@@ -716,8 +736,6 @@ function togglePresetSlot(slotId) {
     const existing = eventMapDraft.furniture[existingIndex];
     if (existing.kind !== activeMapTool) existing.kind = activeMapTool;
     else {
-      const editingEventId = $("eventForm").dataset.editId;
-      if (editingEventId && tableReservationsFor(editingEventId).some((sale) => sale.furnitureId === slotId)) return toast("Esta posição possui uma reserva e não pode ser desativada.");
       eventMapDraft.furniture.splice(existingIndex, 1);
       eventMapDraft.furniture.sort((a, b) => Number(a.number || 0) - Number(b.number || 0)).forEach((item, index) => { item.number = index + 1; });
     }
@@ -778,7 +796,7 @@ function renderTableReservationsList(event, eventSales) {
   $("tableReservationFilterLabel").textContent = filterCount > 1 ? `${filterCount} filtros` : filterLabel;
   $("tableReservationCount").textContent = `${reservations.length} ${reservations.length === 1 ? "reservada" : "reservadas"} • ${filteredPeople} ${filteredPeople === 1 ? "pessoa" : "pessoas"}`;
   $("clearTableReservationSearch").hidden = !tableReservationSearchQuery;
-  const canManage = hasRole("admin", "seller");
+  const canManage = hasRole("admin", "event_manager", "seller");
   $("tableReservationsList").innerHTML = reservations.length ? reservations.map((sale) => {
     const occupants = Array.isArray(sale.occupants) ? sale.occupants : Object.values(sale.occupants || {});
     const payment = sale.paid ? `<span class="payment paid">✓ Pago</span>${paymentDetailsHtml(sale)}` : `<span class="payment">Pendente</span>`;
@@ -833,7 +851,7 @@ function syncTableReservationPaymentFields(useToday = false) {
 function openTableReservation(furnitureId) {
   if ($("allSalesModal").open) $("allSalesModal").close();
   if ($("allTableReservationsModal").open) $("allTableReservationsModal").close();
-  if (!requireRole(["admin", "seller"], "Seu perfil permite consultar o mapa, mas não alterar reservas.")) return;
+  if (!requireRole(["admin", "event_manager", "seller"], "Seu perfil permite consultar o mapa, mas não alterar reservas.")) return;
   const event = state.events.find((item) => item.id === selectedEventId);
   const furniture = normalizeTableMap(event?.tableMap).furniture.find((item) => item.id === furnitureId);
   if (!event || !furniture) return toast("Mesa ou bistrô não encontrado.");
@@ -861,7 +879,7 @@ function openTableReservation(furnitureId) {
 }
 
 async function saveTableReservation(data) {
-  if (!hasRole("admin", "seller")) throw new Error("Seu perfil não permite criar ou editar reservas.");
+  if (!hasRole("admin", "event_manager", "seller")) throw new Error("Seu perfil não permite criar ou editar reservas.");
   const event = state.events.find((item) => item.id === data.eventId);
   const furniture = normalizeTableMap(event?.tableMap).furniture.find((item) => item.id === data.furnitureId);
   if (!event || !furniture) throw new Error("Mesa ou bistrô não encontrado.");
@@ -936,7 +954,7 @@ function renderUsers() {
     const selectedIds = allowedEventIds(user).filter((eventId) => state.events.some((event) => event.id === eventId));
     const eventSummary = user.role === "admin" ? "Todos os eventos" : `${selectedIds.length} ${selectedIds.length === 1 ? "evento permitido" : "eventos permitidos"}`;
     const accessEditor = user.role === "admin" ? `<div class="user-event-access admin-access"><strong>Acesso aos eventos</strong><span>Administrador visualiza todos.</span></div>` : `<details class="user-event-access" data-event-access-user="${user.id}"><summary><span>Acesso aos eventos</span><strong>${eventSummary}</strong></summary><div class="user-event-options">${eventAccessCheckboxes(selectedIds)}</div><button class="save-user-events" type="button" data-save-user-events="${user.id}">Salvar eventos permitidos</button></details>`;
-    return `<article class="managed-user ${user.active ? "" : "is-inactive"}"><div class="managed-user-main"><span class="managed-user-avatar">${escapeHtml(userInitials(user.name, user.email))}</span><div class="managed-user-copy"><strong>${escapeHtml(user.name || "Sem nome")}${isCurrent ? " (você)" : ""}</strong><small>${escapeHtml(user.email || "E-mail não informado")}</small><em>${user.active ? "Acesso ativo" : "Acesso bloqueado"}</em></div></div><select data-user-role="${user.id}" aria-label="Perfil de ${escapeHtml(user.name || user.email)}" ${isCurrent ? "disabled" : ""}><option value="admin" ${user.role === "admin" ? "selected" : ""}>Administrador</option><option value="seller" ${user.role === "seller" ? "selected" : ""}>Vendedor</option><option value="door" ${user.role === "door" ? "selected" : ""}>Portaria</option></select><div class="managed-user-actions"><button type="button" data-reset-user="${user.id}">Redefinir senha</button>${isCurrent ? `<button type="button" disabled>Conta atual</button>` : `<button class="deactivate" type="button" data-toggle-user="${user.id}">${user.active ? "Bloquear" : "Ativar"}</button>`}</div>${accessEditor}</article>`;
+    return `<article class="managed-user ${user.active ? "" : "is-inactive"}"><div class="managed-user-main"><span class="managed-user-avatar">${escapeHtml(userInitials(user.name, user.email))}</span><div class="managed-user-copy"><strong>${escapeHtml(user.name || "Sem nome")}${isCurrent ? " (você)" : ""}</strong><small>${escapeHtml(user.email || "E-mail não informado")}</small><em>${user.active ? "Acesso ativo" : "Acesso bloqueado"}</em></div></div><select data-user-role="${user.id}" aria-label="Perfil de ${escapeHtml(user.name || user.email)}" ${isCurrent ? "disabled" : ""}><option value="admin" ${user.role === "admin" ? "selected" : ""}>Administrador</option><option value="event_manager" ${user.role === "event_manager" ? "selected" : ""}>Gerente do evento</option><option value="seller" ${user.role === "seller" ? "selected" : ""}>Vendedor</option><option value="door" ${user.role === "door" ? "selected" : ""}>Portaria</option></select><div class="managed-user-actions"><button type="button" data-reset-user="${user.id}">Redefinir senha</button>${isCurrent ? `<button type="button" disabled>Conta atual</button>` : `<button class="deactivate" type="button" data-toggle-user="${user.id}">${user.active ? "Bloquear" : "Ativar"}</button>`}</div>${accessEditor}</article>`;
   }).join("") : `<div class="empty">Nenhum usuário cadastrado.</div>`;
 }
 async function createManagedUser(data) {
@@ -1079,7 +1097,7 @@ function renderFinancialReport(event, eventSales) {
 }
 
 function syncApplicationPage() {
-  const reportOpen = location.hash === "#relatorio-financeiro" && Boolean(selectedEventId) && hasRole("admin");
+  const reportOpen = location.hash === "#relatorio-financeiro" && Boolean(selectedEventId) && hasRole("admin", "event_manager");
   $("dashboardPage").hidden = reportOpen;
   $("financialReportPage").hidden = !reportOpen;
   document.body.classList.toggle("financial-report-open", reportOpen);
@@ -1148,7 +1166,7 @@ function render() {
     const typeWaiting = Math.max(0, typeSold - typeCheckins);
     return `<div class="ticket-stock-row"><strong title="${escapeHtml(type.name)}">${escapeHtml(type.name)}</strong><span><b>${typeCheckins}</b> check-in${typeCheckins === 1 ? "" : "s"} <i aria-hidden="true">•</i> <b>${typeWaiting}</b> aguardando</span></div>`;
   }).join("")}${tableReservations.length ? `<div class="ticket-stock-row table-checkin-row"><strong>Mesas/bistrôs</strong><span><b>${tableCheckins}</b> check-in${tableCheckins === 1 ? "" : "s"} <i aria-hidden="true">•</i> <b>${Math.max(0, tablePeople - tableCheckins)}</b> aguardando</span></div>` : ""}`;
-  renderFinancialReport(hasRole("admin") ? selectedEvent : undefined, hasRole("admin") ? selectedSales : []);
+  renderFinancialReport(hasRole("admin", "event_manager") ? selectedEvent : undefined, hasRole("admin", "event_manager") ? selectedSales : []);
   renderTableMapPanel(selectedEvent, selectedSales);
   renderTableReservationsList(selectedEvent, selectedSales);
   if (selectedEvent) { $("selectedEventName").textContent = selectedEvent.name; $("selectedEventMeta").textContent = hasRole("door") ? `${selectedEvent.place} · ${dateText(selectedEvent.date)}` : `${selectedEvent.place} · ${dateText(selectedEvent.date)} · ${priceLabel(selectedEvent)}`; $("salesPanelTitle").textContent = `Vendas de ${selectedEvent.name}`; $("allSalesTitle").textContent = `Participantes — ${selectedEvent.name}`; }
@@ -1157,7 +1175,7 @@ function render() {
     const deleteControl = hasRole("admin") ? `<button class="event-card-delete" type="button" data-delete-event="${event.id}" aria-label="Excluir o evento ${escapeHtml(event.name)}" title="Excluir evento">Excluir</button>` : "";
     return `<div class="event-card ${event.id === selectedEventId ? "is-selected" : ""}" data-select-event="${event.id}" role="button" tabindex="0" aria-pressed="${event.id === selectedEventId}"><span class="calendar"><b>${new Date(`${event.date}T12:00:00`).getDate()}</b><small>${new Date(`${event.date}T12:00:00`).toLocaleDateString("pt-BR", { month: "short" }).replace(".", "")}</small></span><span class="event-info"><strong>${escapeHtml(event.name)}</strong><small>${escapeHtml(event.place)}${hasRole("door") ? "" : ` · ${priceLabel(event)}`}</small>${eventUsesTableMap(event) ? `<span class="event-card-mode">Mesas + unitários</span>` : ""}</span><span class="event-card-tools"><span class="event-count">${eventSold}/${eventCapacity(event)}</span>${deleteControl}</span></div>`;
   }).join("") : `<div class="empty">Nenhum evento cadastrado ainda.</div>`;
-  const canManageSales = hasRole("admin", "seller");
+  const canManageSales = hasRole("admin", "event_manager", "seller");
   const paymentControl = (sale) => { const courtesy = saleIsCourtesy(sale, selectedEvent) || sale.courtesy; return `<span class="payment-display">${courtesy ? `<span class="payment paid courtesy-payment">Cortesia</span>` : canManageSales ? `<button class="payment ${sale.paid ? "paid" : ""}" data-paid="${sale.id}">${sale.paid ? "✓ Pago" : "Pendente"}</button>` : `<span class="payment ${sale.paid ? "paid" : ""}">${sale.paid ? "✓ Pago" : "Pendente"}</span>`}${paymentDetailsHtml(sale)}</span>`; };
   const checkinControl = (sale) => `<button class="status ${sale.checkedIn ? "checked" : ""}" data-checkin="${sale.id}">${sale.checkedIn ? "✓ Check-in" : "Fazer check-in"}</button>`;
   const actionControl = (sale) => canManageSales ? `<button class="delete-button" data-delete-sale="${sale.id}">Excluir</button>` : `<span class="role-readonly">Somente consulta</span>`;
@@ -1170,37 +1188,53 @@ function render() {
 }
 
 async function saveEvent(data, id = "") {
-  if (!hasRole("admin")) throw new Error("Somente administradores podem criar ou editar eventos.");
+  if (!id && !hasRole("admin")) throw new Error("Somente administradores podem criar eventos.");
+  if (id && !canAdministerEvent(id)) throw new Error("Você não administra este evento.");
   const eventSales = state.sales.filter((sale) => sale.eventId === id);
-  if (id) {
-    const keptIds = new Set(data.ticketTypes.map((item) => item.id));
-    const removedWithSales = eventSales.flatMap((sale) => saleStockItems(sale)).find((item) => item.ticketTypeId && !keptIds.has(item.ticketTypeId));
-    if (removedWithSales) throw new Error(`Não é possível remover o tipo “${removedWithSales.ticketTypeName}” porque ele já possui vendas.`);
-    const keptPackageIds = new Set((data.packages || []).map((item) => item.id));
-    const removedPackageWithSales = eventSales.flatMap((sale) => saleItems(sale)).find((item) => item.kind === "package" && !keptPackageIds.has(item.packageId));
-    if (removedPackageWithSales) throw new Error(`Não é possível remover “${removedPackageWithSales.packageName}” porque esse pacote ou cortesia já foi lançado.`);
-    for (const type of data.ticketTypes) {
-      const alreadySold = soldForTicket(id, type);
-      if (alreadySold > type.capacity) throw new Error(`O tipo “${type.name}” já possui ${alreadySold} vendidos. Informe uma quantidade igual ou maior.`);
-    }
-    const reservedFurniture = eventSales.filter(isTableReservation);
-    const keptFurnitureIds = new Set((data.tableMap?.furniture || []).map((item) => item.id));
-    const removedReservedFurniture = reservedFurniture.find((sale) => !keptFurnitureIds.has(sale.furnitureId));
-    if (removedReservedFurniture) throw new Error(`Não é possível remover ${removedReservedFurniture.reservationLabel || "uma mesa"} porque ela já possui reserva.`);
+  const existingEvent = state.events.find((event) => event.id === id);
+  let preservedSoldInventory = false;
+  if (existingEvent) {
+    const submittedIds = new Set(data.ticketTypes.map((item) => item.id));
+    data.ticketTypes = data.ticketTypes.map((item) => {
+      const sold = soldForTicket(id, item);
+      if (Number(item.capacity) >= sold) return item;
+      preservedSoldInventory = true;
+      return { ...item, capacity: sold };
+    });
+    ticketTypesFor(existingEvent).forEach((type) => {
+      const sold = soldForTicket(id, type);
+      if (sold > 0 && !submittedIds.has(type.id)) {
+        data.ticketTypes.push({ ...type, capacity: sold });
+        preservedSoldInventory = true;
+      }
+    });
   }
   const capacity = data.ticketTypes.reduce((sum, item) => sum + Number(item.capacity), 0);
-  const eventMode = data.eventMode === "mixed" ? "mixed" : "unit";
-  const tableMap = eventMode === "mixed" ? normalizeTableMap(data.tableMap) : { areas: [], furniture: [] };
+  const reservedFurnitureIds = new Set(eventSales.filter(isTableReservation).map((sale) => sale.furnitureId));
+  let eventMode = data.eventMode === "mixed" ? "mixed" : "unit";
+  let tableMap = eventMode === "mixed" ? normalizeTableMap(data.tableMap) : { areas: [], furniture: [] };
+  let preservedReservations = false;
+  if (reservedFurnitureIds.size) {
+    eventMode = "mixed";
+    const previousMap = normalizeTableMap(existingEvent?.tableMap);
+    const currentIds = new Set(tableMap.furniture.map((item) => item.id));
+    previousMap.furniture.filter((item) => reservedFurnitureIds.has(item.id) && !currentIds.has(item.id)).forEach((item) => {
+      tableMap.furniture.push(item);
+      if (!tableMap.areas.includes(item.area)) tableMap.areas.push(item.area);
+      preservedReservations = true;
+    });
+  }
   const chairPrice = eventMode === "mixed" ? Math.max(0, Number(data.chairPrice || 0)) : 0;
   if (eventMode === "mixed" && !tableMap.areas.length) throw new Error("Selecione Salão, Mezanino ou ambos.");
   if (eventMode === "mixed" && !tableMap.furniture.length) throw new Error("Adicione pelo menos uma mesa ou bistrô ao mapa.");
   const eventData = { name: data.name.trim(), date: data.date, place: data.place.trim(), eventMode, chairPrice, tableMap, capacity, ticketTypes: data.ticketTypes, packages: data.packages || [], updatedAt: Date.now() };
   if (isDemo) { if (id) state.events = state.events.map((item) => item.id === id ? { ...item, ...eventData } : item); else { selectedEventId = crypto.randomUUID(); state.events.push({ id: selectedEventId, ...eventData, createdAt: Date.now() }); } persistDemo(); render(); }
   else if (id) await update(ref(db, `events/${id}`), eventData); else { const eventRef = push(ref(db, "events")); selectedEventId = eventRef.key; await set(eventRef, { ...eventData, createdAt: Date.now() }); }
-  toast(id ? "Evento atualizado." : "Evento criado com sucesso.");
+  const preservationNote = [preservedSoldInventory ? "ingressos vendidos" : "", preservedReservations ? "mesas reservadas" : ""].filter(Boolean).join(" e ");
+  toast(id ? preservationNote ? `Evento atualizado. Foram preservados: ${preservationNote}.` : "Evento atualizado." : "Evento criado com sucesso.");
 }
 async function saveSale(data, id = "") {
-  if (!hasRole("admin", "seller")) throw new Error("Seu perfil não permite criar ou editar vendas.");
+  if (!hasRole("admin", "event_manager", "seller")) throw new Error("Seu perfil não permite criar ou editar vendas.");
   const event = state.events.find((item) => item.id === data.eventId); if (!event) throw new Error("Selecione um evento.");
   const items = Array.isArray(data.items) ? data.items : [];
   if (!items.length) throw new Error("Adicione pelo menos um ingresso à venda.");
@@ -1247,7 +1281,7 @@ async function saveSale(data, id = "") {
   toast(id ? "Participante atualizado." : "Venda registrada.");
 }
 async function toggleCheckin(id) {
-  if (!requireRole(["admin", "seller", "door"])) return;
+  if (!requireRole(["admin", "event_manager", "seller", "door"])) return;
   const sale = state.sales.find((item) => item.id === id); if (!sale) return;
   const value = !sale.checkedIn;
   const details = value ? "Realizou o check-in do participante." : "Desfez o check-in do participante.";
@@ -1255,7 +1289,7 @@ async function toggleCheckin(id) {
   else { const logId = push(ref(db, "auditLogs")).key; await update(ref(db), { [`sales/${id}/checkedIn`]: value, [`auditLogs/${logId}`]: auditLogData("checkin", sale, details) }); }
 }
 async function toggleTableOccupantCheckin(id, occupantIndex) {
-  if (!requireRole(["admin", "seller", "door"])) return;
+  if (!requireRole(["admin", "event_manager", "seller", "door"])) return;
   const sale = state.sales.find((item) => item.id === id);
   const occupants = reservationOccupants(sale);
   const index = Number(occupantIndex);
@@ -1281,7 +1315,7 @@ async function toggleTableOccupantCheckin(id, occupantIndex) {
   }
 }
 async function togglePayment(id) {
-  if (!requireRole(["admin", "seller"])) return;
+  if (!requireRole(["admin", "event_manager", "seller"])) return;
   const sale = state.sales.find((item) => item.id === id); if (!sale) return;
   if (sale.courtesy || saleIsCourtesy(sale)) return toast("Cortesias não possuem cobrança para alterar.");
   if (!sale.paid) {
@@ -1299,7 +1333,7 @@ async function togglePayment(id) {
   else { const logId = push(ref(db, "auditLogs")).key; await update(ref(db), { [`sales/${id}/paid`]: false, [`sales/${id}/paymentMethod`]: null, [`sales/${id}/paymentDate`]: null, [`sales/${id}/updatedAt`]: serverTimestamp(), [`auditLogs/${logId}`]: auditLogData("payment", sale, details) }); }
 }
 async function confirmSalePayment(data) {
-  if (!requireRole(["admin", "seller"])) return;
+  if (!requireRole(["admin", "event_manager", "seller"])) return;
   const sale = state.sales.find((item) => item.id === data.saleId); if (!sale) throw new Error("Venda não encontrada.");
   if (!PAYMENT_METHOD_LABELS[data.paymentMethod]) throw new Error("Selecione a forma de pagamento.");
   if (!data.paymentDate) throw new Error("Informe a data do pagamento.");
@@ -1308,7 +1342,7 @@ async function confirmSalePayment(data) {
   else { const logId = push(ref(db, "auditLogs")).key; await update(ref(db), { [`sales/${sale.id}/paid`]: true, [`sales/${sale.id}/paymentMethod`]: data.paymentMethod, [`sales/${sale.id}/paymentDate`]: data.paymentDate, [`sales/${sale.id}/updatedAt`]: serverTimestamp(), [`auditLogs/${logId}`]: auditLogData("payment", sale, details) }); }
 }
 async function deleteSale(id) {
-  if (!requireRole(["admin", "seller"])) return false;
+  if (!requireRole(["admin", "event_manager", "seller"])) return false;
   const sale = state.sales.find((item) => item.id === id); if (!sale || !confirm(isTableReservation(sale) ? `Excluir a reserva de ${sale.reservationLabel || sale.buyerName}?` : `Excluir a venda de ${sale.buyerName}?`)) return false;
   const quantity = saleQuantity(sale);
   const details = isTableReservation(sale) ? `Excluiu a reserva de ${sale.reservationLabel || "mesa"} com ${quantity} pessoas.` : `Excluiu a venda com ${quantity} ${quantity === 1 ? "ingresso" : "ingressos"}: ${saleTicketSummary(sale)}.`;
@@ -1333,9 +1367,9 @@ function syncSalePaymentFields(useToday = false) {
 }
 
 function openNewEvent() { if (!requireRole(["admin"], "Somente administradores podem criar eventos.")) return; const form = $("eventForm"); form.reset(); form.dataset.editId = ""; form.elements.eventMode.value = "unit"; form.elements.chairPrice.value = ""; resetEventMapDraft(); syncEventMapSettings(); $("eventModalTitle").textContent = "Novo evento"; $("eventSubmitButton").textContent = "Criar evento"; resetPackages(); resetTicketTypes(); $("eventModal").showModal(); }
-function openEditEvent(id) { if (!requireRole(["admin"], "Somente administradores podem editar eventos.")) return; const item = state.events.find((event) => event.id === id); if (!item) return; const form = $("eventForm"); form.reset(); form.dataset.editId = id; form.elements.name.value = item.name || ""; form.elements.date.value = item.date || ""; form.elements.place.value = item.place || ""; form.elements.eventMode.value = item.eventMode === "mixed" ? "mixed" : "unit"; form.elements.chairPrice.value = Number(item.chairPrice || 0); resetEventMapDraft(item); syncEventMapSettings(); resetPackages(); $("ticketTypesList").innerHTML = ""; ticketTypesFor(item).forEach((type) => addTicketTypeRow(type.name, type.price, type.capacity, type.id)); packagesFor(item).forEach((packageItem) => addPackageRow(packageItem)); renderPackagesEmptyState(); $("eventModalTitle").textContent = "Editar evento"; $("eventSubmitButton").textContent = "Salvar alterações"; $("eventModal").showModal(); }
-function openNewSale(eventId = "") { if (!requireRole(["admin", "seller"])) return; if (!state.events.length) return toast("Cadastre um evento antes de registrar uma venda."); const form = $("saleForm"); form.reset(); form.dataset.editId = ""; $("saleModalTitle").textContent = "Registrar ingressos"; $("saleSubmitButton").textContent = "Confirmar venda"; $("saleEvent").value = eventId; setSaleTicketItems(eventId); syncSalePaymentFields(true); $("saleModal").showModal(); }
-function openEditSale(id) { if (!requireRole(["admin", "seller"])) return; const sale = state.sales.find((item) => item.id === id); if (!sale) return; if ($("allSalesModal").open) $("allSalesModal").close(); const form = $("saleForm"); form.reset(); form.dataset.editId = id; $("saleEvent").value = sale.eventId; setSaleTicketItems(sale.eventId, saleItems(sale)); form.elements.buyerName.value = sale.buyerName || ""; form.elements.buyerPhone.value = sale.buyerPhone || ""; form.elements.buyerEmail.value = sale.buyerEmail || ""; form.elements.paymentStatus.value = sale.paid ? "paid" : "pending"; form.elements.paymentMethod.value = sale.paymentMethod || ""; form.elements.paymentDate.value = sale.paymentDate || ""; form.elements.notes.value = sale.notes || ""; syncSalePaymentFields(false); $("saleModalTitle").textContent = "Editar participante e ingressos"; $("saleSubmitButton").textContent = "Salvar alterações"; $("saleModal").showModal(); }
+function openEditEvent(id) { if (!requireRole(["admin", "event_manager"], "Somente administradores e gerentes podem editar eventos.")) return; if (!canAdministerEvent(id)) return toast("Você não administra este evento."); const item = state.events.find((event) => event.id === id); if (!item) return; const form = $("eventForm"); form.reset(); form.dataset.editId = id; form.elements.name.value = item.name || ""; form.elements.date.value = item.date || ""; form.elements.place.value = item.place || ""; form.elements.eventMode.value = item.eventMode === "mixed" ? "mixed" : "unit"; form.elements.chairPrice.value = Number(item.chairPrice || 0); resetEventMapDraft(item); syncEventMapSettings(); resetPackages(); $("ticketTypesList").innerHTML = ""; ticketTypesFor(item).forEach((type) => addTicketTypeRow(type.name, type.price, type.capacity, type.id)); packagesFor(item).forEach((packageItem) => addPackageRow(packageItem)); renderPackagesEmptyState(); $("eventModalTitle").textContent = "Editar evento"; $("eventSubmitButton").textContent = "Salvar alterações"; $("eventModal").showModal(); }
+function openNewSale(eventId = "") { if (!requireRole(["admin", "event_manager", "seller"])) return; if (!state.events.length) return toast("Cadastre um evento antes de registrar uma venda."); const form = $("saleForm"); form.reset(); form.dataset.editId = ""; $("saleModalTitle").textContent = "Registrar ingressos"; $("saleSubmitButton").textContent = "Confirmar venda"; $("saleEvent").value = eventId; setSaleTicketItems(eventId); syncSalePaymentFields(true); $("saleModal").showModal(); }
+function openEditSale(id) { if (!requireRole(["admin", "event_manager", "seller"])) return; const sale = state.sales.find((item) => item.id === id); if (!sale) return; if ($("allSalesModal").open) $("allSalesModal").close(); const form = $("saleForm"); form.reset(); form.dataset.editId = id; $("saleEvent").value = sale.eventId; setSaleTicketItems(sale.eventId, saleItems(sale)); form.elements.buyerName.value = sale.buyerName || ""; form.elements.buyerPhone.value = sale.buyerPhone || ""; form.elements.buyerEmail.value = sale.buyerEmail || ""; form.elements.paymentStatus.value = sale.paid ? "paid" : "pending"; form.elements.paymentMethod.value = sale.paymentMethod || ""; form.elements.paymentDate.value = sale.paymentDate || ""; form.elements.notes.value = sale.notes || ""; syncSalePaymentFields(false); $("saleModalTitle").textContent = "Editar participante e ingressos"; $("saleSubmitButton").textContent = "Salvar alterações"; $("saleModal").showModal(); }
 
 document.querySelectorAll("[data-open]").forEach((button) => button.addEventListener("click", () => { if (button.dataset.open === "eventModal") return openNewEvent(); if (button.dataset.open === "saleModal") return openNewSale(selectedEventId); $(button.dataset.open).showModal(); }));
 document.querySelectorAll("[data-close]").forEach((button) => button.addEventListener("click", () => $(button.dataset.close).close()));
@@ -1352,7 +1386,7 @@ $("saleTicketItemsList").addEventListener("input", updateSaleItemsSummary);
 $("saleForm").elements.paymentStatus.addEventListener("change", () => syncSalePaymentFields(true));
 $("saleForm").elements.buyerPhone.addEventListener("blur", (event) => { event.currentTarget.value = formatPhoneDisplay(event.currentTarget.value); });
 $("applyParticipantFilters").addEventListener("click", () => { selectedTicketTypeFilter = $("ticketTypeFilter").value; selectedPaymentFilter = $("paymentStatusFilter").value; selectedEntryFilter = $("entryStatusFilter").value; document.querySelector(".ticket-filter").open = false; render(); });
-$("openFinancialReport").addEventListener("click", () => { if (!requireRole(["admin"], "O relatório financeiro é exclusivo para administradores.")) return; if (!selectedEventId) return toast("Selecione um evento para abrir o relatório financeiro."); location.hash = "relatorio-financeiro"; });
+$("openFinancialReport").addEventListener("click", () => { if (!requireRole(["admin", "event_manager"], "O relatório financeiro é exclusivo para administradores e gerentes do evento.")) return; if (!selectedEventId) return toast("Selecione um evento para abrir o relatório financeiro."); location.hash = "relatorio-financeiro"; });
 $("backToDashboard").addEventListener("click", () => { history.replaceState(null, "", location.href.split("#")[0]); syncApplicationPage(); window.scrollTo({ top: 0, behavior: "smooth" }); });
 $("sellerClosingStart").addEventListener("change", render);
 $("sellerClosingEnd").addEventListener("change", render);
@@ -1415,7 +1449,7 @@ $("tableReservationsList").addEventListener("click", (event) => { if (event.targ
 $("tableReservationsList").addEventListener("keydown", (event) => { if ((event.key === "Enter" || event.key === " ") && event.target.matches("[data-toggle-table-reservation-details]")) { event.preventDefault(); toggleTableReservationCard(event.target.closest(".table-reservation-card")); } });
 $("allSalesList").addEventListener("click", (event) => { const reservation = event.target.closest("[data-open-table-reservation]"); if (reservation) openTableReservation(reservation.dataset.openTableReservation); });
 $("allTableReservationsList").addEventListener("click", (event) => { const reservation = event.target.closest("[data-open-table-reservation]"); if (reservation) openTableReservation(reservation.dataset.openTableReservation); });
-$("exportTableReservations").addEventListener("click", () => { if (requireRole(["admin", "seller"])) window.exportSalesXlsx(state.sales, state.events, selectedEventId, "tables"); });
+$("exportTableReservations").addEventListener("click", () => { if (requireRole(["admin", "event_manager", "seller"])) window.exportSalesXlsx(state.sales, state.events, selectedEventId, "tables"); });
 $("addTableOccupant").addEventListener("click", () => addTableOccupantRow());
 $("tableOccupantsList").addEventListener("click", (event) => { const remove = event.target.closest("[data-remove-table-occupant]"); if (!remove) return; remove.closest(".table-occupant-row").remove(); updateTableReservationTotal(); });
 $("tableReservationForm").elements.paymentStatus.addEventListener("change", () => syncTableReservationPaymentFields(true));

@@ -4,11 +4,12 @@ Site estático em HTML, CSS e JavaScript, pronto para publicar no GitHub Pages, 
 
 ## Login individual, permissões e histórico
 
-A versão 4.8.0 atualiza o mapa do salão para o novo desenho oficial, com 40 posições de mesas menores e alinhadas fielmente ao fundo. Ela também mantém o check-in individual de cada ocupante, os contadores, o histórico e a exportação das entradas no Excel.
+A versão 4.9.0 permite editar a configuração de eventos mesmo depois de vendas e reservas, preservando automaticamente as mesas já reservadas. Também adiciona o perfil Gerente do evento, com administração completa somente dos eventos atribuídos pelo administrador.
 
 Nas reservas, a primeira pessoa é a responsável e informa nome e telefone. Os demais ocupantes precisam somente do nome. O total é calculado automaticamente pelo valor por pessoa/cadeira definido no evento. As reservas entram no faturamento, no fechamento por vendedor, no histórico e na planilha Excel.
 
 - **Administrador**: visualiza todos os eventos e controla usuários, eventos, vendas, pagamentos, check-in, Excel e relatório financeiro.
+- **Gerente do evento**: administra somente os eventos atribuídos, podendo editar configurações, controlar vendas e reservas, pagamentos, check-in, Excel, relatório financeiro e histórico. Não cria/exclui eventos nem gerencia usuários.
 - **Vendedor**: visualiza somente os eventos marcados pelo administrador; nesses eventos, trabalha com vendas, pagamentos, check-in e Excel.
 - **Portaria**: visualiza somente os eventos marcados pelo administrador; nesses eventos, consulta participantes e realiza check-in.
 
@@ -23,7 +24,7 @@ As permissões são aplicadas na interface e nas regras do Realtime Database. Co
 
 ## Atualização obrigatória no Firebase
 
-Na atualização para a versão 4.8.0, envie todos os arquivos do pacote ao GitHub Pages. Se ainda não publicou as regras da versão 4.7.0, publique também o arquivo `database.rules.json` no Firebase Realtime Database. Eventos, vendas e reservas antigas continuam disponíveis normalmente.
+Na atualização para a versão 4.9.0, envie todos os arquivos do pacote ao GitHub Pages e publique o arquivo `database.rules.json` no Firebase Realtime Database. Essa publicação das regras é obrigatória para o novo perfil Gerente do evento funcionar. Eventos, vendas e reservas antigas continuam disponíveis normalmente.
 
 As instruções completas estão em [FIREBASE-SETUP.md](FIREBASE-SETUP.md).
 

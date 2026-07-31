@@ -1,13 +1,13 @@
-# Configuração de segurança, financeiro e mapas — Le Beef 4.8.0
+# Configuração de segurança, financeiro e mapas — Le Beef 4.9.0
 
 Os eventos e participantes já cadastrados não serão apagados.
 
 ## 1. Publicar o site e marcar os eventos
 
-1. Publique todos os arquivos da versão 4.8.0 no GitHub Pages.
+1. Publique todos os arquivos da versão 4.9.0 no GitHub Pages.
 2. Entre com a conta de administrador.
 3. No menu da conta, abra **Gerenciar usuários**.
-4. Ao criar um vendedor ou usuário da portaria, marque um ou mais **Eventos permitidos**.
+4. Ao criar um gerente do evento, vendedor ou usuário da portaria, marque um ou mais **Eventos permitidos**.
 5. Para uma conta já existente, abra **Acesso aos eventos**, marque os eventos e clique em **Salvar eventos permitidos**.
 
 ## 2. Publicar as novas regras
@@ -20,12 +20,13 @@ Os eventos e participantes já cadastrados não serão apagados.
 As novas regras garantem que:
 
 - o administrador tenha acesso a todos os eventos;
+- o gerente edite e administre somente os eventos atribuídos, sem poder criá-los ou excluí-los;
 - vendedor e portaria leiam somente eventos marcados em seus perfis;
 - as vendas sejam consultadas por evento;
 - vendedor altere somente vendas dos eventos permitidos;
 - portaria faça check-in somente nos eventos permitidos.
 - cada alteração de venda crie um registro imutável em `auditLogs`;
-- somente o administrador consiga consultar o histórico completo;
+- administrador consulte o histórico completo e gerente consulte somente o histórico de seus eventos;
 - vendedor e portaria gravem no histórico apenas ações permitidas por seus perfis.
 
 ## 3. Como consultar o histórico
@@ -35,7 +36,7 @@ As novas regras garantem que:
 3. Clique em **Histórico** no cabeçalho do evento.
 4. Consulte a ação, o participante, o usuário responsável, o perfil, a data e o horário.
 
-O histórico registra ações realizadas depois da publicação das regras da versão 3.4.0. Na versão 4.8.0, o salão possui 40 posições predefinidas e cada ocupante das mesas/bistrôs continua com check-in individual. Se as regras da versão 4.7.0 ainda não foram publicadas, publique-as para permitir que usuários da portaria atualizem essas entradas.
+O histórico registra ações realizadas depois da publicação das regras da versão 3.4.0. Na versão 4.9.0, o perfil Gerente do evento pode administrar, editar, vender, reservar, consultar relatórios e históricos somente nos eventos atribuídos. Publique as novas regras para ativar essas permissões.
 
 O perfil é gravado assim:
 
