@@ -570,6 +570,36 @@ let qrScannerBusy = false;
 let qrBarcodeDetector = null;
 const qrScannerCanvas = document.createElement("canvas");
 const qrScannerContext = qrScannerCanvas.getContext("2d", { willReadFrequently: true });
+let qrAudioContext = null;
+
+function prepareQrAudio() {
+  try {
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContextClass) return null;
+    qrAudioContext ||= new AudioContextClass();
+    if (qrAudioContext.state === "suspended") qrAudioContext.resume().catch(() => {});
+    return qrAudioContext;
+  } catch { return null; }
+}
+
+function playQrFeedback(type) {
+  const context = prepareQrAudio();
+  if (!context) return;
+  const success = type === "valid";
+  const notes = success ? [[659, 0, .1], [880, .11, .16]] : [[220, 0, .14], [165, .16, .24]];
+  notes.forEach(([frequency, delay, duration]) => {
+    const oscillator = context.createOscillator();
+    const gain = context.createGain();
+    oscillator.type = success ? "sine" : "square";
+    oscillator.frequency.setValueAtTime(frequency, context.currentTime + delay);
+    gain.gain.setValueAtTime(.0001, context.currentTime + delay);
+    gain.gain.exponentialRampToValueAtTime(success ? .18 : .12, context.currentTime + delay + .015);
+    gain.gain.exponentialRampToValueAtTime(.0001, context.currentTime + delay + duration);
+    oscillator.connect(gain); gain.connect(context.destination);
+    oscillator.start(context.currentTime + delay); oscillator.stop(context.currentTime + delay + duration + .02);
+  });
+  if (navigator.vibrate) navigator.vibrate(success ? 70 : [110, 70, 110]);
+}
 
 function qrTokenFromScan(value) {
   const scanned = String(value || "").trim();
@@ -601,9 +631,35 @@ function stopQrScanner() {
 
 async function finishQrScan(value) {
   const token = qrTokenFromScan(value);
+  const found = token ? locateQrTicket(token) : null;
   stopQrScanner();
   if ($("qrScannerModal").open) $("qrScannerModal").close();
+  playQrFeedback(found && !found.ticket.checkedIn ? "valid" : "rejected");
   await showQrValidation(token);
+}
+
+async function openCameraPermissionDialog(message = "") {
+  if (!requireRole(["admin", "event_manager", "seller", "door"])) return;
+  prepareQrAudio();
+  const modal = $("cameraPermissionModal");
+  const status = $("cameraPermissionStatus");
+  modal.classList.remove("is-denied");
+  status.textContent = message;
+  if (message) { modal.classList.add("is-denied"); $("grantCameraPermission").textContent = "Tentar novamente"; }
+  try {
+    const permission = await navigator.permissions?.query?.({ name: "camera" });
+    if (!message && permission?.state === "granted") {
+      status.textContent = "A câmera já está autorizada. Toque abaixo para abrir o leitor.";
+      $("grantCameraPermission").textContent = "Abrir câmera";
+    } else if (!message) {
+      $("grantCameraPermission").textContent = permission?.state === "denied" ? "Tentar novamente" : "Autorizar câmera";
+      if (permission?.state === "denied") {
+        modal.classList.add("is-denied");
+        status.textContent = "A permissão está bloqueada. Abra as informações deste aplicativo ou site nas configurações do Android, permita a câmera e tente novamente.";
+      }
+    }
+  } catch { if (!message) $("grantCameraPermission").textContent = "Autorizar câmera"; }
+  if (!modal.open) modal.showModal();
 }
 
 async function scanQrVideoFrame() {
@@ -653,7 +709,12 @@ async function openQrScanner() {
     qrScannerFrame = requestAnimationFrame(scanQrVideoFrame);
   } catch (error) {
     stopQrScanner();
-    status.textContent = error?.name === "NotAllowedError" ? "A câmera foi bloqueada. Autorize o acesso no navegador ou escolha uma foto do QR Code." : "Não foi possível abrir a câmera. Tente novamente ou escolha uma foto do QR Code.";
+    if ($("qrScannerModal").open) $("qrScannerModal").close();
+    if (error?.name === "NotAllowedError") {
+      openCameraPermissionDialog("A câmera foi recusada. Nas configurações do Android, abra as permissões deste aplicativo, libere a câmera e toque em “Tentar novamente”.");
+    } else {
+      openCameraPermissionDialog("Não foi possível abrir a câmera. Tente novamente ou use uma foto do QR Code.");
+    }
   }
 }
 
@@ -1944,9 +2005,13 @@ document.addEventListener("click", (event) => {
 $("confirmQrCheckin").addEventListener("click", () => toggleQrTicketCheckin($("qrValidationModal").dataset.token));
 $("qrValidationModal").addEventListener("cancel", (event) => { event.preventDefault(); $("qrValidationModal").close(); location.hash = "portaria"; });
 document.querySelector("[data-close-qr-validation]").addEventListener("click", () => { $("qrValidationModal").close(); location.hash = "portaria"; });
-$("openQrScanner").addEventListener("click", openQrScanner);
+$("openQrScanner").addEventListener("click", () => openCameraPermissionDialog());
 $("chooseQrImage").addEventListener("click", () => $("qrImageInput").click());
 $("qrScannerPhoto").addEventListener("click", () => $("qrImageInput").click());
+$("grantCameraPermission").addEventListener("click", () => { prepareQrAudio(); $("cameraPermissionModal").close(); openQrScanner(); });
+$("cameraPermissionPhoto").addEventListener("click", () => { prepareQrAudio(); $("cameraPermissionModal").close(); $("qrImageInput").click(); });
+$("cameraPermissionModal").addEventListener("cancel", (event) => { event.preventDefault(); $("cameraPermissionModal").close(); });
+document.querySelector("[data-close-camera-permission]").addEventListener("click", () => $("cameraPermissionModal").close());
 $("qrImageInput").addEventListener("change", (event) => { const [file] = event.currentTarget.files || []; event.currentTarget.value = ""; scanQrImageFile(file); });
 $("qrScannerModal").addEventListener("cancel", (event) => { event.preventDefault(); stopQrScanner(); $("qrScannerModal").close(); });
 document.querySelector("[data-close-qr-scanner]").addEventListener("click", () => { stopQrScanner(); $("qrScannerModal").close(); });

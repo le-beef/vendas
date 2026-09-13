@@ -1,5 +1,11 @@
 # Le Beef — painel de vendas de ingressos
 
+## Permissão da câmera e alertas sonoros — versão 5.4.1
+
+- Antes de abrir o leitor, a Portaria exibe uma orientação para autorizar a câmera no Android ou navegador.
+- Se a permissão estiver bloqueada, o diálogo explica que ela precisa ser liberada nas configurações do aplicativo ou site.
+- A leitura válida emite um som positivo; QR inválido ou já utilizado emite um som de recusa e uma vibração diferente em celulares compatíveis.
+
 ## Leitor de QR Code na Portaria — versão 5.4.0
 
 - A Portaria pode abrir a câmera traseira do celular e ler o QR Code do ingresso em tempo real.

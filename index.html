@@ -45,7 +45,7 @@
     <link rel="stylesheet" href="table-reservation-details.css?v=2" />
     <link rel="stylesheet" href="table-reservation-final.css?v=1" />
     <link rel="stylesheet" href="table-reservation-harmony.css?v=4" />
-    <link rel="stylesheet" href="ticketing.css?v=3" />
+    <link rel="stylesheet" href="ticketing.css?v=4" />
     <link rel="stylesheet" href="theme.css?v=11" />
     <link rel="stylesheet" href="pages.css?v=2" />
     <style id="topbar-critical-styles">
@@ -193,7 +193,7 @@
       </section>
     </main>
 
-    <footer class="site-footer">Le Beef | Versão: 5.4.0</footer>
+    <footer class="site-footer">Le Beef | Versão: 5.4.1</footer>
 
     <button class="fab" data-open="saleModal" data-roles="admin,event_manager,seller" aria-label="Registrar venda">+</button>
 
@@ -339,6 +339,17 @@
       </div>
     </dialog>
 
+    <dialog id="cameraPermissionModal" class="camera-permission-modal">
+      <div class="camera-permission-shell">
+        <div class="modal-heading"><div><p class="eyebrow">CÂMERA</p><h2>Autorizar leitura do QR Code</h2></div><button class="close" type="button" data-close-camera-permission aria-label="Fechar">×</button></div>
+        <span class="camera-permission-icon" aria-hidden="true"></span>
+        <div class="camera-permission-copy"><strong>O aplicativo precisa usar a câmera traseira.</strong><p>Toque em “Autorizar câmera” e, quando o Android ou navegador perguntar, escolha <b>Permitir durante o uso</b>.</p></div>
+        <p id="cameraPermissionStatus" class="camera-permission-status" role="status"></p>
+        <button id="grantCameraPermission" class="button primary full" type="button">Autorizar câmera</button>
+        <button id="cameraPermissionPhoto" class="button secondary full" type="button">Ler uma foto do QR Code</button>
+      </div>
+    </dialog>
+
     <dialog id="qrScannerModal" class="qr-scanner-modal">
       <div class="qr-scanner-shell">
         <div class="qr-scanner-heading"><div><p class="eyebrow">PORTARIA</p><h2>Ler QR Code</h2><p>Aponte a câmera para o código do ingresso.</p></div><button class="close" type="button" data-close-qr-scanner aria-label="Fechar câmera">×</button></div>
@@ -352,6 +363,6 @@
     <script src="pwa.js"></script>
     <script src="theme.js?v=1"></script>
     <script src="excel-export.js?v=37"></script>
-    <script type="module" src="app.js?v=66"></script>
+    <script type="module" src="app.js?v=67"></script>
   </body>
 </html>
