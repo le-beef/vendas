@@ -38,7 +38,7 @@
       return [{ ticketTypeName: sale.ticketTypeName || "Ingresso padrão", quantity: Number(sale.quantity || 0), subtotal: Number(sale.total || 0) }];
     };
     const selectedEvent = events.find((event) => event.id === eventId);
-    const allSelectedSales = eventId ? sales.filter((sale) => sale.eventId === eventId) : sales;
+    const allSelectedSales = (eventId ? sales.filter((sale) => sale.eventId === eventId) : sales).filter((sale) => sale.reservationType !== "table_block" && sale.nonRevenue !== true);
     const selectedSales = allSelectedSales.filter((sale) => mode === "tables" ? sale.reservationType === "table" : sale.reservationType !== "table");
     const reservationOccupants = (sale) => {
       const stored = Array.isArray(sale.occupants) ? sale.occupants : Object.values(sale.occupants || {});

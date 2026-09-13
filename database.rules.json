@@ -39,6 +39,18 @@
             ".write": "auth != null && root.child('users').child(auth.uid).child('active').val() === true && root.child('users').child(auth.uid).child('role').val() === 'door' && root.child('users').child(auth.uid).child('eventIds').child(root.child('sales').child($saleId).child('eventId').val()).val() === true",
             ".validate": "newData.isBoolean()"
           }
+        },
+        "qrTickets": {
+          "$index": {
+            "checkedIn": {
+              ".write": "auth != null && root.child('users').child(auth.uid).child('active').val() === true && root.child('users').child(auth.uid).child('role').val() === 'door' && root.child('users').child(auth.uid).child('eventIds').child(root.child('sales').child($saleId).child('eventId').val()).val() === true",
+              ".validate": "newData.isBoolean()"
+            },
+            "checkedInAt": {
+              ".write": "auth != null && root.child('users').child(auth.uid).child('active').val() === true && root.child('users').child(auth.uid).child('role').val() === 'door' && root.child('users').child(auth.uid).child('eventIds').child(root.child('sales').child($saleId).child('eventId').val()).val() === true",
+              ".validate": "!newData.exists() || newData.isNumber()"
+            }
+          }
         }
       }
     },

@@ -40,12 +40,13 @@
     <link rel="stylesheet" href="audit-log.css?v=27" />
     <link rel="stylesheet" href="payment-closing.css?v=28" />
     <link rel="stylesheet" href="event-access.css?v=18" />
-    <link rel="stylesheet" href="table-map.css?v=7" />
+    <link rel="stylesheet" href="table-map.css?v=8" />
     <link rel="stylesheet" href="table-reservation-override.css?v=1" />
     <link rel="stylesheet" href="table-reservation-details.css?v=2" />
     <link rel="stylesheet" href="table-reservation-final.css?v=1" />
     <link rel="stylesheet" href="table-reservation-harmony.css?v=4" />
-    <link rel="stylesheet" href="theme.css?v=10" />
+    <link rel="stylesheet" href="ticketing.css?v=1" />
+    <link rel="stylesheet" href="theme.css?v=11" />
     <link rel="stylesheet" href="pages.css?v=2" />
     <style id="topbar-critical-styles">
       html { scroll-padding-top: 84px; }
@@ -146,7 +147,7 @@
         </section>
 
         <article id="tableMapPanel" class="panel table-map-panel" hidden>
-          <div class="panel-heading table-map-panel-heading"><div><p class="eyebrow">RESERVAS</p><h2>Mapa de mesas</h2><p>Selecione uma mesa ou bistrô para registrar ou consultar os ocupantes.</p></div><div id="tableMapLegend" class="table-map-legend"><span><i class="is-free"></i>Livre</span><span><i class="is-pending"></i>Pendente</span><span><i class="is-paid"></i>Pago</span></div></div>
+          <div class="panel-heading table-map-panel-heading"><div><p class="eyebrow">RESERVAS</p><h2>Mapa de mesas</h2><p>Selecione uma mesa ou bistrô para registrar ou consultar os ocupantes.</p></div><div id="tableMapLegend" class="table-map-legend"><span><i class="is-free"></i>Livre</span><span><i class="is-pending"></i>Pendente</span><span><i class="is-paid"></i>Pago</span><span><i class="is-blocked"></i>Ocupada sem venda</span></div></div>
           <div id="tableMapAreaTabs" class="map-area-tabs" role="tablist" aria-label="Áreas do evento"></div>
           <div class="table-map-viewer-shell"><div id="tableMapViewer" class="table-map-stage table-map-viewer" aria-label="Mapa das mesas do evento"></div><button id="openMapZoom" class="map-zoom-button" type="button" aria-label="Ampliar mapa" title="Ampliar mapa"><span aria-hidden="true"></span></button></div>
           <div id="tableMapSummary" class="table-map-summary"></div>
@@ -192,7 +193,7 @@
       </section>
     </main>
 
-    <footer class="site-footer">Le Beef | Versão: 5.1.0</footer>
+    <footer class="site-footer">Le Beef | Versão: 5.3.0</footer>
 
     <button class="fab" data-open="saleModal" data-roles="admin,event_manager,seller" aria-label="Registrar venda">+</button>
 
@@ -212,6 +213,11 @@
         </section>
         <div class="ticket-types-field"><div class="field-label"><span>Tipos/lotes, valores e quantidades</span><button class="text-button" type="button" id="addTicketType">+ Adicionar tipo</button></div><p class="field-help">Cada tipo ou lote terá seu próprio limite de vendas.</p><div id="ticketTypesList" class="ticket-types-list"></div></div>
         <div class="packages-field"><div class="field-label"><span>Pacotes e cortesias</span><span class="package-create-actions"><button class="text-button" type="button" id="addPackage">+ Pacote</button><button class="text-button courtesy-create-button" type="button" id="addCourtesy">+ Cortesia</button></span></div><p class="field-help">Monte pacotes ou cortesias com os ingressos acima. O estoque continuará sendo descontado de cada tipo individual.</p><div id="packagesList" class="packages-list"></div></div>
+        <section class="ticket-design-settings">
+          <div><span class="field-label">Visual do ingresso digital</span><p class="field-help">Personalize as cores e os textos do PDF com QR Code.</p></div>
+          <div class="ticket-design-grid"><label>Título<input name="ticketTitle" maxlength="36" value="INGRESSO DIGITAL" /></label><label>Mensagem no rodapé<input name="ticketFooter" maxlength="120" value="Apresente este QR Code na entrada." /></label><label>Cor principal<input name="ticketPrimaryColor" type="color" value="#17375f" /></label><label>Cor de destaque<input name="ticketAccentColor" type="color" value="#14b886" /></label></div>
+          <div id="ticketDesignPreview" class="ticket-design-preview"><span>INGRESSO DIGITAL</span><strong>Nome do evento</strong><small>QR CODE • Entrada individual</small></div>
+        </section>
         <button class="button primary full" id="eventSubmitButton" type="submit">Criar evento</button>
       </form>
     </dialog>
@@ -247,8 +253,16 @@
         <div class="two-columns payment-status-fields"><label>Pagamento<select name="paymentStatus" required><option value="paid">Pago</option><option value="pending">Pendente</option></select></label><label>Forma de pagamento<select name="paymentMethod"><option value="">Selecione</option><option value="pix">Pix</option><option value="cash">Dinheiro</option><option value="credit_card">Cartão de crédito</option><option value="debit_card">Cartão de débito</option><option value="bank_transfer">Transferência</option><option value="other">Outro</option></select></label></div>
         <label class="payment-date-field">Data do pagamento<input name="paymentDate" type="date" /></label>
         <label>Observações (opcional)<textarea name="notes" rows="3" placeholder="Informações sobre a reserva"></textarea></label>
-        <div class="reservation-form-actions"><button id="deleteTableReservation" class="button danger" type="button" hidden>Excluir reserva</button><button class="button primary" type="submit">Salvar reserva</button></div>
+        <div class="reservation-form-actions"><button id="deleteTableReservation" class="button danger" type="button" hidden>Excluir reserva</button><button id="occupyTableWithoutSale" class="button secondary" type="button">Ocupar sem venda</button><button class="button primary" type="submit">Salvar reserva</button></div>
       </form>
+    </dialog>
+
+    <dialog id="tableOccupancyModal" class="table-occupancy-modal">
+      <div class="table-occupancy-shell">
+        <div class="modal-heading"><div><p class="eyebrow">OCUPADA SEM VENDA</p><h2 id="tableOccupancyTitle">Mesa</h2><p id="tableOccupancyArea">Área do evento</p></div><button class="close" type="button" data-close="tableOccupancyModal" aria-label="Fechar">×</button></div>
+        <div class="table-occupancy-notice"><span aria-hidden="true">●</span><div><strong>Esta mesa está indisponível.</strong><p>Ela permanece ocupada no mapa, mas não entra nas vendas, no faturamento ou nos relatórios.</p></div></div>
+        <button id="releaseTableOccupancy" class="button primary full" type="button">Liberar mesa</button>
+      </div>
     </dialog>
 
     <dialog id="mapZoomModal" class="map-zoom-modal">
@@ -316,10 +330,19 @@
       </form>
     </dialog>
 
+    <dialog id="qrValidationModal" class="qr-validation-modal">
+      <div class="qr-validation-shell">
+        <div class="modal-heading"><div><p class="eyebrow">PORTARIA</p><h2>Validar ingresso</h2></div><button class="close" type="button" data-close-qr-validation aria-label="Fechar">×</button></div>
+        <img id="qrValidationImage" class="qr-validation-image" alt="QR Code do ingresso" />
+        <div id="qrValidationState" class="qr-validation-state"></div>
+        <button id="confirmQrCheckin" class="button primary full" type="button">Confirmar check-in</button>
+      </div>
+    </dialog>
+
     <div id="toast" role="status" aria-live="polite"></div>
     <script src="pwa.js"></script>
     <script src="theme.js?v=1"></script>
-    <script src="excel-export.js?v=36"></script>
-    <script type="module" src="app.js?v=62"></script>
+    <script src="excel-export.js?v=37"></script>
+    <script type="module" src="app.js?v=64"></script>
   </body>
 </html>

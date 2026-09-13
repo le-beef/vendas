@@ -1,6 +1,19 @@
 # Le Beef — painel de vendas de ingressos
 
+## QR Code, check-in individual e ingresso em PDF — versão 5.3.0
+
+- Cada ingresso vendido recebe um QR Code único; nas reservas, cada ocupante recebe o próprio código.
+- O QR abre a validação da Portaria, identifica códigos inválidos ou já utilizados e confirma a entrada individualmente.
+- O PDF usa formato vertical compacto de 90 × 160 mm, otimizado para celular, com um ingresso por página.
+- Administradores e gerentes podem personalizar título, mensagem e cores do ingresso na configuração do evento.
+- Os botões “QR em PDF” e “Enviar ingresso” ficam dentro dos detalhes da venda ou reserva. No celular, “Enviar ingresso” usa o compartilhamento do sistema para escolher WhatsApp ou WhatsApp Business.
+- A regra do Firebase foi ampliada para permitir que o perfil Portaria atualize somente a validação do QR Code e o check-in correspondente.
+
 Site estático em HTML, CSS e JavaScript, pronto para publicar no GitHub Pages, com Firebase Authentication e Realtime Database.
+
+## Ocupação de mesas sem venda — versão 5.2.0
+
+Ao abrir uma mesa ou bistrô livre, use **Ocupar sem venda** para deixá-lo indisponível no mapa sem criar faturamento. A ocupação aparece em roxo, entra somente no contador de móveis ocupados e pode ser removida tocando novamente na mesa e escolhendo **Liberar mesa**. Ela não aparece nas vendas, reservas, participantes, portaria, Excel, estoque ou relatórios financeiros. Administradores, gerentes do evento e vendedores podem ocupar e liberar. As regras do Firebase permanecem iguais.
 
 ## Arquivamento — versão 5.1.0
 
