@@ -14,6 +14,11 @@ export function createEventPages(api) {
   const extra = document.createElement('div');
   extra.innerHTML = `<section id="pageMore" class="workspace-panel" hidden><p class="eyebrow">EVENTO</p><h1>Mais opções</h1><p class="page-description">Acesse as ferramentas e configurações deste evento.</p><div class="page-shortcuts"><a href="#portaria">✓ <strong>Portaria</strong><small>Busca e check-in individual</small></a><a href="#relatorio-financeiro" data-manager>▥ <strong>Financeiro</strong><small>Recebimentos e vendedores</small></a><a href="#historico" data-manager>◷ <strong>Histórico</strong><small>Alterações da equipe</small></a></div><h2 data-manager>Configurações do evento</h2><div id="pageEventActions"></div></section><section id="pageDoor" class="workspace-panel" hidden><p class="eyebrow">PORTARIA</p><h1>Receber participantes</h1><p class="page-description">Pesquise pelo nome, telefone ou mesa e registre cada entrada.</p><div class="door-tools"><label><span class="sr-only">Buscar participante</span><input id="doorSearch" type="search" placeholder="Nome, telefone ou mesa" autocomplete="off"></label><label><span class="sr-only">Situação da entrada</span><select id="doorFilter"><option value="all">Todas as entradas</option><option value="waiting">Aguardando</option><option value="checked">Check-in realizado</option></select></label></div><p id="doorCount" role="status"></p><div id="doorList"></div></section><section id="pageHistory" class="workspace-panel" hidden></section>`;
   main.append(...extra.children);
+  document.querySelector('.events-panel').insertAdjacentHTML('beforebegin', '<div id="archiveHomeLink" class="page-action"><a class="button secondary" href="#arquivados">▣ Eventos arquivados <span id="archiveCount">0</span></a></div>');
+  main.insertAdjacentHTML('beforeend', '<section id="pageArchived" class="workspace-panel" hidden><a class="button secondary" href="#eventos">← Eventos ativos</a><p class="eyebrow" style="margin-top:24px">ARQUIVO</p><h1>Eventos arquivados</h1><p class="page-description">Eventos encerrados e arquivados manualmente. O arquivamento automático ocorre às 23h59 do dia seguinte ao evento, no horário de Brasília.</p><div id="archivedEventsList" class="archive-list"></div></section>');
+  actions.insertAdjacentHTML('beforeend', '<button id="archiveSelectedEvent" class="button secondary" type="button">Arquivar evento</button>');
+  document.getElementById('archiveSelectedEvent').addEventListener('click', () => { if (context?.event) api.toggleArchive(context.event.id); });
+  document.getElementById('archivedEventsList').addEventListener('click', event => { const button = event.target.closest('[data-restore-event]'); if (button) api.toggleArchive(button.dataset.restoreEvent); });
   document.querySelector('#pageEventActions').append(actions);
   actions.querySelector('[data-selected-action="sale"]').hidden = true;
   actions.querySelector('[data-selected-action="export"]').hidden = true;
@@ -47,16 +52,24 @@ export function createEventPages(api) {
   return function sync(data) {
     context = data;
     let page = location.hash.slice(1) || 'eventos';
-    if (!['eventos', ...links.map(l => l[0])].includes(page)) page = 'eventos';
-    if (!data.event) page = 'eventos';
+    if (!['eventos', 'arquivados', ...links.map(l => l[0])].includes(page)) page = 'eventos';
+    if (!data.event && page !== 'arquivados') page = 'eventos';
     if (['relatorio-financeiro','historico'].includes(page) && !data.manager) page = 'resumo';
     if (page === 'mesas' && !data.tables) page = 'resumo';
     const home = page === 'eventos';
+    const globalPage = home || page === 'arquivados';
+    const archived = (data.events || []).filter(event => api.isArchived(event)).sort((a,b) => b.date.localeCompare(a.date));
+    byId('archiveCount').textContent = archived.length;
+    byId('archiveHomeLink').hidden = !home;
+    byId('pageArchived').hidden = page !== 'arquivados';
+    byId('archiveSelectedEvent').hidden = !data.event || !api.canManage(data.event.id);
+    byId('archiveSelectedEvent').textContent = api.isArchived(data.event) ? 'Restaurar evento' : 'Arquivar evento';
+    if (page === 'arquivados') byId('archivedEventsList').innerHTML = archived.length ? archived.map(event => `<article class="archive-event"><div><strong>${api.escape(event.name)}</strong><small>${api.escape(event.date.split('-').reverse().join('/'))} · ${api.escape(event.place || '')}</small><small>${event.archived === true ? 'Arquivado manualmente' : 'Arquivado automaticamente'}</small></div><div class="archive-actions"><button type="button" class="button primary" data-select-event="${api.escape(event.id)}">Abrir evento</button>${api.canManage(event.id) ? `<button type="button" class="button secondary" data-restore-event="${api.escape(event.id)}">Restaurar</button>` : ''}</div></article>`).join('') : '<div class="empty">Nenhum evento arquivado.</div>';
     document.body.dataset.appPage = page;
-    document.body.classList.toggle('event-workspace', !home);
+    document.body.classList.toggle('event-workspace', !globalPage);
     document.body.classList.toggle('financial-report-open', page === 'relatorio-financeiro');
-    header.hidden = home;
-    nav.hidden = home;
+    header.hidden = globalPage;
+    nav.hidden = globalPage;
     byId('dashboardPage').hidden = !['eventos','resumo','vendas','mesas'].includes(page);
     byId('selectedEventArea').hidden = home;
     document.querySelector('.hero').hidden = !home;
@@ -86,7 +99,7 @@ export function createEventPages(api) {
       previous = key;
       requestAnimationFrame(() => window.scrollTo({top:positions.get(key) || 0,behavior:'instant'}));
     }
-    document.title = `${home ? 'Meus eventos' : links.find(l => l[0] === page)?.[2] || 'Evento'}${!home ? ` — ${data.event.name}` : ''} | Le Beef`;
+    document.title = `${home ? 'Meus eventos' : page === 'arquivados' ? 'Eventos arquivados' : links.find(l => l[0] === page)?.[2] || 'Evento'}${!globalPage ? ` — ${data.event.name}` : ''} | Le Beef`;
     if (page === 'portaria') renderDoor();
   };
 }

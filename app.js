@@ -2,7 +2,8 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/11.
 import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged, browserLocalPersistence, inMemoryPersistence, setPersistence, createUserWithEmailAndPassword, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js";
 import { getDatabase, ref, push, set, update, onValue, get, query, orderByChild, equalTo, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-database.js";
 import { firebaseConfig } from "./firebase-config.js";
-import { createEventPages } from "./pages.js?v=1";
+import { createEventPages } from "./pages.js?v=2";
+import { eventIsArchived, eventArchiveDeadline } from "./event-archive.js?v=1";
 
 const demoEvents = [
   { id: "demo-1", name: "Festival de Inverno", date: "2026-08-02", place: "Espaço Aurora", capacity: 300, ticketTypes: [{ id: "inteira", name: "Inteira", price: 85, capacity: 200 }, { id: "meia", name: "Meia-entrada", price: 42.5, capacity: 100 }], packages: [{ id: "combo-casal", name: "Combo Casal", discountType: "percent", discountValue: 10, discountPercent: 10, regularPrice: 127.5, price: 114.75, items: [{ ticketTypeId: "inteira", quantity: 1 }, { ticketTypeId: "meia", quantity: 1 }] }] },
@@ -1171,7 +1172,7 @@ function renderFinancialReport(event, eventSales) {
 
 function syncApplicationPage() {
   const selectedEvent = state.events.find((event) => event.id === selectedEventId);
-  syncEventPages({event:selectedEvent, sales:state.sales.filter(sale => sale.eventId === selectedEventId), manager:hasRole("admin", "event_manager"), seller:hasRole("admin", "event_manager", "seller"), tables:eventUsesTableMap(selectedEvent)});
+  syncEventPages({event:selectedEvent, events:state.events, sales:state.sales.filter(sale => sale.eventId === selectedEventId), manager:hasRole("admin", "event_manager"), seller:hasRole("admin", "event_manager", "seller"), tables:eventUsesTableMap(selectedEvent)});
 }
 
 function render() {
@@ -1239,11 +1240,12 @@ function render() {
   renderTableMapPanel(selectedEvent, selectedSales);
   renderTableReservationsList(selectedEvent, selectedSales);
   if (selectedEvent) { $("selectedEventName").textContent = selectedEvent.name; $("selectedEventMeta").textContent = hasRole("door") ? `${selectedEvent.place} · ${dateText(selectedEvent.date)}` : `${selectedEvent.place} · ${dateText(selectedEvent.date)} · ${priceLabel(selectedEvent)}`; $("salesPanelTitle").textContent = `Vendas de ${selectedEvent.name}`; $("allSalesTitle").textContent = `Participantes — ${selectedEvent.name}`; }
-  $("eventsList").innerHTML = events.length ? events.map((event) => {
+  const activeEvents = events.filter(event => !eventIsArchived(event));
+  $("eventsList").innerHTML = activeEvents.length ? activeEvents.map((event) => {
     const eventSold = sales.filter((sale) => sale.eventId === event.id && !isTableReservation(sale)).reduce((sum, sale) => sum + saleQuantity(sale, event), 0);
     const deleteControl = hasRole("admin") ? `<button class="event-card-delete" type="button" data-delete-event="${event.id}" aria-label="Excluir o evento ${escapeHtml(event.name)}" title="Excluir evento">Excluir</button>` : "";
     return `<div class="event-card ${event.id === selectedEventId ? "is-selected" : ""}" data-select-event="${event.id}" role="button" tabindex="0" aria-pressed="${event.id === selectedEventId}"><span class="calendar"><b>${new Date(`${event.date}T12:00:00`).getDate()}</b><small>${new Date(`${event.date}T12:00:00`).toLocaleDateString("pt-BR", { month: "short" }).replace(".", "")}</small></span><span class="event-info"><strong>${escapeHtml(event.name)}</strong><small>${escapeHtml(event.place)}${hasRole("door") ? "" : ` · ${priceLabel(event)}`}</small>${eventUsesTableMap(event) ? `<span class="event-card-mode">Mesas + unitários</span>` : ""}</span><span class="event-card-tools"><span class="event-count">${eventSold}/${eventCapacity(event)}</span>${deleteControl}</span></div>`;
-  }).join("") : `<div class="empty">Nenhum evento cadastrado ainda.</div>`;
+  }).join("") : `<div class="empty">Nenhum evento ativo. Consulte os eventos arquivados ou cadastre um novo evento.</div>`;
   const canManageSales = hasRole("admin", "event_manager", "seller");
   const paymentControl = (sale) => { const courtesy = saleIsCourtesy(sale, selectedEvent) || sale.courtesy; return `<span class="payment-display">${courtesy ? `<span class="payment paid courtesy-payment">Cortesia</span>` : canManageSales ? `<button class="payment ${sale.paid ? "paid" : ""}" data-paid="${sale.id}">${sale.paid ? "✓ Pago" : "Pendente"}</button>` : `<span class="payment ${sale.paid ? "paid" : ""}">${sale.paid ? "✓ Pago" : "Pendente"}</span>`}${paymentDetailsHtml(sale)}</span>`; };
   const checkinControl = (sale) => `<button class="status ${sale.checkedIn ? "checked" : ""}" data-checkin="${sale.id}">${sale.checkedIn ? "✓ Check-in" : "Fazer check-in"}</button>`;
@@ -1254,6 +1256,7 @@ function render() {
   const currentEvent = $("saleEvent").value; $("saleEvent").innerHTML = `<option value="">Selecione o evento</option>${events.map((event) => `<option value="${event.id}">${escapeHtml(event.name)} — ${priceLabel(event)}</option>`).join("")}`; if (events.some((event) => event.id === currentEvent)) $("saleEvent").value = currentEvent; populateSaleTicketItemOptions($("saleEvent").value);
   renderAuditHistory();
   syncApplicationPage();
+  scheduleArchiveRefresh();
 }
 
 async function saveEvent(data, id = "") {
@@ -1450,7 +1453,31 @@ function openEditEvent(id) { if (!requireRole(["admin", "event_manager"], "Somen
 function openNewSale(eventId = "") { if (!requireRole(["admin", "event_manager", "seller"])) return; if (!state.events.length) return toast("Cadastre um evento antes de registrar uma venda."); const form = $("saleForm"); form.reset(); form.dataset.editId = ""; $("saleModalTitle").textContent = "Registrar ingressos"; $("saleSubmitButton").textContent = "Confirmar venda"; $("saleEvent").value = eventId; setSaleTicketItems(eventId); syncSalePaymentFields(true); $("saleModal").showModal(); }
 function openEditSale(id) { if (!requireRole(["admin", "event_manager", "seller"])) return; const sale = state.sales.find((item) => item.id === id); if (!sale) return; if ($("allSalesModal").open) $("allSalesModal").close(); const form = $("saleForm"); form.reset(); form.dataset.editId = id; $("saleEvent").value = sale.eventId; setSaleTicketItems(sale.eventId, saleItems(sale)); form.elements.buyerName.value = sale.buyerName || ""; form.elements.buyerPhone.value = sale.buyerPhone || ""; form.elements.buyerEmail.value = sale.buyerEmail || ""; form.elements.paymentStatus.value = sale.paid ? "paid" : "pending"; form.elements.paymentMethod.value = sale.paymentMethod || ""; form.elements.paymentDate.value = sale.paymentDate || ""; form.elements.notes.value = sale.notes || ""; syncSalePaymentFields(false); $("saleModalTitle").textContent = "Editar participante e ingressos"; $("saleSubmitButton").textContent = "Salvar alterações"; $("saleModal").showModal(); }
 
-const syncEventPages = createEventPages({ normalize:normalizedSearch, escape:escapeHtml, isTable:isTableReservation, occupants:reservationOccupants, checkins:reservationOccupantCheckins });
+async function toggleEventArchive(id) {
+  if (!canAdministerEvent(id)) return toast("Somente administradores e gerentes do evento podem arquivar ou restaurar.");
+  const event = state.events.find(item => item.id === id);
+  if (!event) return;
+  const restore = eventIsArchived(event);
+  if (!confirm(`${restore ? "Restaurar" : "Arquivar"} o evento “${event.name}”? Vendas, reservas e relatórios serão mantidos.${restore ? " O arquivamento automático ficará suspenso para a data atual deste evento." : ""}`)) return;
+  const changes = { archived:!restore, archiveRestoredDate:restore ? event.date : "", archiveUpdatedAt:Date.now(), archiveUpdatedBy:currentUser.uid };
+  try {
+    if (isDemo) { Object.assign(event, changes); persistDemo(); }
+    else await update(ref(db, `events/${id}`), changes);
+    location.hash = restore ? "eventos" : "arquivados";
+    render();
+    toast(restore ? "Evento restaurado." : "Evento arquivado.");
+  } catch(error) { toast(`Não foi possível atualizar o evento: ${error.message}`); }
+}
+const syncEventPages = createEventPages({ normalize:normalizedSearch, escape:escapeHtml, isTable:isTableReservation, occupants:reservationOccupants, checkins:reservationOccupantCheckins, isArchived:eventIsArchived, canManage:canAdministerEvent, toggleArchive:toggleEventArchive });
+let archiveRefreshTimer;
+function scheduleArchiveRefresh() {
+  clearTimeout(archiveRefreshTimer);
+  const now = Date.now();
+  const next = Math.min(...state.events.filter(event => !eventIsArchived(event)).map(eventArchiveDeadline).filter(time => time > now));
+  archiveRefreshTimer = setTimeout(() => { render(); scheduleArchiveRefresh(); }, Math.min(60000, Math.max(1000, next - now)));
+}
+document.addEventListener("visibilitychange", () => { if (!document.hidden) { render(); scheduleArchiveRefresh(); } });
+scheduleArchiveRefresh();
 document.querySelectorAll("[data-open]").forEach((button) => button.addEventListener("click", () => { if (button.dataset.open === "eventModal") return openNewEvent(); if (button.dataset.open === "saleModal") return openNewSale(selectedEventId); $(button.dataset.open).showModal(); }));
 document.querySelectorAll("[data-close]").forEach((button) => button.addEventListener("click", () => $(button.dataset.close).close()));
 document.querySelectorAll("[data-toggle-password]").forEach((button) => button.addEventListener("click", () => setPasswordVisibility(button, $(button.dataset.togglePassword)?.type === "password")));

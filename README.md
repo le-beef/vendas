@@ -2,6 +2,12 @@
 
 Site estático em HTML, CSS e JavaScript, pronto para publicar no GitHub Pages, com Firebase Authentication e Realtime Database.
 
+## Arquivamento — versão 5.1.0
+
+Na tela inicial, Eventos arquivados abre a lista de eventos encerrados. Em Mais, administradores e gerentes do evento podem arquivar manualmente ou restaurar. Vendas, reservas e relatórios são preservados.
+
+O arquivamento automático é calculado pela data: um evento em 13/09 é arquivado a partir de 14/09 às 23h59 no horário de Brasília. A classificação é aplicada ao carregar o painel e durante seu uso, sem tarefa agendada no servidor. O arquivamento manual e a restauração são salvos no Firebase. Restaurar suspende a classificação automática para a data atual do evento; alterar essa data reativa o prazo automático. Não há novas regras de banco a publicar nesta versão.
+
 ## Login individual, permissões e histórico
 
 ## Navegação por páginas — versão 5.0.0
