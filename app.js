@@ -2,7 +2,8 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/11.
 import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged, browserLocalPersistence, inMemoryPersistence, setPersistence, createUserWithEmailAndPassword, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js";
 import { getDatabase, ref, push, set, update, onValue, get, query, orderByChild, equalTo, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-database.js";
 import { firebaseConfig } from "./firebase-config.js";
-import { createEventPages } from "./pages.js?v=2";
+import { createEventPages } from "./pages.js?v=3";
+import { decodeQrImageData } from "./qr-scanner-tools.js?v=1";
 import { eventIsArchived, eventArchiveDeadline } from "./event-archive.js?v=1";
 import { createTicketPdf, createQrDataUrl } from "./ticket-tools.js?v=1";
 
@@ -562,6 +563,120 @@ function syncQrValidationFromHash() {
   const match = location.hash.match(/^#validar=([a-f0-9]{20,})$/i);
   if (match && currentUserProfile && state.sales.length) showQrValidation(match[1]).catch((error) => { console.error(error); toast("Não foi possível validar o QR Code."); });
 }
+
+let qrScannerStream = null;
+let qrScannerFrame = 0;
+let qrScannerBusy = false;
+let qrBarcodeDetector = null;
+const qrScannerCanvas = document.createElement("canvas");
+const qrScannerContext = qrScannerCanvas.getContext("2d", { willReadFrequently: true });
+
+function qrTokenFromScan(value) {
+  const scanned = String(value || "").trim();
+  const urlMatch = scanned.match(/[#?&]validar=([a-f0-9]{20,})/i);
+  if (urlMatch) return urlMatch[1];
+  return /^[a-f0-9]{20,}$/i.test(scanned) ? scanned : "";
+}
+
+async function getQrBarcodeDetector() {
+  if (!("BarcodeDetector" in window)) return null;
+  try {
+    if (BarcodeDetector.getSupportedFormats) {
+      const formats = await BarcodeDetector.getSupportedFormats();
+      if (!formats.includes("qr_code")) return null;
+    }
+    return new BarcodeDetector({ formats: ["qr_code"] });
+  } catch { return null; }
+}
+
+function stopQrScanner() {
+  cancelAnimationFrame(qrScannerFrame);
+  qrScannerFrame = 0;
+  qrScannerBusy = false;
+  qrScannerStream?.getTracks().forEach((track) => track.stop());
+  qrScannerStream = null;
+  const video = $("qrScannerVideo");
+  if (video) { video.pause(); video.srcObject = null; }
+}
+
+async function finishQrScan(value) {
+  const token = qrTokenFromScan(value);
+  stopQrScanner();
+  if ($("qrScannerModal").open) $("qrScannerModal").close();
+  await showQrValidation(token);
+}
+
+async function scanQrVideoFrame() {
+  const modal = $("qrScannerModal");
+  const video = $("qrScannerVideo");
+  if (!modal.open || !qrScannerStream) return;
+  if (!qrScannerBusy && video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
+    qrScannerBusy = true;
+    try {
+      let value = "";
+      if (qrBarcodeDetector) {
+        const codes = await qrBarcodeDetector.detect(video);
+        value = codes[0]?.rawValue || "";
+      } else if (qrScannerContext) {
+        const maxWidth = 720;
+        const scale = Math.min(1, maxWidth / video.videoWidth);
+        qrScannerCanvas.width = Math.max(1, Math.round(video.videoWidth * scale));
+        qrScannerCanvas.height = Math.max(1, Math.round(video.videoHeight * scale));
+        qrScannerContext.drawImage(video, 0, 0, qrScannerCanvas.width, qrScannerCanvas.height);
+        value = decodeQrImageData(qrScannerContext.getImageData(0, 0, qrScannerCanvas.width, qrScannerCanvas.height));
+      }
+      if (value) return finishQrScan(value);
+    } catch (error) { console.debug("Leitura de QR Code:", error); qrBarcodeDetector = null; }
+    finally { qrScannerBusy = false; }
+  }
+  qrScannerFrame = requestAnimationFrame(scanQrVideoFrame);
+}
+
+async function openQrScanner() {
+  if (!requireRole(["admin", "event_manager", "seller", "door"])) return;
+  const modal = $("qrScannerModal");
+  const status = $("qrScannerStatus");
+  stopQrScanner();
+  status.textContent = "Solicitando acesso à câmera...";
+  if (!modal.open) modal.showModal();
+  if (!navigator.mediaDevices?.getUserMedia) {
+    status.textContent = "Este navegador não permite abrir a câmera aqui. Use “Escolher foto do QR Code”.";
+    return;
+  }
+  try {
+    qrScannerStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false });
+    const video = $("qrScannerVideo");
+    video.srcObject = qrScannerStream;
+    await video.play();
+    qrBarcodeDetector = await getQrBarcodeDetector();
+    status.textContent = "Câmera ativa. Centralize o QR Code dentro do quadrado.";
+    qrScannerFrame = requestAnimationFrame(scanQrVideoFrame);
+  } catch (error) {
+    stopQrScanner();
+    status.textContent = error?.name === "NotAllowedError" ? "A câmera foi bloqueada. Autorize o acesso no navegador ou escolha uma foto do QR Code." : "Não foi possível abrir a câmera. Tente novamente ou escolha uma foto do QR Code.";
+  }
+}
+
+async function scanQrImageFile(file) {
+  if (!file) return;
+  const status = $("qrScannerStatus");
+  status.textContent = "Lendo a imagem...";
+  try {
+    const image = await createImageBitmap(file);
+    const maxSize = 1600;
+    const scale = Math.min(1, maxSize / Math.max(image.width, image.height));
+    qrScannerCanvas.width = Math.max(1, Math.round(image.width * scale));
+    qrScannerCanvas.height = Math.max(1, Math.round(image.height * scale));
+    qrScannerContext.drawImage(image, 0, 0, qrScannerCanvas.width, qrScannerCanvas.height);
+    image.close?.();
+    const value = decodeQrImageData(qrScannerContext.getImageData(0, 0, qrScannerCanvas.width, qrScannerCanvas.height));
+    if (!value) { status.textContent = "Não encontrei um QR Code nessa imagem. Tente outra foto mais próxima e bem iluminada."; return; }
+    await finishQrScan(value);
+  } catch (error) {
+    console.error(error);
+    status.textContent = "Não foi possível ler essa imagem. Tente tirar outra foto.";
+  }
+}
 function newEntityId(prefix) { return `${prefix}-${crypto.randomUUID()}`; }
 function draftTicketTypes() { return [...document.querySelectorAll(".ticket-type-row")].map((row) => ({ id: row.dataset.ticketId, name: row.querySelector(".ticket-name").value.trim(), price: Number(row.querySelector(".ticket-price").value || 0), capacity: Number(row.querySelector(".ticket-capacity").value || 0) })); }
 function addTicketTypeRow(name = "", price = "", capacity = "", id = "") { const row = document.createElement("div"); row.className = "ticket-type-row"; row.dataset.ticketId = id || newEntityId("tipo"); row.innerHTML = `<input class="ticket-name" required aria-label="Nome do tipo ou lote" placeholder="Ex.: 1º lote" value="${escapeHtml(name)}" /><input class="ticket-price" type="number" min="0" step="0.01" required aria-label="Valor do ingresso" placeholder="Valor" value="${price}" /><input class="ticket-capacity" type="number" min="1" step="1" required aria-label="Quantidade disponível" placeholder="Quantidade" value="${capacity}" /><button class="close" type="button" data-remove-ticket aria-label="Remover tipo">×</button>`; $("ticketTypesList").append(row); refreshPackageTicketOptions(); }
@@ -828,8 +943,8 @@ function migrateFurnitureToPreset(tableMap) {
 
 function mapFurnitureHtml(item, editor = false, reservation = null) {
   const label = `${furnitureKindLabel(item.kind)} ${String(item.number).padStart(2, "0")} — ${mapAreaLabel(item.area)}`;
-  const status = reservation ? (isTableBlock(reservation) ? "is-blocked" : reservation.paid ? "is-paid" : "is-pending") : "is-free";
-  const occupancy = reservation ? `<span class="map-furniture-occupancy">${isTableBlock(reservation) ? "Ocupada" : reservation.occupants?.length || reservation.quantity || 1}</span>` : "";
+  const status = reservation ? (reservation.paid && !isTableBlock(reservation) ? "is-paid" : "is-pending") : "is-free";
+  const occupancy = reservation && !isTableBlock(reservation) ? `<span class="map-furniture-occupancy">${reservation.occupants?.length || reservation.quantity || 1}</span>` : "";
   const content = `<img src="${item.kind === "bistro" ? "bistro-icon.png" : "mesa-icon.png"}" alt="" /><span class="map-furniture-number">${String(item.number).padStart(2, "0")}</span>${occupancy}`;
   const style = `left:${item.x}%;top:${item.y}%;width:${item.width}%;height:${item.height}%`;
   return editor
@@ -1686,7 +1801,7 @@ function scheduleArchiveRefresh() {
   const next = Math.min(...state.events.filter(event => !eventIsArchived(event)).map(eventArchiveDeadline).filter(time => time > now));
   archiveRefreshTimer = setTimeout(() => { render(); scheduleArchiveRefresh(); }, Math.min(60000, Math.max(1000, next - now)));
 }
-document.addEventListener("visibilitychange", () => { if (!document.hidden) { render(); scheduleArchiveRefresh(); } });
+document.addEventListener("visibilitychange", () => { if (document.hidden) stopQrScanner(); else { render(); scheduleArchiveRefresh(); } });
 scheduleArchiveRefresh();
 document.querySelectorAll("[data-open]").forEach((button) => button.addEventListener("click", () => { if (button.dataset.open === "eventModal") return openNewEvent(); if (button.dataset.open === "saleModal") return openNewSale(selectedEventId); $(button.dataset.open).showModal(); }));
 document.querySelectorAll("[data-close]").forEach((button) => button.addEventListener("click", () => $(button.dataset.close).close()));
@@ -1829,6 +1944,12 @@ document.addEventListener("click", (event) => {
 $("confirmQrCheckin").addEventListener("click", () => toggleQrTicketCheckin($("qrValidationModal").dataset.token));
 $("qrValidationModal").addEventListener("cancel", (event) => { event.preventDefault(); $("qrValidationModal").close(); location.hash = "portaria"; });
 document.querySelector("[data-close-qr-validation]").addEventListener("click", () => { $("qrValidationModal").close(); location.hash = "portaria"; });
+$("openQrScanner").addEventListener("click", openQrScanner);
+$("chooseQrImage").addEventListener("click", () => $("qrImageInput").click());
+$("qrScannerPhoto").addEventListener("click", () => $("qrImageInput").click());
+$("qrImageInput").addEventListener("change", (event) => { const [file] = event.currentTarget.files || []; event.currentTarget.value = ""; scanQrImageFile(file); });
+$("qrScannerModal").addEventListener("cancel", (event) => { event.preventDefault(); stopQrScanner(); $("qrScannerModal").close(); });
+document.querySelector("[data-close-qr-scanner]").addEventListener("click", () => { stopQrScanner(); $("qrScannerModal").close(); });
 $("paymentConfirmationForm").addEventListener("submit", async (event) => { event.preventDefault(); const form = event.currentTarget; const button = form.querySelector('[type="submit"]'); button.disabled = true; try { await confirmSalePayment(Object.fromEntries(new FormData(form))); form.reset(); $("paymentConfirmationModal").close(); toast("Pagamento confirmado."); } catch (error) { toast(error.message); } finally { button.disabled = false; } });
 document.addEventListener("click", (event) => { const whatsappTrigger = event.target.closest("[data-whatsapp]"); if (whatsappTrigger) { event.preventDefault(); openWhatsappChooser(whatsappTrigger); return; } const whatsappApp = event.target.closest("[data-whatsapp-app]"); if (whatsappApp) { launchWhatsapp(whatsappApp.dataset.whatsappApp); return; } const metricDetails = event.target.closest("[data-toggle-metric-details]"); if (metricDetails) { toggleMetricDetails(metricDetails); return; } const participantDetails = event.target.closest("[data-toggle-sale-details]"); if (participantDetails) { toggleParticipantCard(participantDetails.closest("[data-sale-row]")); return; } const addPackageComponent = event.target.closest("[data-add-package-component]"); if (addPackageComponent) { const packageRow = addPackageComponent.closest(".package-row"); if (packageRow.querySelectorAll(".package-component-row").length >= draftTicketTypes().filter((item) => item.name).length) return toast("Todos os tipos de ingresso já foram adicionados aqui."); addPackageComponentRow(packageRow); refreshPackageTicketOptions(); return; } const removePackageComponent = event.target.closest("[data-remove-package-component]"); if (removePackageComponent) { const packageRow = removePackageComponent.closest(".package-row"); if (packageRow.querySelectorAll(".package-component-row").length === 1) return toast("O pacote ou cortesia precisa ter pelo menos um ingresso."); removePackageComponent.closest(".package-component-row").remove(); refreshPackageTicketOptions(); return; } const removePackage = event.target.closest("[data-remove-package]"); if (removePackage) { removePackage.closest(".package-row").remove(); refreshPackageTicketOptions(); return; } const removeTicket = event.target.closest("[data-remove-ticket]"); if (removeTicket) { if (document.querySelectorAll(".ticket-type-row").length === 1) return toast("O evento precisa de pelo menos um tipo de ingresso."); removeTicket.closest(".ticket-type-row").remove(); refreshPackageTicketOptions(); return; } const removeSaleTicket = event.target.closest("[data-remove-sale-ticket]"); if (removeSaleTicket) { const rows = document.querySelectorAll(".sale-ticket-item-row"); if (rows.length === 1) return toast("A venda precisa de pelo menos um item."); removeSaleTicket.closest(".sale-ticket-item-row").remove(); populateSaleTicketItemOptions(); return; } const deleteEventButton = event.target.closest("[data-delete-event]"); if (deleteEventButton) { event.preventDefault(); event.stopPropagation(); deleteEvent(deleteEventButton.dataset.deleteEvent); return; } const selectedAction = event.target.closest("[data-selected-action]"); if (selectedAction) { const action = selectedAction.dataset.selectedAction; if (action === "sale") openNewSale(selectedEventId); if (action === "edit") openEditEvent(selectedEventId); if (action === "history") openAuditHistory(selectedEventId); if (action === "export" && requireRole(["admin", "seller"])) window.exportSalesXlsx(state.sales, state.events, selectedEventId, "unit"); if (action === "delete") deleteEvent(selectedEventId); return; } const selectEvent = event.target.closest("[data-select-event]"); if (selectEvent) { selectedEventId = selectEvent.dataset.selectEvent; location.hash = "resumo"; render(); return; } const editSaleButton = event.target.closest("[data-edit-sale]"); if (editSaleButton) { openEditSale(editSaleButton.dataset.editSale); return; } const deleteSaleButton = event.target.closest("[data-delete-sale]"); if (deleteSaleButton) { deleteSale(deleteSaleButton.dataset.deleteSale); return; } const checkin = event.target.closest("[data-checkin]"); if (checkin) { toggleCheckin(checkin.dataset.checkin); return; } const paid = event.target.closest("[data-paid]"); if (paid) { togglePayment(paid.dataset.paid); return; } });
 document.addEventListener("click", (event) => { const toggle = event.target.closest?.("[data-toggle-package-discount]"); if (!toggle) return; event.preventDefault(); event.stopImmediatePropagation(); togglePackageDiscountType(toggle.closest(".package-row")); }, true);

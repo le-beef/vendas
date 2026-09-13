@@ -1,5 +1,16 @@
 # Le Beef — painel de vendas de ingressos
 
+## Leitor de QR Code na Portaria — versão 5.4.0
+
+- A Portaria pode abrir a câmera traseira do celular e ler o QR Code do ingresso em tempo real.
+- Após a leitura, o sistema informa se o ingresso é válido, inválido ou já utilizado e só então permite confirmar o check-in.
+- Também é possível escolher uma foto do QR Code quando a câmera estiver indisponível ou bloqueada.
+
+## Ajuste visual da ocupação sem venda — versão 5.3.1
+
+- Mesa ou bistrô ocupado sem venda agora usa no mapa o mesmo estado visual laranja de uma reserva.
+- O marcador não exibe moldura roxa nem etiqueta especial, mas continua fora de vendas, faturamento, relatórios e Excel.
+
 ## QR Code, check-in individual e ingresso em PDF — versão 5.3.0
 
 - Cada ingresso vendido recebe um QR Code único; nas reservas, cada ocupante recebe o próprio código.
