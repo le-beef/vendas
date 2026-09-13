@@ -4,6 +4,12 @@ Site estático em HTML, CSS e JavaScript, pronto para publicar no GitHub Pages, 
 
 ## Login individual, permissões e histórico
 
+## Navegação por páginas — versão 5.0.0
+
+A tela inicial mostra somente os eventos. Ao selecionar um, navegue por Resumo, Vendas, Mesas e Mais. No celular, a navegação fica fixa na parte inferior; no computador, fica na lateral. Mesas aparece somente em eventos com mapa ativo.
+
+Em Mais ficam Portaria, Financeiro, Histórico e as configurações permitidas para o perfil. A Portaria reúne a busca e os check-ins de vendas avulsas e ocupantes das mesas. As pesquisas de vendas e reservas permanecem ao trocar de página. Use Trocar evento para retornar à seleção. Os arquivos pages.js e pages.css devem ser enviados junto com o restante do pacote.
+
 A versão 4.11.0 adiciona desconto individual por cadeira nas reservas de mesas e bistrôs. O desconto pode ser informado em porcentagem ou em reais para cada ocupante, recalcula o total automaticamente, permanece salvo na edição e aparece no Excel das reservas.
 
 Nas reservas, a primeira pessoa é a responsável e informa nome e telefone. Os demais ocupantes precisam somente do nome. O total é calculado automaticamente pelo valor por pessoa/cadeira definido no evento. As reservas entram no faturamento, no fechamento por vendedor, no histórico e na planilha Excel.
@@ -24,7 +30,7 @@ As permissões são aplicadas na interface e nas regras do Realtime Database. Co
 
 ## Atualização obrigatória no Firebase
 
-Na atualização para a versão 4.11.0, envie todos os arquivos do pacote ao GitHub Pages. As regras do Firebase continuam iguais às da versão 4.9.0; publique `database.rules.json` somente se ainda não tiver aplicado aquela atualização. Eventos, vendas e reservas antigas continuam disponíveis normalmente.
+Na atualização para a versão 5.0.0, envie todos os arquivos do pacote ao GitHub Pages. As regras do Firebase continuam iguais às da versão 4.9.0; publique `database.rules.json` somente se ainda não tiver aplicado aquela atualização. Eventos, vendas e reservas antigas continuam disponíveis normalmente.
 
 As instruções completas estão em [FIREBASE-SETUP.md](FIREBASE-SETUP.md).
 
