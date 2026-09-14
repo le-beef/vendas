@@ -40,12 +40,12 @@
     <link rel="stylesheet" href="audit-log.css?v=27" />
     <link rel="stylesheet" href="payment-closing.css?v=28" />
     <link rel="stylesheet" href="event-access.css?v=18" />
-    <link rel="stylesheet" href="table-map.css?v=8" />
+    <link rel="stylesheet" href="table-map.css?v=9" />
     <link rel="stylesheet" href="table-reservation-override.css?v=1" />
     <link rel="stylesheet" href="table-reservation-details.css?v=2" />
     <link rel="stylesheet" href="table-reservation-final.css?v=1" />
     <link rel="stylesheet" href="table-reservation-harmony.css?v=4" />
-    <link rel="stylesheet" href="ticketing.css?v=5" />
+    <link rel="stylesheet" href="ticketing.css?v=7" />
     <link rel="stylesheet" href="theme.css?v=11" />
     <link rel="stylesheet" href="pages.css?v=2" />
     <style id="topbar-critical-styles">
@@ -193,7 +193,7 @@
       </section>
     </main>
 
-    <footer class="site-footer">Le Beef | Versão: 5.5.0</footer>
+    <footer class="site-footer">Le Beef | Versão: 5.6.1</footer>
 
     <button class="fab" data-open="saleModal" data-roles="admin,event_manager,seller" aria-label="Registrar venda">+</button>
 
@@ -233,7 +233,13 @@
           <div class="sale-items-summary" aria-live="polite"><span><small>Quantidade total</small><strong id="saleItemsQuantity">0</strong></span><span><small>Valor total</small><strong id="saleItemsTotal">R$ 0,00</strong></span></div>
         </div>
         <label>Nome do participante<input name="buyerName" required placeholder="Nome completo" /></label>
-        <label>Telefone<input name="buyerPhone" type="tel" required placeholder="(00) 00000-0000" /></label>
+        <div id="saleGuestNamesField" class="sale-guest-names-field" hidden>
+          <div class="field-label"><span>Nomes dos ingressos adicionais</span></div>
+          <p class="field-help">Os nomes são preenchidos automaticamente para agilizar. Você pode apagar e escrever qualquer nome.</p>
+          <div id="saleGuestNamesList" class="sale-guest-names-list"></div>
+        </div>
+        <label>Telefone (opcional)<input name="buyerPhone" type="tel" placeholder="(00) 00000-0000" /></label>
+        <p class="phone-recommendation">Importante: informe o telefone sempre que possível para conseguir enviar os ingressos pelo WhatsApp.</p>
         <label>E-mail (opcional)<input name="buyerEmail" type="email" placeholder="nome@exemplo.com" /></label>
         <p class="courtesy-sale-notice">Cortesia selecionada: valor R$ 0,00 e baixa automática no estoque dos ingressos que a compõem.</p>
         <div class="two-columns payment-status-fields"><label>Pagamento<select name="paymentStatus" required><option value="paid">Pago</option><option value="pending">Pendente</option></select></label><label>Forma de pagamento<select name="paymentMethod"><option value="">Selecione</option><option value="pix">Pix</option><option value="cash">Dinheiro</option><option value="credit_card">Cartão de crédito</option><option value="debit_card">Cartão de débito</option><option value="bank_transfer">Transferência</option><option value="other">Outro</option></select></label></div>
@@ -247,7 +253,7 @@
       <form id="tableReservationForm">
         <div class="modal-heading"><div><p class="eyebrow">RESERVA DE MESA</p><h2 id="tableReservationTitle">Mesa</h2><p id="tableReservationArea">Área do evento</p></div><button class="close" type="button" data-close="tableReservationModal" aria-label="Fechar">×</button></div>
         <input name="eventId" type="hidden" /><input name="furnitureId" type="hidden" /><input name="saleId" type="hidden" />
-        <div class="reservation-responsible"><span class="field-label">Responsável pela mesa</span><label>Nome completo<input name="buyerName" required placeholder="Nome do responsável" /></label><div class="two-columns"><label>Telefone<input name="buyerPhone" type="tel" required placeholder="(00) 00000-0000" /></label><label>E-mail (opcional)<input name="buyerEmail" type="email" placeholder="nome@exemplo.com" /></label></div><div class="chair-discount-line"><span>Desconto desta cadeira</span><div id="responsibleChairDiscount" class="chair-discount-control" data-chair-discount data-discount-type="percent"><button class="chair-discount-toggle" type="button" data-toggle-chair-discount aria-expanded="false" title="Adicionar desconto">%</button><label hidden><span class="chair-discount-prefix">%</span><input class="chair-discount-value" type="number" min="0" max="100" step="0.01" value="0" inputmode="decimal" aria-label="Desconto da cadeira do responsável" /></label></div></div></div>
+        <div class="reservation-responsible"><span class="field-label">Responsável pela mesa</span><label>Nome completo<input name="buyerName" required placeholder="Nome do responsável" /></label><div class="two-columns"><label>Telefone (opcional)<input name="buyerPhone" type="tel" placeholder="(00) 00000-0000" /></label><label>E-mail (opcional)<input name="buyerEmail" type="email" placeholder="nome@exemplo.com" /></label></div><p class="phone-recommendation">Importante: informe o telefone sempre que possível para conseguir enviar os ingressos pelo WhatsApp.</p><div class="chair-discount-line"><span>Desconto desta cadeira</span><div id="responsibleChairDiscount" class="chair-discount-control" data-chair-discount data-discount-type="percent"><button class="chair-discount-toggle" type="button" data-toggle-chair-discount aria-expanded="false" title="Adicionar desconto">%</button><label hidden><span class="chair-discount-prefix">%</span><input class="chair-discount-value" type="number" min="0" max="100" step="0.01" value="0" inputmode="decimal" aria-label="Desconto da cadeira do responsável" /></label></div></div></div>
         <div class="reservation-occupants-field"><div class="field-label"><span>Outros participantes</span><button id="addTableOccupant" class="text-button" type="button">+ Adicionar pessoa</button></div><p class="field-help">O responsável já conta como a primeira pessoa. Para os demais, informe somente o nome.</p><div id="tableOccupantsList" class="table-occupants-list"></div></div>
         <div class="reservation-total-summary"><span><small>Total de pessoas</small><strong id="tableReservationPeople">1</strong></span><span><small>Valor por pessoa</small><strong id="tableReservationUnitPrice">R$ 0,00</strong></span><span><small>Descontos</small><strong id="tableReservationDiscount">R$ 0,00</strong></span><span><small>Total da reserva</small><strong id="tableReservationTotal">R$ 0,00</strong></span></div>
         <div class="two-columns payment-status-fields"><label>Pagamento<select name="paymentStatus" required><option value="paid">Pago</option><option value="pending">Pendente</option></select></label><label>Forma de pagamento<select name="paymentMethod"><option value="">Selecione</option><option value="pix">Pix</option><option value="cash">Dinheiro</option><option value="credit_card">Cartão de crédito</option><option value="debit_card">Cartão de débito</option><option value="bank_transfer">Transferência</option><option value="other">Outro</option></select></label></div>
@@ -354,6 +360,7 @@
         <img id="qrValidationImage" class="qr-validation-image" alt="QR Code do ingresso" />
         <div id="qrValidationState" class="qr-validation-state"></div>
         <button id="confirmQrCheckin" class="button primary full" type="button">Confirmar check-in</button>
+        <button id="nextQrScan" class="button secondary full" type="button" hidden>Ler próximo QR Code</button>
       </div>
     </dialog>
 
@@ -381,6 +388,6 @@
     <script src="pwa.js"></script>
     <script src="theme.js?v=1"></script>
     <script src="excel-export.js?v=37"></script>
-    <script type="module" src="app.js?v=68"></script>
+    <script type="module" src="app.js?v=70"></script>
   </body>
 </html>

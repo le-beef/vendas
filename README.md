@@ -1,5 +1,26 @@
 # Le Beef — painel de vendas de ingressos
 
+## Modal de mesa responsivo — versão 5.6.1
+
+- O diálogo de mesa ocupada respeita margens mínimas no desktop e no celular.
+- A altura é limitada pela viewport e o conteúdo passa a ter rolagem interna quando necessário.
+- Cabeçalho, botão de fechar, aviso e ação de liberar a mesa permanecem contidos no modal.
+
+## Ingressos identificados e auditáveis — versão 5.6.0
+
+- Nomes dos convidados são sugeridos automaticamente como `Roberto/Convidado-2`, mantendo todos os campos editáveis.
+- Telefone passou a ser opcional nas vendas e reservas, com lembrete sobre o envio pelo WhatsApp.
+- PDFs e QR Codes somente podem ser gerados após a confirmação do pagamento.
+- Ingressos identificam a modalidade individual, mesa ou bistrô, inclusive na validação da portaria.
+- Geração e exclusão dos ingressos aparecem no histórico de auditoria com o usuário responsável.
+- A tela “Ver todas” das reservas oferece as mesmas ações de ingresso da visualização principal.
+
+## Portaria em fluxo contínuo — versão 5.5.1
+
+- Após confirmar um QR lido pelo scanner, a câmera reabre automaticamente para receber o próximo participante.
+- O horário gravado corresponde ao momento em que o QR foi lido e aparece com data e hora quando um ingresso já utilizado é escaneado novamente.
+- Resultados inválidos ou já usados oferecem o botão “Ler próximo QR Code”.
+
 ## Ciclo do ingresso gerado — versão 5.5.0
 
 - Antes da emissão aparece somente “Gerar ingresso em PDF”; depois, aparecem “Ver ingresso”, “Enviar ingresso” e “Excluir ingresso”.

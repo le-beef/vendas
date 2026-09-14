@@ -5,7 +5,7 @@ import { firebaseConfig } from "./firebase-config.js";
 import { createEventPages } from "./pages.js?v=3";
 import { decodeQrImageData } from "./qr-scanner-tools.js?v=1";
 import { eventIsArchived, eventArchiveDeadline } from "./event-archive.js?v=1";
-import { createTicketPdf, createQrDataUrl } from "./ticket-tools.js?v=2";
+import { createTicketPdf, createQrDataUrl } from "./ticket-tools.js?v=3";
 
 const demoEvents = [
   { id: "demo-1", name: "Festival de Inverno", date: "2026-08-02", place: "Espaço Aurora", capacity: 300, ticketTypes: [{ id: "inteira", name: "Inteira", price: 85, capacity: 200 }, { id: "meia", name: "Meia-entrada", price: 42.5, capacity: 100 }], packages: [{ id: "combo-casal", name: "Combo Casal", discountType: "percent", discountValue: 10, discountPercent: 10, regularPrice: 127.5, price: 114.75, items: [{ ticketTypeId: "inteira", quantity: 1 }, { ticketTypeId: "meia", quantity: 1 }] }] },
@@ -284,9 +284,15 @@ function qrTicketBlueprints(sale, event) {
   const blueprints = [];
   const stockItems = saleStockItems(sale, event);
   const regularTotal = stockItems.reduce((sum, item) => sum + Number(item.unitPrice || 0) * Number(item.quantity || 0), 0);
+  const participantNames = Array.isArray(sale.participantNames) ? sale.participantNames : Object.keys(sale.participantNames || {}).sort((a, b) => Number(a) - Number(b)).map((key) => sale.participantNames[key]);
+  let participantIndex = 0;
   stockItems.forEach((item) => {
     const value = regularTotal ? saleTotal(sale, event) * Number(item.unitPrice || 0) / regularTotal : 0;
-    for (let index = 0; index < Number(item.quantity || 0); index += 1) blueprints.push({ sourceKey: `ticket:${item.ticketTypeId || item.ticketTypeName}:${index}`, participantName: sale.buyerName || "Participante", ticketTypeId: item.ticketTypeId || "ticket", ticketTypeName: item.ticketTypeName || "Ingresso", occupantIndex: null, value });
+    for (let index = 0; index < Number(item.quantity || 0); index += 1) {
+      const participantName = participantNames[participantIndex] || (participantIndex ? guestDefaultName(sale.buyerName, participantIndex + 1) : sale.buyerName) || "Participante";
+      blueprints.push({ sourceKey: `ticket:${item.ticketTypeId || item.ticketTypeName}:${index}`, participantName, ticketTypeId: item.ticketTypeId || "ticket", ticketTypeName: item.ticketTypeName || "Ingresso", occupantIndex: null, value });
+      participantIndex += 1;
+    }
   });
   return blueprints;
 }
@@ -367,7 +373,7 @@ function appendDemoAudit(action, sale, details) {
 function auditChangeSummary(previous, next) {
   const fields = [
     ["buyerName", "nome"], ["buyerPhone", "telefone"], ["buyerEmail", "e-mail"],
-    ["items", "ingressos e quantidades"],
+    ["items", "ingressos e quantidades"], ["participantNames", "nomes dos convidados"],
     ["paid", "situação do pagamento"], ["paymentMethod", "forma de pagamento"], ["paymentDate", "data do pagamento"], ["notes", "observação"]
   ];
   const changed = fields.filter(([key]) => key === "items" ? JSON.stringify(saleItems(previous)) !== JSON.stringify(saleItems(next)) : String(previous?.[key] ?? "") !== String(next?.[key] ?? "")).map(([, label]) => label);
@@ -381,7 +387,8 @@ function renderAuditHistory() {
   $("auditLogTitle").textContent = event ? `Histórico — ${event.name}` : "Histórico de alterações";
   $("auditLogCount").textContent = `${logs.length} ${logs.length === 1 ? "registro" : "registros"}`;
   const actionLabels = { created: "Venda criada", edited: "Venda editada", deleted: "Venda excluída", payment: "Pagamento alterado", checkin: "Entrada alterada" };
-  list.innerHTML = logs.length ? logs.map((log) => `<article class="audit-entry audit-${escapeHtml(log.action)}"><div class="audit-entry-marker" aria-hidden="true"></div><div class="audit-entry-content"><div class="audit-entry-heading"><span class="audit-action">${escapeHtml(actionLabels[log.action] || "Alteração")}</span><time>${escapeHtml(auditTimestampText(log.timestamp))}</time></div><strong>${escapeHtml(log.participantName || "Participante")}</strong><p>${escapeHtml(log.details || "Alteração registrada.")}</p><div class="audit-entry-meta"><span>Por <b>${escapeHtml(log.actorName || log.actorEmail || "Usuário")}</b></span><span>${escapeHtml(roleLabel(log.actorRole))}</span></div></div></article>`).join("") : `<div class="audit-empty"><span aria-hidden="true">◷</span><strong>Nenhuma alteração registrada</strong><p>As próximas ações realizadas nas vendas deste evento aparecerão aqui.</p></div>`;
+  const auditActionLabel = (log) => /^Gerou \d+ ingresso/i.test(log.details || "") ? "Ingresso gerado" : /^Excluiu \d+ ingresso/i.test(log.details || "") ? "Ingresso excluído" : actionLabels[log.action] || "Alteração";
+  list.innerHTML = logs.length ? logs.map((log) => `<article class="audit-entry audit-${escapeHtml(log.action)}"><div class="audit-entry-marker" aria-hidden="true"></div><div class="audit-entry-content"><div class="audit-entry-heading"><span class="audit-action">${escapeHtml(auditActionLabel(log))}</span><time>${escapeHtml(auditTimestampText(log.timestamp))}</time></div><strong>${escapeHtml(log.participantName || "Participante")}</strong><p>${escapeHtml(log.details || "Alteração registrada.")}</p><div class="audit-entry-meta"><span>Por <b>${escapeHtml(log.actorName || log.actorEmail || "Usuário")}</b></span><span>${escapeHtml(roleLabel(log.actorRole))}</span></div></div></article>`).join("") : `<div class="audit-empty"><span aria-hidden="true">◷</span><strong>Nenhuma alteração registrada</strong><p>As próximas ações realizadas nas vendas deste evento aparecerão aqui.</p></div>`;
 }
 function openAuditHistory(eventId) {
   if (!requireRole(["admin", "event_manager"], "O histórico é exclusivo para administradores e gerentes do evento.")) return;
@@ -473,13 +480,18 @@ function launchWhatsapp(appType) {
 async function ensureQrTickets(sale) {
   if (!sale || !isCommercialSale(sale)) throw new Error("Esta ocupação não gera ingresso.");
   if (!hasRole("admin", "event_manager", "seller")) throw new Error("Seu perfil não permite gerar ingressos.");
+  if (!sale.paid) throw new Error("Confirme o pagamento antes de gerar os ingressos.");
   const event = state.events.find((item) => item.id === sale.eventId);
   const existing = qrTicketsFor(sale, event);
   const tickets = existing.map((ticket) => ({ ...ticket, token: ticket.token || qrToken() }));
   if (!tickets.length) throw new Error("Esta venda não possui participantes para gerar ingressos.");
   const serialized = tickets.map((ticket) => ({ sourceKey: ticket.sourceKey, participantName: ticket.participantName, ticketTypeId: ticket.ticketTypeId, ticketTypeName: ticket.ticketTypeName, occupantIndex: ticket.occupantIndex, token: ticket.token, checkedIn: Boolean(ticket.checkedIn), ...(ticket.checkedInAt ? { checkedInAt: ticket.checkedInAt } : {}) }));
-  if (isDemo) { sale.qrTickets = serialized; persistDemo(); }
-  else await set(ref(db, `sales/${sale.id}/qrTickets`), serialized);
+  const details = `Gerou ${tickets.length} ingresso${tickets.length === 1 ? "" : "s"} em PDF com QR Code (${isTableReservation(sale) ? "mesa/bistrô" : "individual"}).`;
+  if (isDemo) { sale.qrTickets = serialized; appendDemoAudit("edited", sale, details); persistDemo(); }
+  else {
+    const logId = push(ref(db, "auditLogs")).key;
+    await update(ref(db), { [`sales/${sale.id}/qrTickets`]: serialized, [`auditLogs/${logId}`]: auditLogData("edited", sale, details) });
+  }
   sale.qrTickets = serialized;
   return tickets;
 }
@@ -499,7 +511,7 @@ async function buildTicketPdf(saleId, generate = false) {
   if (!tickets.length || tickets.some((ticket) => !ticket.token)) throw new Error("Gere o ingresso antes de visualizar ou enviar.");
   const paymentStatus = sale.courtesy || sale.paymentMethod === "courtesy" ? "Cortesia" : sale.paid ? "Pago" : "Pendente";
   const paymentDetail = sale.paid && !sale.courtesy ? paymentMethodLabel(sale.paymentMethod) : sale.courtesy ? "Sem cobrança" : "Aguardando pagamento";
-  const printable = tickets.map((ticket) => ({ ...ticket, eventName: event?.name || "Evento", eventDate: event?.date ? dateText(event.date) : "", eventPlace: event?.place || "", validationUrl: qrValidationUrl(ticket.token), shortCode: ticket.token.slice(-8).toUpperCase(), ticketValue: money.format(Number(ticket.value || 0)), paymentStatus, paymentDetail }));
+  const printable = tickets.map((ticket) => ({ ...ticket, admissionType: isTableReservation(sale) ? `${furnitureKindLabel(sale.furnitureKind)} / reserva` : "Ingresso individual", eventName: event?.name || "Evento", eventDate: event?.date ? dateText(event.date) : "", eventPlace: event?.place || "", validationUrl: qrValidationUrl(ticket.token), shortCode: ticket.token.slice(-8).toUpperCase(), ticketValue: money.format(Number(ticket.value || 0)), paymentStatus, paymentDetail }));
   const blob = await createTicketPdf(printable, eventTicketDesign(event));
   return { blob, filename: ticketPdfName(event, sale), sale, event, count: tickets.length };
 }
@@ -568,8 +580,14 @@ async function deleteGeneratedTicket(saleId) {
   if (!sale) return;
   if (qrTicketsFor(sale, event).some((ticket) => ticket.checkedIn)) return toast("Não é possível excluir um ingresso que já teve check-in.");
   try {
-    if (isDemo) { delete sale.qrTickets; persistDemo(); }
-    else { await set(ref(db, `sales/${saleId}/qrTickets`), null); delete sale.qrTickets; }
+    const ticketCount = storedQrTickets(sale).length;
+    const details = `Excluiu ${ticketCount} ingresso${ticketCount === 1 ? "" : "s"} com QR Code (${isTableReservation(sale) ? "mesa/bistrô" : "individual"}).`;
+    if (isDemo) { delete sale.qrTickets; appendDemoAudit("edited", sale, details); persistDemo(); }
+    else {
+      const logId = push(ref(db, "auditLogs")).key;
+      await update(ref(db), { [`sales/${saleId}/qrTickets`]: null, [`auditLogs/${logId}`]: auditLogData("edited", sale, details) });
+      delete sale.qrTickets;
+    }
     $("ticketDeleteModal").close();
     render();
     toast("Ingresso excluído. O QR Code antigo não é mais válido e um novo pode ser gerado.");
@@ -583,6 +601,11 @@ function locateQrTicket(token) {
   }
   return null;
 }
+function qrCheckinDateTime(value) {
+  const timestamp = Number(value);
+  if (!Number.isFinite(timestamp) || timestamp <= 0) return "Horário não registrado";
+  return new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "medium" }).format(new Date(timestamp));
+}
 async function showQrValidation(token) {
   const modal = $("qrValidationModal");
   const found = locateQrTicket(token);
@@ -591,6 +614,7 @@ async function showQrValidation(token) {
     $("qrValidationState").className = "qr-validation-state is-invalid";
     $("qrValidationState").innerHTML = `<span class="qr-validation-icon">!</span><h3>QR Code inválido</h3><p>Este ingresso não foi encontrado ou você não tem acesso ao evento.</p>`;
     $("confirmQrCheckin").hidden = true;
+    $("nextQrScan").hidden = false;
     $("qrValidationImage").removeAttribute("src");
   } else {
     const { sale, event, ticket } = found;
@@ -598,8 +622,9 @@ async function showQrValidation(token) {
     localStorage.setItem("ingressa-selected-event", selectedEventId);
     const used = Boolean(ticket.checkedIn);
     $("qrValidationState").className = `qr-validation-state ${used ? "is-used" : "is-valid"}`;
-    $("qrValidationState").innerHTML = `<span class="qr-validation-icon">${used ? "✓" : "QR"}</span><p class="eyebrow">${used ? "INGRESSO JÁ UTILIZADO" : "INGRESSO VÁLIDO"}</p><h3>${escapeHtml(ticket.participantName || sale.buyerName || "Participante")}</h3><dl><div><dt>Evento</dt><dd>${escapeHtml(event?.name || "Evento")}</dd></div><div><dt>Ingresso</dt><dd>${escapeHtml(ticket.ticketTypeName || "Ingresso")}</dd></div>${isTableReservation(sale) ? `<div><dt>Reserva</dt><dd>${escapeHtml(sale.reservationLabel || "Mesa/bistrô")}</dd></div>` : ""}<div><dt>Código</dt><dd>${escapeHtml(token.slice(-8).toUpperCase())}</dd></div></dl>${used ? `<p class="qr-used-message">Entrada já registrada. Não confirme novamente.</p>` : ""}`;
+    $("qrValidationState").innerHTML = `<span class="qr-validation-icon">${used ? "✓" : "QR"}</span><p class="eyebrow">${used ? "INGRESSO JÁ UTILIZADO" : "INGRESSO VÁLIDO"}</p><h3>${escapeHtml(ticket.participantName || sale.buyerName || "Participante")}</h3><dl><div><dt>Evento</dt><dd>${escapeHtml(event?.name || "Evento")}</dd></div><div><dt>Modalidade</dt><dd>${isTableReservation(sale) ? escapeHtml(`${furnitureKindLabel(sale.furnitureKind)} / reserva`) : "Ingresso individual"}</dd></div><div><dt>Ingresso</dt><dd>${escapeHtml(ticket.ticketTypeName || "Ingresso")}</dd></div>${isTableReservation(sale) ? `<div><dt>Reserva</dt><dd>${escapeHtml(sale.reservationLabel || "Mesa/bistrô")}</dd></div>` : ""}<div><dt>Código</dt><dd>${escapeHtml(token.slice(-8).toUpperCase())}</dd></div>${used ? `<div class="qr-used-at"><dt>Utilizado em</dt><dd>${escapeHtml(qrCheckinDateTime(ticket.checkedInAt))}</dd></div>` : ""}</dl>${used ? `<p class="qr-used-message">Entrada já registrada. Não confirme novamente.</p>` : ""}`;
     $("confirmQrCheckin").hidden = used;
+    $("nextQrScan").hidden = !used;
     $("qrValidationImage").src = await createQrDataUrl(qrValidationUrl(token), { width: 320 });
   }
   if (!modal.open) modal.showModal();
@@ -609,14 +634,19 @@ async function toggleQrTicketCheckin(token) {
   const found = locateQrTicket(token);
   if (!found || found.ticket.checkedIn) return toast(found ? "Este ingresso já teve a entrada confirmada." : "QR Code inválido.");
   const { sale, event, ticket, index } = found;
-  const now = Date.now();
+  const resumeScanner = $("qrValidationModal").dataset.source === "scanner";
+  const scannedAt = Number($("qrValidationModal").dataset.scannedAt);
+  const now = Number.isFinite(scannedAt) && scannedAt > 0 ? scannedAt : Date.now();
   const nextTickets = qrTicketsFor(sale, event).map((item, itemIndex) => itemIndex === index ? { ...item, checkedIn: true, checkedInAt: now } : item);
   const details = `Realizou o check-in por QR Code de ${ticket.participantName || sale.buyerName || "participante"}.`;
   if (isDemo) {
     sale.qrTickets = nextTickets;
     if (isTableReservation(sale)) { const checkins = reservationOccupantCheckins(sale); checkins[ticket.occupantIndex] = true; sale.occupantCheckins = checkins; }
     else sale.checkedIn = nextTickets.every((item) => item.checkedIn);
-    appendDemoAudit("checkin", sale, details); persistDemo(); render(); await showQrValidation(token); return;
+    appendDemoAudit("checkin", sale, details); persistDemo(); render();
+    $("qrValidationModal").close(); location.hash = "portaria"; toast("Check-in confirmado. Câmera pronta para o próximo ingresso.");
+    if (resumeScanner) await openQrScanner();
+    return;
   }
   const updates = { [`sales/${sale.id}/qrTickets/${index}/checkedIn`]: true, [`sales/${sale.id}/qrTickets/${index}/checkedInAt`]: now };
   if (isTableReservation(sale)) updates[`sales/${sale.id}/occupantCheckins/${ticket.occupantIndex}`] = true;
@@ -626,11 +656,12 @@ async function toggleQrTicketCheckin(token) {
   await update(ref(db), updates);
   $("qrValidationModal").close();
   location.hash = "portaria";
-  toast("Check-in confirmado pelo QR Code.");
+  toast(resumeScanner ? "Check-in confirmado. Câmera pronta para o próximo ingresso." : "Check-in confirmado pelo QR Code.");
+  if (resumeScanner) await openQrScanner();
 }
 function syncQrValidationFromHash() {
   const match = location.hash.match(/^#validar=([a-f0-9]{20,})$/i);
-  if (match && currentUserProfile && state.sales.length) showQrValidation(match[1]).catch((error) => { console.error(error); toast("Não foi possível validar o QR Code."); });
+  if (match && currentUserProfile && state.sales.length) { $("qrValidationModal").dataset.source = "link"; $("qrValidationModal").dataset.scannedAt = String(Date.now()); showQrValidation(match[1]).catch((error) => { console.error(error); toast("Não foi possível validar o QR Code."); }); }
 }
 
 let qrScannerStream = null;
@@ -703,6 +734,8 @@ async function finishQrScan(value) {
   const found = token ? locateQrTicket(token) : null;
   stopQrScanner();
   if ($("qrScannerModal").open) $("qrScannerModal").close();
+  $("qrValidationModal").dataset.source = "scanner";
+  $("qrValidationModal").dataset.scannedAt = String(Date.now());
   playQrFeedback(found && !found.ticket.checkedIn ? "valid" : "rejected");
   await showQrValidation(token);
 }
@@ -951,6 +984,41 @@ function addSaleTicketItemRow(selectedOption = "", quantity = 1) {
   $("saleTicketItemsList").append(row);
   return row;
 }
+function responsibleFirstName(value) { return String(value || "").trim().split(/\s+/)[0] || ""; }
+function guestDefaultName(responsibleName, position) {
+  const firstName = responsibleFirstName(responsibleName);
+  return `${firstName ? `${firstName}/` : ""}Convidado-${position}`;
+}
+function saleDraftTicketQuantity() {
+  const event = state.events.find((item) => item.id === $("saleEvent").value);
+  const options = saleOptionsFor(event, $("saleForm").dataset.editId || "");
+  return [...document.querySelectorAll(".sale-ticket-item-row")].reduce((sum, row) => {
+    const option = options.find((item) => item.key === row.querySelector(".sale-item-type").value);
+    const quantity = Math.max(0, Number(row.querySelector(".sale-item-quantity").value || 0));
+    return sum + (option && Number.isInteger(quantity) ? (option.kind === "package" ? packageTicketCount(option.item) : 1) * quantity : 0);
+  }, 0);
+}
+function syncSaleGuestNames(storedNames = null) {
+  const list = $("saleGuestNamesList");
+  const total = saleDraftTicketQuantity();
+  const previous = new Map([...list.querySelectorAll(".sale-guest-name")].map((input) => [Number(input.dataset.position), { value: input.value, automatic: input.dataset.automatic === "true" }]));
+  const responsible = $("saleForm").elements.buyerName.value;
+  list.innerHTML = "";
+  for (let position = 2; position <= total; position += 1) {
+    const stored = Array.isArray(storedNames) ? storedNames[position - 1] : null;
+    const prior = previous.get(position);
+    const automatic = stored == null ? (prior?.automatic ?? true) : false;
+    const value = stored != null ? stored : prior && !prior.automatic ? prior.value : guestDefaultName(responsible, position);
+    const label = document.createElement("label");
+    label.innerHTML = `Ingresso ${position}<input class="sale-guest-name" data-position="${position}" data-automatic="${automatic}" required value="${escapeHtml(value)}" />`;
+    list.append(label);
+  }
+  $("saleGuestNamesField").hidden = total <= 1;
+}
+function saleParticipantNames() {
+  const responsible = String($("saleForm").elements.buyerName.value || "").trim();
+  return [responsible, ...[...$("saleGuestNamesList").querySelectorAll(".sale-guest-name")].map((input) => input.value.trim())];
+}
 function updateSaleItemsSummary() {
   const event = state.events.find((item) => item.id === $("saleEvent").value);
   const options = saleOptionsFor(event, $("saleForm").dataset.editId || "");
@@ -967,6 +1035,7 @@ function updateSaleItemsSummary() {
   syncSalePaymentFields(false);
   $("saleItemsQuantity").textContent = quantity;
   $("saleItemsTotal").textContent = money.format(total);
+  syncSaleGuestNames();
 }
 function populateSaleTicketItemOptions(eventId = $("saleEvent").value) {
   const event = state.events.find((item) => item.id === eventId);
@@ -1020,7 +1089,7 @@ function toggleTableReservationCard(card) { if (!card) return; const expanded = 
 function ticketFileActionsHtml(sale) {
   if (!hasRole("admin", "event_manager", "seller") || !isCommercialSale(sale)) return "";
   const event = state.events.find((item) => item.id === sale.eventId);
-  if (!hasGeneratedTicket(sale, event)) return `<div class="ticket-file-actions is-not-generated"><button class="ticket-file-button ticket-generate-button" type="button" data-ticket-generate="${sale.id}">Gerar ingresso em PDF</button></div>`;
+  if (!hasGeneratedTicket(sale, event)) return sale.paid ? `<div class="ticket-file-actions is-not-generated"><button class="ticket-file-button ticket-generate-button" type="button" data-ticket-generate="${sale.id}">Gerar ingresso em PDF</button></div>` : `<div class="ticket-generation-locked"><strong>Ingresso aguardando pagamento</strong><span>Confirme o pagamento para liberar a geração do PDF e QR Code.</span></div>`;
   return `<div class="ticket-file-actions is-generated"><button class="ticket-file-button" type="button" data-ticket-view="${sale.id}">Ver ingresso</button><button class="ticket-file-button ticket-share-button" type="button" data-ticket-send="${sale.id}">Enviar ingresso</button><button class="ticket-file-button ticket-delete-button" type="button" data-ticket-delete="${sale.id}">Excluir ingresso</button></div>`;
 }
 function tableReservationCheckinsHtml(sale) {
@@ -1229,7 +1298,7 @@ function renderTableReservationsList(event, eventSales) {
   const paymentForTableReservation = (sale) => sale.paid ? `<span class="payment paid">✓ Pago</span>${paymentDetailsHtml(sale)}` : `<span class="payment">Pendente</span>`;
   $("allTableReservationsTitle").textContent = `Reservas — ${event.name}`;
   $("allTableReservationsTotal").textContent = money.format(totalAllReservations);
-  $("allTableReservationsList").innerHTML = allReservations.length ? allReservations.map((sale) => { const occupants = reservationOccupants(sale); const peopleCount = occupants.length || sale.quantity || 1; return `<tr class="sales-row table-reservation-all-row"><td data-label="Responsável"><strong>${escapeHtml(sale.buyerName || "Sem responsável")}</strong><small>${peopleCount} pessoas · ${reservationCheckinCount(sale)}/${peopleCount} check-ins</small></td><td data-label="Mesa / bistrô"><strong>${escapeHtml(sale.reservationLabel || "Reserva")}</strong><small>${escapeHtml(mapAreaLabel(sale.reservationArea || ""))}</small></td><td class="sale-note" data-label="Contato / ocupantes"><span class="phone-line"><strong>${escapeHtml(formatPhoneDisplay(sale.buyerPhone) || "Não informado")}</strong>${whatsappButtonHtml(sale, event.name)}</span><small>${escapeHtml(occupants.join(", "))}</small><div class="table-reservation-all-checkins"><small>Entradas (${reservationCheckinCount(sale)}/${peopleCount})</small>${tableReservationCheckinsHtml(sale)}</div></td><td data-label="Evento">${escapeHtml(event.name)}</td><td class="financial-column" data-label="Valor">${money.format(saleTotal(sale, event))}</td><td class="financial-column" data-label="Pagamento">${paymentForTableReservation(sale)}</td><td data-label="Ações"><button class="edit-button" type="button" data-open-table-reservation="${sale.furnitureId}">Editar</button>${canManage ? `<button class="delete-button" data-delete-sale="${sale.id}">Excluir</button>` : ""}</td></tr>`; }).join("") : `<tr><td colspan="7" class="empty">Nenhuma reserva neste evento.</td></tr>`;
+  $("allTableReservationsList").innerHTML = allReservations.length ? allReservations.map((sale) => { const occupants = reservationOccupants(sale); const peopleCount = occupants.length || sale.quantity || 1; return `<tr class="sales-row table-reservation-all-row"><td data-label="Responsável"><strong>${escapeHtml(sale.buyerName || "Sem responsável")}</strong><small>${peopleCount} pessoas · ${reservationCheckinCount(sale)}/${peopleCount} check-ins</small></td><td data-label="Mesa / bistrô"><strong>${escapeHtml(sale.reservationLabel || "Reserva")}</strong><small>${escapeHtml(mapAreaLabel(sale.reservationArea || ""))}</small></td><td class="sale-note" data-label="Contato / ocupantes"><span class="phone-line"><strong>${escapeHtml(formatPhoneDisplay(sale.buyerPhone) || "Não informado")}</strong>${whatsappButtonHtml(sale, event.name)}</span><small>${escapeHtml(occupants.join(", "))}</small><div class="table-reservation-all-checkins"><small>Entradas (${reservationCheckinCount(sale)}/${peopleCount})</small>${tableReservationCheckinsHtml(sale)}</div></td><td data-label="Evento">${escapeHtml(event.name)}</td><td class="financial-column" data-label="Valor">${money.format(saleTotal(sale, event))}</td><td class="financial-column" data-label="Pagamento">${paymentForTableReservation(sale)}</td><td data-label="Ações"><div class="table-all-actions"><button class="edit-button" type="button" data-open-table-reservation="${sale.furnitureId}">Editar</button>${canManage ? `<button class="delete-button" data-delete-sale="${sale.id}">Excluir</button>` : ""}</div>${ticketFileActionsHtml(sale)}</td></tr>`; }).join("") : `<tr><td colspan="7" class="empty">Nenhuma reserva neste evento.</td></tr>`;
 }
 
 function chairDiscountControlHtml(pricing = {}, label = "Desconto desta cadeira") {
@@ -1261,12 +1330,22 @@ function setChairDiscountControl(control, pricing = {}) {
   input.max = type === "percent" ? "100" : "999999";
 }
 
-function addTableOccupantRow(name = "", pricing = {}) {
+function addTableOccupantRow(name = null, pricing = {}) {
+  const position = document.querySelectorAll(".table-occupant-row").length + 2;
+  const automatic = name == null;
+  const resolvedName = automatic ? guestDefaultName($("tableReservationForm").elements.buyerName.value, position) : name;
   const row = document.createElement("div");
   row.className = "table-occupant-row";
-  row.innerHTML = `<input class="table-occupant-name" required placeholder="Nome do participante" value="${escapeHtml(name)}" />${chairDiscountControlHtml(pricing, "Desconto da cadeira deste participante")}<button class="close" type="button" data-remove-table-occupant aria-label="Remover participante">×</button>`;
+  row.innerHTML = `<input class="table-occupant-name" data-automatic="${automatic}" data-position="${position}" required placeholder="Nome do participante" value="${escapeHtml(resolvedName)}" />${chairDiscountControlHtml(pricing, "Desconto da cadeira deste participante")}<button class="close" type="button" data-remove-table-occupant aria-label="Remover participante">×</button>`;
   $("tableOccupantsList").append(row);
   updateTableReservationTotal();
+}
+function syncTableGuestPositions() {
+  $("tableOccupantsList").querySelectorAll(".table-occupant-name").forEach((input, index) => {
+    const position = index + 2;
+    input.dataset.position = String(position);
+    if (input.dataset.automatic === "true") input.value = guestDefaultName($("tableReservationForm").elements.buyerName.value, position);
+  });
 }
 
 function tableReservationNames() {
@@ -1391,7 +1470,6 @@ async function saveTableReservation(data) {
   if (!event || !furniture) throw new Error("Mesa ou bistrô não encontrado.");
   const names = tableReservationNames();
   if (!names[0]) throw new Error("Informe o nome do responsável.");
-  if (!String(data.buyerPhone || "").trim()) throw new Error("Informe o telefone do responsável.");
   const current = state.sales.find((sale) => sale.id === data.saleId);
   const occupiedByAnother = tableOccupanciesFor(event.id).find((sale) => sale.furnitureId === furniture.id && sale.id !== data.saleId);
   if (occupiedByAnother) throw new Error("Esta mesa já possui uma reserva.");
@@ -1777,7 +1855,9 @@ async function saveSale(data, id = "") {
   if (paid && !courtesy && !PAYMENT_METHOD_LABELS[paymentMethod]) throw new Error("Selecione a forma de pagamento.");
   if (paid && !courtesy && !paymentDate) throw new Error("Informe a data do pagamento.");
   const timestamp = isDemo ? Date.now() : serverTimestamp();
-  const saleData = { eventId: event.id, ticketTypeId: items.length === 1 ? primaryTicket.ticketTypeId : "multiple", ticketTypeName: items.length === 1 ? primaryTicket.ticketTypeName : "Vários ingressos", items, buyerName: String(data.buyerName || "").trim(), buyerPhone: String(data.buyerPhone || "").trim(), buyerEmail: String(data.buyerEmail || "").trim(), notes: String(data.notes || "").trim(), courtesy, paid, paymentMethod, paymentDate, quantity, total, checkedIn: current?.checkedIn || false, updatedAt: timestamp };
+  const participantNames = saleParticipantNames();
+  if (participantNames.length !== quantity || participantNames.some((name) => !name)) throw new Error("Informe o nome de todos os participantes.");
+  const saleData = { eventId: event.id, ticketTypeId: items.length === 1 ? primaryTicket.ticketTypeId : "multiple", ticketTypeName: items.length === 1 ? primaryTicket.ticketTypeName : "Vários ingressos", items, participantNames, buyerName: String(data.buyerName || "").trim(), buyerPhone: String(data.buyerPhone || "").trim(), buyerEmail: String(data.buyerEmail || "").trim(), notes: String(data.notes || "").trim(), courtesy, paid, paymentMethod, paymentDate, quantity, total, checkedIn: current?.checkedIn || false, updatedAt: timestamp };
   if (isDemo) {
     if (id) {
       const updatedSale = { ...current, ...saleData };
@@ -1907,8 +1987,8 @@ function syncSalePaymentFields(useToday = false) {
 
 function openNewEvent() { if (!requireRole(["admin"], "Somente administradores podem criar eventos.")) return; const form = $("eventForm"); form.reset(); form.dataset.editId = ""; form.elements.eventMode.value = "unit"; form.elements.chairPrice.value = ""; resetEventMapDraft(); syncEventMapSettings(); syncTicketDesignPreview(); $("eventModalTitle").textContent = "Novo evento"; $("eventSubmitButton").textContent = "Criar evento"; resetPackages(); resetTicketTypes(); $("eventModal").showModal(); }
 function openEditEvent(id) { if (!requireRole(["admin", "event_manager"], "Somente administradores e gerentes podem editar eventos.")) return; if (!canAdministerEvent(id)) return toast("Você não administra este evento."); const item = state.events.find((event) => event.id === id); if (!item) return; const form = $("eventForm"); form.reset(); form.dataset.editId = id; form.elements.name.value = item.name || ""; form.elements.date.value = item.date || ""; form.elements.place.value = item.place || ""; form.elements.eventMode.value = item.eventMode === "mixed" ? "mixed" : "unit"; form.elements.chairPrice.value = Number(item.chairPrice || 0); const design = eventTicketDesign(item); form.elements.ticketTitle.value = design.title; form.elements.ticketFooter.value = design.footer; form.elements.ticketPrimaryColor.value = design.primaryColor; form.elements.ticketAccentColor.value = design.accentColor; resetEventMapDraft(item); syncEventMapSettings(); syncTicketDesignPreview(); resetPackages(); $("ticketTypesList").innerHTML = ""; ticketTypesFor(item).forEach((type) => addTicketTypeRow(type.name, type.price, type.capacity, type.id)); packagesFor(item).forEach((packageItem) => addPackageRow(packageItem)); renderPackagesEmptyState(); $("eventModalTitle").textContent = "Editar evento"; $("eventSubmitButton").textContent = "Salvar alterações"; $("eventModal").showModal(); }
-function openNewSale(eventId = "") { if (!requireRole(["admin", "event_manager", "seller"])) return; if (!state.events.length) return toast("Cadastre um evento antes de registrar uma venda."); const form = $("saleForm"); form.reset(); form.dataset.editId = ""; $("saleModalTitle").textContent = "Registrar ingressos"; $("saleSubmitButton").textContent = "Confirmar venda"; $("saleEvent").value = eventId; setSaleTicketItems(eventId); syncSalePaymentFields(true); $("saleModal").showModal(); }
-function openEditSale(id) { if (!requireRole(["admin", "event_manager", "seller"])) return; const sale = state.sales.find((item) => item.id === id); if (!sale) return; if ($("allSalesModal").open) $("allSalesModal").close(); const form = $("saleForm"); form.reset(); form.dataset.editId = id; $("saleEvent").value = sale.eventId; setSaleTicketItems(sale.eventId, saleItems(sale)); form.elements.buyerName.value = sale.buyerName || ""; form.elements.buyerPhone.value = sale.buyerPhone || ""; form.elements.buyerEmail.value = sale.buyerEmail || ""; form.elements.paymentStatus.value = sale.paid ? "paid" : "pending"; form.elements.paymentMethod.value = sale.paymentMethod || ""; form.elements.paymentDate.value = sale.paymentDate || ""; form.elements.notes.value = sale.notes || ""; syncSalePaymentFields(false); $("saleModalTitle").textContent = "Editar participante e ingressos"; $("saleSubmitButton").textContent = "Salvar alterações"; $("saleModal").showModal(); }
+function openNewSale(eventId = "") { if (!requireRole(["admin", "event_manager", "seller"])) return; if (!state.events.length) return toast("Cadastre um evento antes de registrar uma venda."); const form = $("saleForm"); form.reset(); form.dataset.editId = ""; $("saleGuestNamesList").innerHTML = ""; $("saleModalTitle").textContent = "Registrar ingressos"; $("saleSubmitButton").textContent = "Confirmar venda"; $("saleEvent").value = eventId; setSaleTicketItems(eventId); syncSalePaymentFields(true); $("saleModal").showModal(); }
+function openEditSale(id) { if (!requireRole(["admin", "event_manager", "seller"])) return; const sale = state.sales.find((item) => item.id === id); if (!sale) return; if ($("allSalesModal").open) $("allSalesModal").close(); const form = $("saleForm"); form.reset(); form.dataset.editId = id; $("saleGuestNamesList").innerHTML = ""; $("saleEvent").value = sale.eventId; form.elements.buyerName.value = sale.buyerName || ""; setSaleTicketItems(sale.eventId, saleItems(sale)); syncSaleGuestNames(Array.isArray(sale.participantNames) ? sale.participantNames : null); form.elements.buyerPhone.value = sale.buyerPhone || ""; form.elements.buyerEmail.value = sale.buyerEmail || ""; form.elements.paymentStatus.value = sale.paid ? "paid" : "pending"; form.elements.paymentMethod.value = sale.paymentMethod || ""; form.elements.paymentDate.value = sale.paymentDate || ""; form.elements.notes.value = sale.notes || ""; syncSalePaymentFields(false); $("saleModalTitle").textContent = "Editar participante e ingressos"; $("saleSubmitButton").textContent = "Salvar alterações"; $("saleModal").showModal(); }
 
 async function toggleEventArchive(id) {
   if (!canAdministerEvent(id)) return toast("Somente administradores e gerentes do evento podem arquivar ou restaurar.");
@@ -1948,6 +2028,10 @@ $("addSaleTicketItem").addEventListener("click", () => { const event = state.eve
 $("saleEvent").addEventListener("change", () => setSaleTicketItems($("saleEvent").value));
 $("saleTicketItemsList").addEventListener("change", (event) => { if (event.target.matches(".sale-item-type")) populateSaleTicketItemOptions(); else updateSaleItemsSummary(); });
 $("saleTicketItemsList").addEventListener("input", updateSaleItemsSummary);
+$("saleForm").elements.buyerName.addEventListener("input", () => {
+  $("saleGuestNamesList").querySelectorAll('.sale-guest-name[data-automatic="true"]').forEach((input) => { input.value = guestDefaultName($("saleForm").elements.buyerName.value, Number(input.dataset.position)); });
+});
+$("saleGuestNamesList").addEventListener("input", (event) => { if (event.target.matches(".sale-guest-name")) event.target.dataset.automatic = "false"; });
 $("saleForm").elements.paymentStatus.addEventListener("change", () => syncSalePaymentFields(true));
 $("saleForm").elements.buyerPhone.addEventListener("blur", (event) => { event.currentTarget.value = formatPhoneDisplay(event.currentTarget.value); });
 $("applyParticipantFilters").addEventListener("click", () => { selectedTicketTypeFilter = $("ticketTypeFilter").value; selectedPaymentFilter = $("paymentStatusFilter").value; selectedEntryFilter = $("entryStatusFilter").value; document.querySelector(".ticket-filter").open = false; render(); });
@@ -2018,7 +2102,11 @@ $("allTableReservationsList").addEventListener("click", (event) => { const reser
 $("exportTableReservations").addEventListener("click", () => { if (requireRole(["admin", "event_manager", "seller"])) window.exportSalesXlsx(state.sales, state.events, selectedEventId, "tables"); });
 $("exportParticipants").addEventListener("click", () => { if (requireRole(["admin", "event_manager", "seller"])) window.exportSalesXlsx(state.sales, state.events, selectedEventId, "unit"); });
 $("addTableOccupant").addEventListener("click", () => addTableOccupantRow());
-$("tableOccupantsList").addEventListener("click", (event) => { const remove = event.target.closest("[data-remove-table-occupant]"); if (!remove) return; remove.closest(".table-occupant-row").remove(); updateTableReservationTotal(); });
+$("tableReservationForm").elements.buyerName.addEventListener("input", () => {
+  $("tableOccupantsList").querySelectorAll('.table-occupant-name[data-automatic="true"]').forEach((input) => { input.value = guestDefaultName($("tableReservationForm").elements.buyerName.value, Number(input.dataset.position)); });
+});
+$("tableOccupantsList").addEventListener("input", (event) => { if (event.target.matches(".table-occupant-name")) event.target.dataset.automatic = "false"; });
+$("tableOccupantsList").addEventListener("click", (event) => { const remove = event.target.closest("[data-remove-table-occupant]"); if (!remove) return; remove.closest(".table-occupant-row").remove(); syncTableGuestPositions(); updateTableReservationTotal(); });
 $("tableReservationForm").addEventListener("click", (event) => {
   const button = event.target.closest("[data-toggle-chair-discount]");
   if (!button) return;
@@ -2084,6 +2172,7 @@ $("ticketDeleteModal").addEventListener("cancel", (event) => { event.preventDefa
 document.querySelectorAll("[data-close-ticket-delete]").forEach((button) => button.addEventListener("click", () => $("ticketDeleteModal").close()));
 $("confirmTicketDelete").addEventListener("click", () => deleteGeneratedTicket($("ticketDeleteModal").dataset.saleId));
 $("confirmQrCheckin").addEventListener("click", () => toggleQrTicketCheckin($("qrValidationModal").dataset.token));
+$("nextQrScan").addEventListener("click", () => { $("qrValidationModal").close(); location.hash = "portaria"; openQrScanner(); });
 $("qrValidationModal").addEventListener("cancel", (event) => { event.preventDefault(); $("qrValidationModal").close(); location.hash = "portaria"; });
 document.querySelector("[data-close-qr-validation]").addEventListener("click", () => { $("qrValidationModal").close(); location.hash = "portaria"; });
 $("openQrScanner").addEventListener("click", () => openCameraPermissionDialog());
