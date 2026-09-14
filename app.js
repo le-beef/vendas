@@ -18,6 +18,9 @@ const demoSales = [
 ];
 let state = { events: [], sales: [], users: [], auditLogs: [] };
 let selectedEventId = "";
+let pendingSelectedEventId = "";
+const AUTH_SESSION_KEY = "le-beef-auth-session-user";
+const EVENT_SESSION_KEY = "le-beef-selected-event-session";
 let selectedTicketTypeFilter = "all";
 let selectedPaymentFilter = "all";
 let selectedEntryFilter = "all";
@@ -45,6 +48,33 @@ const money = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL
 const $ = (id) => document.getElementById(id);
 const ROLE_LABELS = { admin: "Administrador", event_manager: "Gerente do evento", seller: "Vendedor", door: "Portaria" };
 const PAYMENT_METHOD_LABELS = { pix: "Pix", cash: "Dinheiro", credit_card: "Cartão de crédito", debit_card: "Cartão de débito", bank_transfer: "Transferência", other: "Outro", courtesy: "Cortesia" };
+
+function rememberSelectedEvent(eventId) {
+  selectedEventId = String(eventId || "");
+  pendingSelectedEventId = "";
+  if (selectedEventId) sessionStorage.setItem(EVENT_SESSION_KEY, selectedEventId);
+  else sessionStorage.removeItem(EVENT_SESSION_KEY);
+}
+function clearSelectedEventSession() {
+  selectedEventId = "";
+  pendingSelectedEventId = "";
+  sessionStorage.removeItem(EVENT_SESSION_KEY);
+  localStorage.removeItem("ingressa-selected-event");
+}
+function restoreNavigationSession() {
+  const page = location.hash.slice(1);
+  if (!page || page === "eventos") { clearSelectedEventSession(); return true; }
+  if (page === "arquivados") { clearSelectedEventSession(); return true; }
+  const savedEventId = sessionStorage.getItem(EVENT_SESSION_KEY) || "";
+  if (!savedEventId) return false;
+  selectedEventId = savedEventId;
+  pendingSelectedEventId = savedEventId;
+  return true;
+}
+function navigateToEventsHome() {
+  clearSelectedEventSession();
+  history.replaceState(null, "", `${location.pathname}${location.search}#eventos`);
+}
 
 function roleLabel(role) { return ROLE_LABELS[role] || "Sem perfil"; }
 function paymentMethodLabel(method) { return PAYMENT_METHOD_LABELS[method] || "Forma não informada"; }
@@ -146,14 +176,16 @@ function attachRealtimeListeners() {
 async function handleAuthenticatedUser(user) {
   clearDataSubscriptions();
   if (!user) {
-    selectedEventId = ""; localStorage.removeItem("ingressa-selected-event"); if (!location.hash.startsWith("#validar=")) history.replaceState(null, "", `${location.pathname}${location.search}#eventos`);
+    clearSelectedEventSession(); sessionStorage.removeItem(AUTH_SESSION_KEY); if (!location.hash.startsWith("#validar=")) navigateToEventsHome();
     currentUser = null; currentUserProfile = null; state = { events: [], sales: [], users: [], auditLogs: [] }; $("connectionDot").classList.remove("online"); $("connectionText").textContent = "Desconectado"; if ($("userManagementModal").open) $("userManagementModal").close(); applyRolePermissions(); render(); showAccessModal(); return;
   }
   try {
     const profileSnapshot = await get(ref(db, `users/${user.uid}`));
     const profile = profileSnapshot.val();
     if (!profile || !profile.active || !ROLE_LABELS[profile.role]) { await signOut(auth); showAccessModal("Sua conta ainda não possui permissão ativa. Fale com o administrador."); return; }
-    selectedEventId = ""; localStorage.removeItem("ingressa-selected-event"); if (!location.hash.startsWith("#validar=")) history.replaceState(null, "", `${location.pathname}${location.search}#eventos`);
+    const continuingSession = sessionStorage.getItem(AUTH_SESSION_KEY) === user.uid;
+    sessionStorage.setItem(AUTH_SESSION_KEY, user.uid);
+    if (!location.hash.startsWith("#validar=") && (!continuingSession || !restoreNavigationSession())) navigateToEventsHome();
     currentUser = user; currentUserProfile = { ...profile, active: profile.active === true }; hideAccessModal(); applyRolePermissions();
     $("connectionDot").classList.add("online"); $("connectionText").textContent = "Conectado";
     attachRealtimeListeners();
@@ -163,6 +195,7 @@ async function start() {
   if (isDemo) {
     currentUser = { uid: "local-demo", email: "demo@local" }; currentUserProfile = { name: "Administrador local", email: "demo@local", role: "admin", active: true };
     state = { events: JSON.parse(localStorage.getItem("ingressa-events") || "null") || demoEvents, sales: JSON.parse(localStorage.getItem("ingressa-sales") || "null") || demoSales, users: [{ id: "local-demo", ...currentUserProfile }], auditLogs: JSON.parse(localStorage.getItem("ingressa-audit-logs") || "null") || [] };
+    if (!location.hash.startsWith("#validar=") && !restoreNavigationSession()) navigateToEventsHome();
     $("connectionText").textContent = "Desconectado"; applyRolePermissions(); render(); return;
   }
   try {
@@ -488,7 +521,7 @@ function renderAuditHistory() {
 function openAuditHistory(eventId) {
   if (!requireRole(["admin", "event_manager"], "O histórico é exclusivo para administradores e gerentes do evento.")) return;
   if (!canAdministerEvent(eventId)) return toast("Você não administra este evento.");
-  selectedEventId = eventId;
+  rememberSelectedEvent(eventId);
   renderAuditHistory();
   location.hash = "historico";
 }
@@ -821,7 +854,7 @@ async function showQrValidation(token) {
     $("qrValidationImage").removeAttribute("src");
   } else {
     const { sale, event, ticket } = found;
-    selectedEventId = sale.eventId;
+    rememberSelectedEvent(sale.eventId);
     const used = Boolean(ticket.checkedIn);
     $("qrValidationState").className = `qr-validation-state ${used ? "is-used" : "is-valid"}`;
     $("qrValidationState").innerHTML = `<span class="qr-validation-icon">${used ? "✓" : "QR"}</span><p class="eyebrow">${used ? "INGRESSO JÁ UTILIZADO" : "INGRESSO VÁLIDO"}</p><h3>${escapeHtml(ticket.participantName || sale.buyerName || "Participante")}</h3><dl><div><dt>Evento</dt><dd>${escapeHtml(event?.name || "Evento")}</dd></div><div><dt>Modalidade</dt><dd>${isTableReservation(sale) ? escapeHtml(`${furnitureKindLabel(sale.furnitureKind)} / reserva`) : "Ingresso individual"}</dd></div><div><dt>Ingresso</dt><dd>${escapeHtml(ticket.ticketTypeName || "Ingresso")}</dd></div>${isTableReservation(sale) ? `<div><dt>Reserva</dt><dd>${escapeHtml(sale.reservationLabel || "Mesa/bistrô")}</dd></div>` : ""}<div><dt>Código</dt><dd>${escapeHtml(token.slice(-8).toUpperCase())}</dd></div>${used ? `<div class="qr-used-at"><dt>Utilizado em</dt><dd>${escapeHtml(qrCheckinDateTime(ticket.checkedInAt))}</dd></div>` : ""}</dl>${used ? `<p class="qr-used-message">Entrada já registrada. Não confirme novamente.</p>` : ""}`;
@@ -1887,6 +1920,7 @@ function renderFinancialReport(event, eventSales) {
 }
 
 function syncApplicationPage() {
+  if (selectedEventId && state.events.some((event) => event.id === selectedEventId)) rememberSelectedEvent(selectedEventId);
   const selectedEvent = state.events.find((event) => event.id === selectedEventId);
   syncEventPages({event:selectedEvent, events:state.events, sales:state.sales.filter(sale => sale.eventId === selectedEventId && isCommercialSale(sale)), admin:hasRole("admin"), manager:hasRole("admin", "event_manager"), seller:hasRole("admin", "event_manager", "seller"), tables:eventUsesTableMap(selectedEvent)});
   syncQrValidationFromHash();
@@ -1895,7 +1929,12 @@ function syncApplicationPage() {
 function render() {
   const events = [...state.events].sort((a, b) => a.date.localeCompare(b.date));
   const sales = [...state.sales].sort((a, b) => b.createdAt - a.createdAt);
-  if (!events.some((event) => event.id === selectedEventId)) selectedEventId = "";
+  if (pendingSelectedEventId) {
+    if (events.some((event) => event.id === pendingSelectedEventId)) {
+      selectedEventId = pendingSelectedEventId;
+      pendingSelectedEventId = "";
+    }
+  } else if (!events.some((event) => event.id === selectedEventId)) rememberSelectedEvent("");
   const selectedEvent = events.find((event) => event.id === selectedEventId);
   const selectedSales = sales.filter((sale) => sale.eventId === selectedEventId);
   const commercialSales = selectedSales.filter(isCommercialSale);
@@ -2019,8 +2058,8 @@ async function saveEvent(data, id = "") {
   if (eventMode === "mixed" && !tableMap.furniture.length) throw new Error("Adicione pelo menos uma mesa ou bistrô ao mapa.");
   const ticketDesign = existingEvent ? eventTicketDesign(existingEvent) : normalizeTicketDesign(DEFAULT_TICKET_DESIGN);
   const eventData = { name: data.name.trim(), date: data.date, place: data.place.trim(), eventMode, chairPrice, tableMap, capacity, ticketTypes: data.ticketTypes, packages: data.packages || [], ticketDesign, updatedAt: Date.now() };
-  if (isDemo) { if (id) state.events = state.events.map((item) => item.id === id ? { ...item, ...eventData } : item); else { selectedEventId = crypto.randomUUID(); state.events.push({ id: selectedEventId, ...eventData, createdAt: Date.now() }); } persistDemo(); render(); }
-  else if (id) await update(ref(db, `events/${id}`), eventData); else { const eventRef = push(ref(db, "events")); selectedEventId = eventRef.key; await set(eventRef, { ...eventData, createdAt: Date.now() }); }
+  if (isDemo) { if (id) state.events = state.events.map((item) => item.id === id ? { ...item, ...eventData } : item); else { rememberSelectedEvent(crypto.randomUUID()); state.events.push({ id: selectedEventId, ...eventData, createdAt: Date.now() }); } persistDemo(); render(); }
+  else if (id) await update(ref(db, `events/${id}`), eventData); else { const eventRef = push(ref(db, "events")); rememberSelectedEvent(eventRef.key); await set(eventRef, { ...eventData, createdAt: Date.now() }); }
   const preservationNote = [preservedSoldInventory ? "ingressos vendidos" : "", preservedReservations ? "mesas reservadas" : ""].filter(Boolean).join(" e ");
   toast(id ? preservationNote ? `Evento atualizado. Foram preservados: ${preservationNote}.` : "Evento atualizado." : "Evento criado com sucesso.");
 }
@@ -2398,11 +2437,11 @@ $("qrImageInput").addEventListener("change", (event) => { const [file] = event.c
 $("qrScannerModal").addEventListener("cancel", (event) => { event.preventDefault(); stopQrScanner(); $("qrScannerModal").close(); });
 document.querySelector("[data-close-qr-scanner]").addEventListener("click", () => { stopQrScanner(); $("qrScannerModal").close(); });
 $("paymentConfirmationForm").addEventListener("submit", async (event) => { event.preventDefault(); const form = event.currentTarget; const button = form.querySelector('[type="submit"]'); button.disabled = true; try { await confirmSalePayment(Object.fromEntries(new FormData(form))); form.reset(); $("paymentConfirmationModal").close(); toast("Pagamento confirmado."); } catch (error) { toast(error.message); } finally { button.disabled = false; } });
-document.addEventListener("click", (event) => { const whatsappTrigger = event.target.closest("[data-whatsapp]"); if (whatsappTrigger) { event.preventDefault(); openWhatsappChooser(whatsappTrigger); return; } const whatsappApp = event.target.closest("[data-whatsapp-app]"); if (whatsappApp) { launchWhatsapp(whatsappApp.dataset.whatsappApp); return; } const metricDetails = event.target.closest("[data-toggle-metric-details]"); if (metricDetails) { toggleMetricDetails(metricDetails); return; } const participantDetails = event.target.closest("[data-toggle-sale-details]"); if (participantDetails) { toggleParticipantCard(participantDetails.closest("[data-sale-row]")); return; } const addPackageComponent = event.target.closest("[data-add-package-component]"); if (addPackageComponent) { const packageRow = addPackageComponent.closest(".package-row"); if (packageRow.querySelectorAll(".package-component-row").length >= draftTicketTypes().filter((item) => item.name).length) return toast("Todos os tipos de ingresso já foram adicionados aqui."); addPackageComponentRow(packageRow); refreshPackageTicketOptions(); return; } const removePackageComponent = event.target.closest("[data-remove-package-component]"); if (removePackageComponent) { const packageRow = removePackageComponent.closest(".package-row"); if (packageRow.querySelectorAll(".package-component-row").length === 1) return toast("O pacote ou cortesia precisa ter pelo menos um ingresso."); removePackageComponent.closest(".package-component-row").remove(); refreshPackageTicketOptions(); return; } const removePackage = event.target.closest("[data-remove-package]"); if (removePackage) { removePackage.closest(".package-row").remove(); refreshPackageTicketOptions(); return; } const removeTicket = event.target.closest("[data-remove-ticket]"); if (removeTicket) { if (document.querySelectorAll(".ticket-type-row").length === 1) return toast("O evento precisa de pelo menos um tipo de ingresso."); removeTicket.closest(".ticket-type-row").remove(); refreshPackageTicketOptions(); return; } const removeSaleTicket = event.target.closest("[data-remove-sale-ticket]"); if (removeSaleTicket) { const rows = document.querySelectorAll(".sale-ticket-item-row"); if (rows.length === 1) return toast("A venda precisa de pelo menos um item."); removeSaleTicket.closest(".sale-ticket-item-row").remove(); populateSaleTicketItemOptions(); return; } const deleteEventButton = event.target.closest("[data-delete-event]"); if (deleteEventButton) { event.preventDefault(); event.stopPropagation(); deleteEvent(deleteEventButton.dataset.deleteEvent); return; } const selectedAction = event.target.closest("[data-selected-action]"); if (selectedAction) { const action = selectedAction.dataset.selectedAction; if (action === "sale") openNewSale(selectedEventId); if (action === "edit") openEditEvent(selectedEventId); if (action === "history") openAuditHistory(selectedEventId); if (action === "export" && requireRole(["admin", "seller"])) window.exportSalesXlsx(state.sales, state.events, selectedEventId, "unit"); if (action === "delete") deleteEvent(selectedEventId); return; } const selectEvent = event.target.closest("[data-select-event]"); if (selectEvent) { selectedEventId = selectEvent.dataset.selectEvent; location.hash = "resumo"; render(); return; } const editSaleButton = event.target.closest("[data-edit-sale]"); if (editSaleButton) { openEditSale(editSaleButton.dataset.editSale); return; } const deleteSaleButton = event.target.closest("[data-delete-sale]"); if (deleteSaleButton) { deleteSale(deleteSaleButton.dataset.deleteSale); return; } const checkin = event.target.closest("[data-checkin]"); if (checkin) { toggleCheckin(checkin.dataset.checkin); return; } const paid = event.target.closest("[data-paid]"); if (paid) { togglePayment(paid.dataset.paid); return; } });
+document.addEventListener("click", (event) => { const whatsappTrigger = event.target.closest("[data-whatsapp]"); if (whatsappTrigger) { event.preventDefault(); openWhatsappChooser(whatsappTrigger); return; } const whatsappApp = event.target.closest("[data-whatsapp-app]"); if (whatsappApp) { launchWhatsapp(whatsappApp.dataset.whatsappApp); return; } const metricDetails = event.target.closest("[data-toggle-metric-details]"); if (metricDetails) { toggleMetricDetails(metricDetails); return; } const participantDetails = event.target.closest("[data-toggle-sale-details]"); if (participantDetails) { toggleParticipantCard(participantDetails.closest("[data-sale-row]")); return; } const addPackageComponent = event.target.closest("[data-add-package-component]"); if (addPackageComponent) { const packageRow = addPackageComponent.closest(".package-row"); if (packageRow.querySelectorAll(".package-component-row").length >= draftTicketTypes().filter((item) => item.name).length) return toast("Todos os tipos de ingresso já foram adicionados aqui."); addPackageComponentRow(packageRow); refreshPackageTicketOptions(); return; } const removePackageComponent = event.target.closest("[data-remove-package-component]"); if (removePackageComponent) { const packageRow = removePackageComponent.closest(".package-row"); if (packageRow.querySelectorAll(".package-component-row").length === 1) return toast("O pacote ou cortesia precisa ter pelo menos um ingresso."); removePackageComponent.closest(".package-component-row").remove(); refreshPackageTicketOptions(); return; } const removePackage = event.target.closest("[data-remove-package]"); if (removePackage) { removePackage.closest(".package-row").remove(); refreshPackageTicketOptions(); return; } const removeTicket = event.target.closest("[data-remove-ticket]"); if (removeTicket) { if (document.querySelectorAll(".ticket-type-row").length === 1) return toast("O evento precisa de pelo menos um tipo de ingresso."); removeTicket.closest(".ticket-type-row").remove(); refreshPackageTicketOptions(); return; } const removeSaleTicket = event.target.closest("[data-remove-sale-ticket]"); if (removeSaleTicket) { const rows = document.querySelectorAll(".sale-ticket-item-row"); if (rows.length === 1) return toast("A venda precisa de pelo menos um item."); removeSaleTicket.closest(".sale-ticket-item-row").remove(); populateSaleTicketItemOptions(); return; } const deleteEventButton = event.target.closest("[data-delete-event]"); if (deleteEventButton) { event.preventDefault(); event.stopPropagation(); deleteEvent(deleteEventButton.dataset.deleteEvent); return; } const selectedAction = event.target.closest("[data-selected-action]"); if (selectedAction) { const action = selectedAction.dataset.selectedAction; if (action === "sale") openNewSale(selectedEventId); if (action === "edit") openEditEvent(selectedEventId); if (action === "history") openAuditHistory(selectedEventId); if (action === "export" && requireRole(["admin", "seller"])) window.exportSalesXlsx(state.sales, state.events, selectedEventId, "unit"); if (action === "delete") deleteEvent(selectedEventId); return; } const selectEvent = event.target.closest("[data-select-event]"); if (selectEvent) { rememberSelectedEvent(selectEvent.dataset.selectEvent); location.hash = "resumo"; render(); return; } const editSaleButton = event.target.closest("[data-edit-sale]"); if (editSaleButton) { openEditSale(editSaleButton.dataset.editSale); return; } const deleteSaleButton = event.target.closest("[data-delete-sale]"); if (deleteSaleButton) { deleteSale(deleteSaleButton.dataset.deleteSale); return; } const checkin = event.target.closest("[data-checkin]"); if (checkin) { toggleCheckin(checkin.dataset.checkin); return; } const paid = event.target.closest("[data-paid]"); if (paid) { togglePayment(paid.dataset.paid); return; } });
 document.addEventListener("click", (event) => { const toggle = event.target.closest?.("[data-toggle-package-discount]"); if (!toggle) return; event.preventDefault(); event.stopImmediatePropagation(); togglePackageDiscountType(toggle.closest(".package-row")); }, true);
 // O cartão do participante é somente informativo; edição acontece apenas pelo botão Editar.
 document.addEventListener("click", (event) => { const row = event.target.closest?.("#salesList [data-sale-row]"); if (!row || event.target.closest("button, a, input, select, textarea")) return; if (window.matchMedia("(max-width: 700px)").matches) toggleParticipantCard(row); event.stopImmediatePropagation(); }, true);
-document.addEventListener("keydown", (event) => { const card = event.target.closest?.("[data-select-event]"); if (card && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); selectedEventId = card.dataset.selectEvent; resetParticipantFilters(); location.hash = "resumo"; render(); } });
+document.addEventListener("keydown", (event) => { const card = event.target.closest?.("[data-select-event]"); if (card && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); rememberSelectedEvent(card.dataset.selectEvent); resetParticipantFilters(); location.hash = "resumo"; render(); } });
 window.addEventListener("hashchange", syncApplicationPage);
 window.addEventListener("popstate", syncApplicationPage);
 start();

@@ -1,5 +1,11 @@
 # Le Beef — painel de vendas de ingressos
 
+## Permanência da página após atualizar — versão 5.8.11
+
+- Atualizar o navegador mantém o evento selecionado e a área atual, como Vendas, Mesas, Portaria ou Configuração do ingresso.
+- Um login novo ou a entrada após desconectar continua abrindo a página inicial de eventos.
+- A restauração aguarda os dados do Firebase chegarem antes de validar o evento, evitando voltar para o início durante a conexão.
+
 ## Tamanho do botão Trocar evento — versão 5.8.10
 
 - O botão `Trocar evento` voltou às dimensões compactas da versão 5.8.7.
