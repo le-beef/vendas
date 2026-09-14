@@ -1,5 +1,10 @@
 # Le Beef — painel de vendas de ingressos
 
+## Tamanho do botão Trocar evento — versão 5.8.10
+
+- O botão `Trocar evento` voltou às dimensões compactas da versão 5.8.7.
+- A cor atual foi preservada; somente largura, altura, fonte e espaçamento foram restaurados.
+
 ## Impressão simplificada — versão 5.8.9
 
 - O botão `IMPRIMIR` usa amarelo com texto dourado-escuro em vendas individuais e reservas de mesas/bistrôs.
