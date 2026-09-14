@@ -17,7 +17,7 @@ const demoSales = [
   { id: "demo-sale", eventId: "demo-1", ticketTypeId: "multiple", ticketTypeName: "Vários ingressos", items: [{ ticketTypeId: "inteira", ticketTypeName: "Inteira", unitPrice: 85, quantity: 1, subtotal: 85 }, { ticketTypeId: "meia", ticketTypeName: "Meia-entrada", unitPrice: 42.5, quantity: 2, subtotal: 85 }], buyerName: "Marina Alves", buyerPhone: "(11) 98888-1234", buyerEmail: "", notes: "Retirada no local", paid: true, paymentMethod: "pix", paymentDate: new Date().toISOString().slice(0, 10), quantity: 3, total: 170, checkedIn: true, createdByUid: "local-demo", createdByName: "Administrador local", createdByEmail: "demo@local", createdAt: Date.now() }
 ];
 let state = { events: [], sales: [], users: [], auditLogs: [] };
-let selectedEventId = localStorage.getItem("ingressa-selected-event") || "";
+let selectedEventId = "";
 let selectedTicketTypeFilter = "all";
 let selectedPaymentFilter = "all";
 let selectedEntryFilter = "all";
@@ -142,12 +142,14 @@ function attachRealtimeListeners() {
 async function handleAuthenticatedUser(user) {
   clearDataSubscriptions();
   if (!user) {
+    selectedEventId = ""; localStorage.removeItem("ingressa-selected-event"); if (!location.hash.startsWith("#validar=")) history.replaceState(null, "", `${location.pathname}${location.search}#eventos`);
     currentUser = null; currentUserProfile = null; state = { events: [], sales: [], users: [], auditLogs: [] }; $("connectionDot").classList.remove("online"); $("connectionText").textContent = "Desconectado"; if ($("userManagementModal").open) $("userManagementModal").close(); applyRolePermissions(); render(); showAccessModal(); return;
   }
   try {
     const profileSnapshot = await get(ref(db, `users/${user.uid}`));
     const profile = profileSnapshot.val();
     if (!profile || !profile.active || !ROLE_LABELS[profile.role]) { await signOut(auth); showAccessModal("Sua conta ainda não possui permissão ativa. Fale com o administrador."); return; }
+    selectedEventId = ""; localStorage.removeItem("ingressa-selected-event"); if (!location.hash.startsWith("#validar=")) history.replaceState(null, "", `${location.pathname}${location.search}#eventos`);
     currentUser = user; currentUserProfile = { ...profile, active: profile.active === true }; hideAccessModal(); applyRolePermissions();
     $("connectionDot").classList.add("online"); $("connectionText").textContent = "Conectado";
     attachRealtimeListeners();
@@ -774,7 +776,6 @@ async function showQrValidation(token) {
   } else {
     const { sale, event, ticket } = found;
     selectedEventId = sale.eventId;
-    localStorage.setItem("ingressa-selected-event", selectedEventId);
     const used = Boolean(ticket.checkedIn);
     $("qrValidationState").className = `qr-validation-state ${used ? "is-used" : "is-valid"}`;
     $("qrValidationState").innerHTML = `<span class="qr-validation-icon">${used ? "✓" : "QR"}</span><p class="eyebrow">${used ? "INGRESSO JÁ UTILIZADO" : "INGRESSO VÁLIDO"}</p><h3>${escapeHtml(ticket.participantName || sale.buyerName || "Participante")}</h3><dl><div><dt>Evento</dt><dd>${escapeHtml(event?.name || "Evento")}</dd></div><div><dt>Modalidade</dt><dd>${isTableReservation(sale) ? escapeHtml(`${furnitureKindLabel(sale.furnitureKind)} / reserva`) : "Ingresso individual"}</dd></div><div><dt>Ingresso</dt><dd>${escapeHtml(ticket.ticketTypeName || "Ingresso")}</dd></div>${isTableReservation(sale) ? `<div><dt>Reserva</dt><dd>${escapeHtml(sale.reservationLabel || "Mesa/bistrô")}</dd></div>` : ""}<div><dt>Código</dt><dd>${escapeHtml(token.slice(-8).toUpperCase())}</dd></div>${used ? `<div class="qr-used-at"><dt>Utilizado em</dt><dd>${escapeHtml(qrCheckinDateTime(ticket.checkedInAt))}</dd></div>` : ""}</dl>${used ? `<p class="qr-used-message">Entrada já registrada. Não confirme novamente.</p>` : ""}`;
@@ -1844,8 +1845,7 @@ function syncApplicationPage() {
 function render() {
   const events = [...state.events].sort((a, b) => a.date.localeCompare(b.date));
   const sales = [...state.sales].sort((a, b) => b.createdAt - a.createdAt);
-  if (!events.some((event) => event.id === selectedEventId)) selectedEventId = events[0]?.id || "";
-  if (selectedEventId) localStorage.setItem("ingressa-selected-event", selectedEventId); else localStorage.removeItem("ingressa-selected-event");
+  if (!events.some((event) => event.id === selectedEventId)) selectedEventId = "";
   const selectedEvent = events.find((event) => event.id === selectedEventId);
   const selectedSales = sales.filter((sale) => sale.eventId === selectedEventId);
   const commercialSales = selectedSales.filter(isCommercialSale);

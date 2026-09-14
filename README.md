@@ -1,5 +1,10 @@
 # Le Beef — painel de vendas de ingressos
 
+## Abertura na página inicial — versão 5.8.2
+
+- Ao conectar ou reconectar ao Firebase, o painel sempre abre na seleção de eventos.
+- O último evento acessado não é mais restaurado entre sessões; links diretos de validação por QR Code continuam preservados.
+
 ## PDF restaurado — versão 5.8.1
 
 - O PDF voltou ao mesmo visual da versão 5.7.2, no formato vertical de 90 × 160 mm.
