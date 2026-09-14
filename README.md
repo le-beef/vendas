@@ -1,5 +1,13 @@
 # Le Beef — painel de vendas de ingressos
 
+## Ingresso térmico compacto — versão 5.8.0
+
+- PDF e impressão pelo navegador usam páginas independentes de 80 mm de altura, nas larguras de 58 mm ou 80 mm.
+- A página `Mais > Configuração do ingresso`, exclusiva para administradores, permite ajustar logo, largura, fontes, espaçamento, QR Code, margens e informações opcionais.
+- A pré-visualização usa o mesmo gerador HTML da impressão térmica e é atualizada em tempo real.
+- Logos PNG e JPG são redimensionadas proporcionalmente no navegador antes de serem salvas no evento.
+- Conteúdos maiores recebem automaticamente uma composição mais compacta para preservar QR Code, código e informações dentro dos 80 mm.
+
 ## Tempo do Toast — versão 5.7.2
 
 - Os avisos temporários permanecem visíveis durante 5 segundos.

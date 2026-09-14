@@ -2,11 +2,12 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/11.
 import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged, browserLocalPersistence, inMemoryPersistence, setPersistence, createUserWithEmailAndPassword, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js";
 import { getDatabase, ref, push, set, update, onValue, get, query, orderByChild, equalTo, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-database.js";
 import { firebaseConfig } from "./firebase-config.js";
-import { createEventPages } from "./pages.js?v=3";
+import { createEventPages } from "./pages.js?v=4";
 import { decodeQrImageData } from "./qr-scanner-tools.js?v=1";
 import { eventIsArchived, eventArchiveDeadline } from "./event-archive.js?v=1";
-import { createTicketPdf, createQrDataUrl } from "./ticket-tools.js?v=3";
-import { THERMAL_PAPER_WIDTHS, buildThermalPrintHtml, normalizeThermalPaperWidth } from "./thermal-print.js?v=1";
+import { createTicketPdf, createQrDataUrl } from "./ticket-tools.js?v=4";
+import { THERMAL_PAPER_WIDTHS, buildThermalPrintHtml, normalizeThermalPaperWidth } from "./thermal-print.js?v=2";
+import { DEFAULT_TICKET_DESIGN, normalizeTicketDesign } from "./ticket-layout.js?v=1";
 
 const demoEvents = [
   { id: "demo-1", name: "Festival de Inverno", date: "2026-08-02", place: "Espaço Aurora", capacity: 300, ticketTypes: [{ id: "inteira", name: "Inteira", price: 85, capacity: 200 }, { id: "meia", name: "Meia-entrada", price: 42.5, capacity: 100 }], packages: [{ id: "combo-casal", name: "Combo Casal", discountType: "percent", discountValue: 10, discountPercent: 10, regularPrice: 127.5, price: 114.75, items: [{ ticketTypeId: "inteira", quantity: 1 }, { ticketTypeId: "meia", quantity: 1 }] }] },
@@ -313,7 +314,90 @@ function qrTicketsFor(sale, event) {
 }
 function saleCheckinCount(sale, event) { const tickets = qrTicketsFor(sale, event); return tickets.length ? tickets.filter((ticket) => ticket.checkedIn).length : sale.checkedIn ? saleQuantity(sale, event) : 0; }
 function saleFullyCheckedIn(sale, event) { const quantity = saleQuantity(sale, event); return quantity > 0 && saleCheckinCount(sale, event) >= quantity; }
-function eventTicketDesign(event) { return { primaryColor: event?.ticketDesign?.primaryColor || "#17375f", accentColor: event?.ticketDesign?.accentColor || "#14b886", title: event?.ticketDesign?.title || "INGRESSO DIGITAL", footer: event?.ticketDesign?.footer || "Apresente este QR Code na entrada." }; }
+function eventTicketDesign(event) { return normalizeTicketDesign(event?.ticketDesign); }
+function ticketDesignFromConfigForm() {
+  const form = $("ticketConfigForm");
+  return normalizeTicketDesign({
+    title: form.elements.title.value, footer: form.elements.footer.value,
+    primaryColor: form.elements.primaryColor.value, accentColor: form.elements.accentColor.value,
+    logoDataUrl: form.dataset.logoData || "", paperWidth: form.elements.paperWidth.value,
+    logoSize: form.elements.logoSize.value, titleSize: form.elements.titleSize.value,
+    textSize: form.elements.textSize.value, dataSize: form.elements.dataSize.value,
+    spacing: form.elements.spacing.value, qrSize: form.elements.qrSize.value, margin: form.elements.margin.value,
+    showEstablishment: form.elements.showEstablishment.checked, showEventMeta: form.elements.showEventMeta.checked,
+    showPayment: form.elements.showPayment.checked, showFooter: form.elements.showFooter.checked
+  });
+}
+function updateTicketConfigOutputs(design) {
+  const units = { logoSize: "mm", titleSize: "pt", textSize: "pt", dataSize: "pt", spacing: "mm", qrSize: "mm", margin: "mm" };
+  Object.entries(units).forEach(([name, unit]) => { const output = document.querySelector(`[data-ticket-output="${name}"]`); if (output) output.textContent = `${design[name]} ${unit}`; });
+  const image = $("ticketLogoPreview");
+  image.hidden = !design.logoDataUrl;
+  image.src = design.logoDataUrl || "";
+  $("ticketLogoPlaceholder").hidden = Boolean(design.logoDataUrl);
+  $("removeTicketLogo").disabled = !design.logoDataUrl;
+}
+let ticketPreviewQrPromise;
+let ticketPreviewRevision = 0;
+async function renderTicketConfigPreview() {
+  const form = $("ticketConfigForm");
+  if (!form?.dataset.eventId) return;
+  const revision = ++ticketPreviewRevision;
+  const design = ticketDesignFromConfigForm();
+  updateTicketConfigOutputs(design);
+  ticketPreviewQrPromise ||= createQrDataUrl(qrValidationUrl("PREVIEW-LE-BEEF-2026"), { width: 480 });
+  const qrCode = await ticketPreviewQrPromise;
+  if (revision !== ticketPreviewRevision) return;
+  const event = state.events.find((item) => item.id === form.dataset.eventId) || {};
+  const type = ticketTypesFor(event)[0] || { name: "Ingresso", price: 29.9 };
+  const ticket = { admissionType: "Ingresso individual", participantName: "Alanda Silva", ticketTypeName: type.name, reservationLabel: "", ticketValue: money.format(Number(type.price || 29.9)), paymentStatus: "Pago", paymentDetail: "Pix em 14/09/2026", shortCode: "2C4E26E9" };
+  const documentHtml = buildThermalPrintHtml({ event: { ...event, name: event.name || "Nome do evento", dateText: event.date ? dateText(event.date) : "30/09/2026", place: event.place || "Le Beef" }, sale: { buyerName: ticket.participantName }, tickets: [ticket], qrCodes: [qrCode], paperWidth: design.paperWidth, ticketDesign: design });
+  const frame = $("ticketPreviewFrame");
+  frame.style.width = `${Math.round(design.paperWidth * 3.7795)}px`;
+  frame.style.height = `${Math.round(80 * 3.7795)}px`;
+  frame.srcdoc = documentHtml;
+}
+function populateTicketConfigPage(event, designValue = eventTicketDesign(event)) {
+  const form = $("ticketConfigForm");
+  if (!form || !event) return;
+  const design = normalizeTicketDesign(designValue);
+  form.dataset.eventId = event.id;
+  form.dataset.logoData = design.logoDataUrl;
+  ["title", "footer", "primaryColor", "accentColor", "paperWidth", "logoSize", "titleSize", "textSize", "dataSize", "spacing", "qrSize", "margin"].forEach((name) => { form.elements[name].value = design[name]; });
+  ["showEstablishment", "showEventMeta", "showPayment", "showFooter"].forEach((name) => { form.elements[name].checked = design[name]; });
+  renderTicketConfigPreview();
+}
+function resizeTicketLogo(file) {
+  if (!file || !["image/png", "image/jpeg"].includes(file.type)) throw new Error("Selecione uma imagem PNG ou JPG.");
+  if (file.size > 5 * 1024 * 1024) throw new Error("A imagem deve ter no máximo 5 MB.");
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    const url = URL.createObjectURL(file);
+    image.onload = () => {
+      const scale = Math.min(1, 600 / image.naturalWidth, 240 / image.naturalHeight);
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.max(1, Math.round(image.naturalWidth * scale)); canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
+      canvas.getContext("2d").drawImage(image, 0, 0, canvas.width, canvas.height);
+      URL.revokeObjectURL(url);
+      resolve(canvas.toDataURL(file.type === "image/png" ? "image/png" : "image/jpeg", 0.86));
+    };
+    image.onerror = () => { URL.revokeObjectURL(url); reject(new Error("Não foi possível abrir essa imagem.")); };
+    image.src = url;
+  });
+}
+async function saveTicketDesignConfig() {
+  if (!hasRole("admin")) return toast("Somente administradores podem alterar o ingresso.");
+  const event = state.events.find((item) => item.id === selectedEventId);
+  if (!event) return toast("Selecione um evento.");
+  const design = ticketDesignFromConfigForm();
+  try {
+    if (isDemo) { event.ticketDesign = design; persistDemo(); }
+    else await update(ref(db, `events/${event.id}`), { ticketDesign: design, updatedAt: Date.now() });
+    event.ticketDesign = design;
+    render();
+    toast("Configuração do ingresso salva.");
+  } catch (error) { console.error(error); toast(error.message || "Não foi possível salvar a configuração."); }
+}
 function saleTypeQuantity(sale, ticketType, event) { return saleStockItems(sale, event).filter((item) => item.ticketTypeId === ticketType.id || item.ticketTypeName === ticketType.name).reduce((sum, item) => sum + Number(item.quantity || 0), 0); }
 function saleTypeCheckinQuantity(sale, ticketType, event) {
   const tickets = qrTicketsFor(sale, event);
@@ -545,7 +629,7 @@ function openThermalPrintSettings(saleId) {
   const providers = thermalPrintProviders();
   printer.innerHTML = providers.map((provider) => `<option value="${provider.id}">${escapeHtml(provider.label)}</option>`).join("");
   printer.disabled = providers.length === 1;
-  $("thermalPaperWidth").value = String(normalizeThermalPaperWidth(localStorage.getItem("le-beef-thermal-paper-width")));
+  $("thermalPaperWidth").value = String(eventTicketDesign(event).paperWidth);
   modal.dataset.saleId = saleId;
   modal.showModal();
 }
@@ -1263,19 +1347,6 @@ function syncEventMapSettings() {
   renderMapEditor();
 }
 
-function syncTicketDesignPreview() {
-  const form = $("eventForm");
-  const preview = $("ticketDesignPreview");
-  if (!form || !preview) return;
-  const primary = form.elements.ticketPrimaryColor.value || "#17375f";
-  const accent = form.elements.ticketAccentColor.value || "#14b886";
-  preview.style.setProperty("--ticket-primary", primary);
-  preview.style.setProperty("--ticket-accent", accent);
-  preview.querySelector("span").textContent = form.elements.ticketTitle.value.trim() || "INGRESSO DIGITAL";
-  preview.querySelector("strong").textContent = form.elements.name.value.trim() || "Nome do evento";
-  preview.querySelector("small").textContent = form.elements.ticketFooter.value.trim() || "QR CODE • Entrada individual";
-}
-
 function resetEventMapDraft(event = null) {
   eventMapDraft = migrateFurnitureToPreset(event?.tableMap);
   activeMapEditorArea = eventMapDraft.areas[0] || "";
@@ -1766,7 +1837,7 @@ function renderFinancialReport(event, eventSales) {
 
 function syncApplicationPage() {
   const selectedEvent = state.events.find((event) => event.id === selectedEventId);
-  syncEventPages({event:selectedEvent, events:state.events, sales:state.sales.filter(sale => sale.eventId === selectedEventId && isCommercialSale(sale)), manager:hasRole("admin", "event_manager"), seller:hasRole("admin", "event_manager", "seller"), tables:eventUsesTableMap(selectedEvent)});
+  syncEventPages({event:selectedEvent, events:state.events, sales:state.sales.filter(sale => sale.eventId === selectedEventId && isCommercialSale(sale)), admin:hasRole("admin"), manager:hasRole("admin", "event_manager"), seller:hasRole("admin", "event_manager", "seller"), tables:eventUsesTableMap(selectedEvent)});
   syncQrValidationFromHash();
 }
 
@@ -1835,7 +1906,7 @@ function render() {
   renderFinancialReport(hasRole("admin", "event_manager") ? selectedEvent : undefined, hasRole("admin", "event_manager") ? commercialSales : []);
   renderTableMapPanel(selectedEvent, selectedSales);
   renderTableReservationsList(selectedEvent, selectedSales);
-  if (selectedEvent) { $("selectedEventName").textContent = selectedEvent.name; $("selectedEventMeta").textContent = hasRole("door") ? `${selectedEvent.place} · ${dateText(selectedEvent.date)}` : `${selectedEvent.place} · ${dateText(selectedEvent.date)} · ${priceLabel(selectedEvent)}`; $("salesPanelTitle").textContent = `Vendas de ${selectedEvent.name}`; $("allSalesTitle").textContent = `Participantes — ${selectedEvent.name}`; }
+  if (selectedEvent) { $("selectedEventName").textContent = selectedEvent.name; $("selectedEventMeta").textContent = hasRole("door") ? `${selectedEvent.place} · ${dateText(selectedEvent.date)}` : `${selectedEvent.place} · ${dateText(selectedEvent.date)} · ${priceLabel(selectedEvent)}`; $("salesPanelTitle").textContent = `Vendas de ${selectedEvent.name}`; $("allSalesTitle").textContent = `Participantes — ${selectedEvent.name}`; if ($("ticketConfigForm").dataset.eventId !== selectedEvent.id) populateTicketConfigPage(selectedEvent); }
   const activeEvents = events.filter(event => !eventIsArchived(event));
   $("eventsList").innerHTML = activeEvents.length ? activeEvents.map((event) => {
     const eventSold = sales.filter((sale) => sale.eventId === event.id && !isTableReservation(sale)).reduce((sum, sale) => sum + saleQuantity(sale, event), 0);
@@ -1895,7 +1966,7 @@ async function saveEvent(data, id = "") {
   const chairPrice = eventMode === "mixed" ? Math.max(0, Number(data.chairPrice || 0)) : 0;
   if (eventMode === "mixed" && !tableMap.areas.length) throw new Error("Selecione Salão, Mezanino ou ambos.");
   if (eventMode === "mixed" && !tableMap.furniture.length) throw new Error("Adicione pelo menos uma mesa ou bistrô ao mapa.");
-  const ticketDesign = { title: String(data.ticketTitle || "INGRESSO DIGITAL").trim().slice(0, 36), footer: String(data.ticketFooter || "Apresente este QR Code na entrada.").trim().slice(0, 120), primaryColor: /^#[0-9a-f]{6}$/i.test(data.ticketPrimaryColor) ? data.ticketPrimaryColor : "#17375f", accentColor: /^#[0-9a-f]{6}$/i.test(data.ticketAccentColor) ? data.ticketAccentColor : "#14b886" };
+  const ticketDesign = existingEvent ? eventTicketDesign(existingEvent) : normalizeTicketDesign(DEFAULT_TICKET_DESIGN);
   const eventData = { name: data.name.trim(), date: data.date, place: data.place.trim(), eventMode, chairPrice, tableMap, capacity, ticketTypes: data.ticketTypes, packages: data.packages || [], ticketDesign, updatedAt: Date.now() };
   if (isDemo) { if (id) state.events = state.events.map((item) => item.id === id ? { ...item, ...eventData } : item); else { selectedEventId = crypto.randomUUID(); state.events.push({ id: selectedEventId, ...eventData, createdAt: Date.now() }); } persistDemo(); render(); }
   else if (id) await update(ref(db, `events/${id}`), eventData); else { const eventRef = push(ref(db, "events")); selectedEventId = eventRef.key; await set(eventRef, { ...eventData, createdAt: Date.now() }); }
@@ -2056,8 +2127,8 @@ function syncSalePaymentFields(useToday = false) {
   else if (useToday && !date.value) date.value = todayInputValue();
 }
 
-function openNewEvent() { if (!requireRole(["admin"], "Somente administradores podem criar eventos.")) return; const form = $("eventForm"); form.reset(); form.dataset.editId = ""; form.elements.eventMode.value = "unit"; form.elements.chairPrice.value = ""; resetEventMapDraft(); syncEventMapSettings(); syncTicketDesignPreview(); $("eventModalTitle").textContent = "Novo evento"; $("eventSubmitButton").textContent = "Criar evento"; resetPackages(); resetTicketTypes(); $("eventModal").showModal(); }
-function openEditEvent(id) { if (!requireRole(["admin", "event_manager"], "Somente administradores e gerentes podem editar eventos.")) return; if (!canAdministerEvent(id)) return toast("Você não administra este evento."); const item = state.events.find((event) => event.id === id); if (!item) return; const form = $("eventForm"); form.reset(); form.dataset.editId = id; form.elements.name.value = item.name || ""; form.elements.date.value = item.date || ""; form.elements.place.value = item.place || ""; form.elements.eventMode.value = item.eventMode === "mixed" ? "mixed" : "unit"; form.elements.chairPrice.value = Number(item.chairPrice || 0); const design = eventTicketDesign(item); form.elements.ticketTitle.value = design.title; form.elements.ticketFooter.value = design.footer; form.elements.ticketPrimaryColor.value = design.primaryColor; form.elements.ticketAccentColor.value = design.accentColor; resetEventMapDraft(item); syncEventMapSettings(); syncTicketDesignPreview(); resetPackages(); $("ticketTypesList").innerHTML = ""; ticketTypesFor(item).forEach((type) => addTicketTypeRow(type.name, type.price, type.capacity, type.id)); packagesFor(item).forEach((packageItem) => addPackageRow(packageItem)); renderPackagesEmptyState(); $("eventModalTitle").textContent = "Editar evento"; $("eventSubmitButton").textContent = "Salvar alterações"; $("eventModal").showModal(); }
+function openNewEvent() { if (!requireRole(["admin"], "Somente administradores podem criar eventos.")) return; const form = $("eventForm"); form.reset(); form.dataset.editId = ""; form.elements.eventMode.value = "unit"; form.elements.chairPrice.value = ""; resetEventMapDraft(); syncEventMapSettings(); $("eventModalTitle").textContent = "Novo evento"; $("eventSubmitButton").textContent = "Criar evento"; resetPackages(); resetTicketTypes(); $("eventModal").showModal(); }
+function openEditEvent(id) { if (!requireRole(["admin", "event_manager"], "Somente administradores e gerentes podem editar eventos.")) return; if (!canAdministerEvent(id)) return toast("Você não administra este evento."); const item = state.events.find((event) => event.id === id); if (!item) return; const form = $("eventForm"); form.reset(); form.dataset.editId = id; form.elements.name.value = item.name || ""; form.elements.date.value = item.date || ""; form.elements.place.value = item.place || ""; form.elements.eventMode.value = item.eventMode === "mixed" ? "mixed" : "unit"; form.elements.chairPrice.value = Number(item.chairPrice || 0); resetEventMapDraft(item); syncEventMapSettings(); resetPackages(); $("ticketTypesList").innerHTML = ""; ticketTypesFor(item).forEach((type) => addTicketTypeRow(type.name, type.price, type.capacity, type.id)); packagesFor(item).forEach((packageItem) => addPackageRow(packageItem)); renderPackagesEmptyState(); $("eventModalTitle").textContent = "Editar evento"; $("eventSubmitButton").textContent = "Salvar alterações"; $("eventModal").showModal(); }
 function openNewSale(eventId = "") { if (!requireRole(["admin", "event_manager", "seller"])) return; if (!state.events.length) return toast("Cadastre um evento antes de registrar uma venda."); const form = $("saleForm"); form.reset(); form.dataset.editId = ""; $("saleGuestNamesList").innerHTML = ""; $("saleModalTitle").textContent = "Registrar ingressos"; $("saleSubmitButton").textContent = "Confirmar venda"; $("saleEvent").value = eventId; setSaleTicketItems(eventId); syncSalePaymentFields(true); $("saleModal").showModal(); }
 function openEditSale(id) { if (!requireRole(["admin", "event_manager", "seller"])) return; const sale = state.sales.find((item) => item.id === id); if (!sale) return; if ($("allSalesModal").open) $("allSalesModal").close(); const form = $("saleForm"); form.reset(); form.dataset.editId = id; $("saleGuestNamesList").innerHTML = ""; $("saleEvent").value = sale.eventId; form.elements.buyerName.value = sale.buyerName || ""; setSaleTicketItems(sale.eventId, saleItems(sale)); syncSaleGuestNames(Array.isArray(sale.participantNames) ? sale.participantNames : null); form.elements.buyerPhone.value = sale.buyerPhone || ""; form.elements.buyerEmail.value = sale.buyerEmail || ""; form.elements.paymentStatus.value = sale.paid ? "paid" : "pending"; form.elements.paymentMethod.value = sale.paymentMethod || ""; form.elements.paymentDate.value = sale.paymentDate || ""; form.elements.notes.value = sale.notes || ""; syncSalePaymentFields(false); $("saleModalTitle").textContent = "Editar participante e ingressos"; $("saleSubmitButton").textContent = "Salvar alterações"; $("saleModal").showModal(); }
 
@@ -2144,7 +2215,6 @@ $("openAllTableReservations").addEventListener("click", () => $("allTableReserva
 document.querySelectorAll("[data-clear-participant-filters]").forEach((button) => button.addEventListener("click", () => { resetParticipantFilters(); document.querySelector(".ticket-filter").open = false; render(); $("participantSearch").focus(); }));
 $("eventsList").addEventListener("click", (event) => { if (event.target.closest("[data-select-event]")) resetParticipantFilters(); });
 $("eventMode").addEventListener("change", syncEventMapSettings);
-$("eventForm").addEventListener("input", (event) => { if (event.target.matches('[name="name"], [name="ticketTitle"], [name="ticketFooter"], [name="ticketPrimaryColor"], [name="ticketAccentColor"]')) syncTicketDesignPreview(); });
 document.querySelectorAll('#eventForm [name="mapArea"]').forEach((input) => input.addEventListener("change", () => {
   if (input.checked) {
     if (!eventMapDraft.areas.includes(input.value)) eventMapDraft.areas.push(input.value);
@@ -2247,6 +2317,17 @@ $("confirmTicketDelete").addEventListener("click", () => deleteGeneratedTicket($
 $("thermalPrintModal").addEventListener("cancel", (event) => { event.preventDefault(); $("thermalPrintModal").close(); });
 document.querySelectorAll("[data-close-thermal-print]").forEach((button) => button.addEventListener("click", () => $("thermalPrintModal").close()));
 $("confirmThermalPrint").addEventListener("click", printGeneratedTicket);
+$("ticketConfigForm").addEventListener("input", () => renderTicketConfigPreview());
+$("ticketConfigForm").addEventListener("submit", (event) => { event.preventDefault(); saveTicketDesignConfig(); });
+$("ticketLogoInput").addEventListener("change", async (event) => {
+  const [file] = event.currentTarget.files || [];
+  event.currentTarget.value = "";
+  if (!file) return;
+  try { $("ticketConfigForm").dataset.logoData = await resizeTicketLogo(file); renderTicketConfigPreview(); }
+  catch (error) { toast(error.message || "Não foi possível carregar a imagem."); }
+});
+$("removeTicketLogo").addEventListener("click", () => { $("ticketConfigForm").dataset.logoData = ""; renderTicketConfigPreview(); });
+$("resetTicketConfig").addEventListener("click", () => { const selectedEvent = state.events.find((item) => item.id === selectedEventId); if (selectedEvent) populateTicketConfigPage(selectedEvent, DEFAULT_TICKET_DESIGN); });
 $("confirmQrCheckin").addEventListener("click", () => toggleQrTicketCheckin($("qrValidationModal").dataset.token));
 $("nextQrScan").addEventListener("click", () => { $("qrValidationModal").close(); location.hash = "portaria"; openQrScanner(); });
 $("qrValidationModal").addEventListener("cancel", (event) => { event.preventDefault(); $("qrValidationModal").close(); location.hash = "portaria"; });

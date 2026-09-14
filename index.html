@@ -46,6 +46,7 @@
     <link rel="stylesheet" href="table-reservation-final.css?v=1" />
     <link rel="stylesheet" href="table-reservation-harmony.css?v=4" />
     <link rel="stylesheet" href="ticketing.css?v=8" />
+    <link rel="stylesheet" href="ticket-config.css?v=1" />
     <link rel="stylesheet" href="theme.css?v=11" />
     <link rel="stylesheet" href="pages.css?v=2" />
     <link rel="stylesheet" href="toast-responsive.css?v=1" />
@@ -192,9 +193,24 @@
 
         <article class="financial-panel seller-closing"><div class="financial-panel-heading seller-closing-heading"><div><p class="eyebrow">EQUIPE</p><h2>Fechamento por vendedor</h2><p>Confira vendas, ingressos e recebimentos de cada usuário no período.</p></div><div class="seller-closing-heading-actions"><span id="sellerClosingPeriodLabel">Todo o evento</span><button id="sellerDetailsToggle" class="seller-details-toggle" type="button" aria-expanded="false" aria-controls="sellerTicketReport">Detalhar</button></div></div><div class="seller-closing-filters"><label>Data inicial<input id="sellerClosingStart" type="date" /></label><label>Data final<input id="sellerClosingEnd" type="date" /></label><button id="sellerClosingToday" class="button secondary" type="button">Hoje</button><button id="sellerClosingAll" class="button secondary" type="button">Todo o evento</button></div><div class="financial-table-wrap"><table class="seller-closing-table"><thead><tr><th>Vendedor</th><th>Vendas</th><th>Ingressos</th><th>Total vendido</th><th>Recebido</th><th>Pendente</th></tr></thead><tbody id="sellerClosingBreakdown"></tbody></table></div><section id="sellerTicketReport" class="seller-ticket-inline" hidden><div class="seller-ticket-inline-heading"><p class="eyebrow">DETALHAMENTO POR INGRESSO</p><h3>Tipos vendidos por vendedor</h3><p>Valores calculados para o mesmo período selecionado acima.</p></div><div class="financial-table-wrap financial-detailed-wrap"><table class="financial-detailed-table"><thead><tr><th>Vendedor</th><th>Tipo de ingresso</th><th>Vendas</th><th>Ingressos</th><th>Total</th><th>Recebido</th><th>Pendente</th></tr></thead><tbody id="sellerTicketBreakdown"></tbody></table></div></section></article>
       </section>
+
+      <section id="pageTicketConfig" class="workspace-panel ticket-config-page" hidden>
+        <div class="ticket-config-heading"><div><p class="eyebrow">CONFIGURAÇÃO DO INGRESSO</p><h1>Ingresso térmico</h1><p class="page-description">Personalize o ingresso do evento selecionado e confira o resultado antes de imprimir.</p></div><a class="button secondary" href="#mais">← Voltar</a></div>
+        <form id="ticketConfigForm">
+          <div class="ticket-config-layout">
+            <div class="ticket-config-controls">
+              <section class="ticket-config-card"><h2>Identidade</h2><label>Título<input name="title" maxlength="36" /></label><label>Mensagem final<input name="footer" maxlength="120" /></label><div class="ticket-config-two"><label>Cor principal<input name="primaryColor" type="color" /></label><label>Cor de destaque<input name="accentColor" type="color" /></label></div><div class="ticket-logo-setting"><span class="field-label">Logo do evento</span><div class="ticket-logo-preview"><img id="ticketLogoPreview" alt="Prévia da logo do evento" hidden><span id="ticketLogoPlaceholder">Nenhuma logo selecionada</span></div><div class="ticket-logo-actions"><label class="button secondary" for="ticketLogoInput">Adicionar/trocar imagem</label><input id="ticketLogoInput" type="file" accept="image/png,image/jpeg" hidden><button id="removeTicketLogo" class="button danger" type="button">Remover</button></div><small>PNG ou JPG. A imagem será reduzida sem deformação.</small></div></section>
+              <section class="ticket-config-card"><h2>Formato e proporções</h2><label>Largura do papel<select name="paperWidth"><option value="58">58 mm</option><option value="80">80 mm</option></select></label><label>Tamanho da logo <output data-ticket-output="logoSize"></output><input name="logoSize" type="range" min="4" max="10" step="0.5"></label><label>Tamanho do título <output data-ticket-output="titleSize"></output><input name="titleSize" type="range" min="8" max="12" step="0.5"></label><label>Tamanho dos textos <output data-ticket-output="textSize"></output><input name="textSize" type="range" min="5.5" max="8" step="0.5"></label><label>Tamanho dos dados <output data-ticket-output="dataSize"></output><input name="dataSize" type="range" min="6.5" max="9.5" step="0.5"></label><label>Espaçamento <output data-ticket-output="spacing"></output><input name="spacing" type="range" min="0.35" max="1.2" step="0.05"></label><label>Tamanho do QR Code <output data-ticket-output="qrSize"></output><input name="qrSize" type="range" min="18" max="22" step="0.5"></label><label>Margens <output data-ticket-output="margin"></output><input name="margin" type="range" min="1.5" max="3.5" step="0.25"></label></section>
+              <section class="ticket-config-card ticket-visibility"><h2>Informações exibidas</h2><label><input name="showEstablishment" type="checkbox"> Nome Le Beef</label><label><input name="showEventMeta" type="checkbox"> Data e local do evento</label><label><input name="showPayment" type="checkbox"> Pagamento</label><label><input name="showFooter" type="checkbox"> Mensagem final</label></section>
+              <div class="ticket-config-actions"><button id="resetTicketConfig" class="button secondary" type="button">Restaurar padrão</button><button class="button primary" type="submit">Salvar configuração</button></div>
+            </div>
+            <aside class="ticket-live-preview"><div><p class="eyebrow">PRÉ-VISUALIZAÇÃO</p><h2>Resultado aproximado da impressão</h2><p>A página abaixo possui exatamente 80 mm de altura.</p></div><div id="ticketPreviewFrameShell"><iframe id="ticketPreviewFrame" title="Pré-visualização do ingresso térmico"></iframe></div><small>A caixa representa uma unidade. Cada ingresso será impresso em sua própria página.</small></aside>
+          </div>
+        </form>
+      </section>
     </main>
 
-    <footer class="site-footer">Le Beef | Versão: 5.7.2</footer>
+    <footer class="site-footer">Le Beef | Versão: 5.8.0</footer>
 
     <button class="fab" data-open="saleModal" data-roles="admin,event_manager,seller" aria-label="Registrar venda">+</button>
 
@@ -214,11 +230,6 @@
         </section>
         <div class="ticket-types-field"><div class="field-label"><span>Tipos/lotes, valores e quantidades</span><button class="text-button" type="button" id="addTicketType">+ Adicionar tipo</button></div><p class="field-help">Cada tipo ou lote terá seu próprio limite de vendas.</p><div id="ticketTypesList" class="ticket-types-list"></div></div>
         <div class="packages-field"><div class="field-label"><span>Pacotes e cortesias</span><span class="package-create-actions"><button class="text-button" type="button" id="addPackage">+ Pacote</button><button class="text-button courtesy-create-button" type="button" id="addCourtesy">+ Cortesia</button></span></div><p class="field-help">Monte pacotes ou cortesias com os ingressos acima. O estoque continuará sendo descontado de cada tipo individual.</p><div id="packagesList" class="packages-list"></div></div>
-        <section class="ticket-design-settings">
-          <div><span class="field-label">Visual do ingresso digital</span><p class="field-help">Personalize as cores e os textos do PDF com QR Code.</p></div>
-          <div class="ticket-design-grid"><label>Título<input name="ticketTitle" maxlength="36" value="INGRESSO DIGITAL" /></label><label>Mensagem no rodapé<input name="ticketFooter" maxlength="120" value="Apresente este QR Code na entrada." /></label><label>Cor principal<input name="ticketPrimaryColor" type="color" value="#17375f" /></label><label>Cor de destaque<input name="ticketAccentColor" type="color" value="#14b886" /></label></div>
-          <div id="ticketDesignPreview" class="ticket-design-preview"><span>INGRESSO DIGITAL</span><strong>Nome do evento</strong><small>QR CODE • Entrada individual</small></div>
-        </section>
         <button class="button primary full" id="eventSubmitButton" type="submit">Criar evento</button>
       </form>
     </dialog>
@@ -399,6 +410,6 @@
     <script src="pwa.js"></script>
     <script src="theme.js?v=1"></script>
     <script src="excel-export.js?v=37"></script>
-    <script type="module" src="app.js?v=72"></script>
+    <script type="module" src="app.js?v=73"></script>
   </body>
 </html>

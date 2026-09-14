@@ -29593,82 +29593,216 @@ E.API.PDFObject = (function() {
   }, e2;
 })();
 
+// ../../ticket-layout.js
+var TICKET_PAPER_WIDTHS = [58, 80];
+var DEFAULT_TICKET_DESIGN = Object.freeze({
+  primaryColor: "#17375f",
+  accentColor: "#14b886",
+  title: "INGRESSO DIGITAL",
+  footer: "Apresente este QR Code na entrada.",
+  logoDataUrl: "",
+  paperWidth: 58,
+  logoSize: 7,
+  titleSize: 10,
+  textSize: 6.5,
+  dataSize: 7.5,
+  spacing: 0.65,
+  qrSize: 19,
+  margin: 2,
+  showEstablishment: true,
+  showEventMeta: true,
+  showPayment: true,
+  showFooter: true
+});
+var numberWithin = (value, fallback, minimum, maximum) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? Math.min(maximum, Math.max(minimum, parsed)) : fallback;
+};
+var booleanValue = (value, fallback) => value === void 0 || value === null ? fallback : Boolean(value);
+var safeColor = (value, fallback) => /^#[0-9a-f]{6}$/i.test(String(value || "")) ? String(value) : fallback;
+var safeLogo = (value) => {
+  const logo = String(value || "");
+  return /^data:image\/(?:png|jpeg);base64,[a-z0-9+/=\s]+$/i.test(logo) && logo.length <= 7e5 ? logo : "";
+};
+function normalizeTicketDesign(value = {}) {
+  const defaults = DEFAULT_TICKET_DESIGN;
+  const paperWidth = TICKET_PAPER_WIDTHS.includes(Number(value.paperWidth)) ? Number(value.paperWidth) : defaults.paperWidth;
+  return {
+    primaryColor: safeColor(value.primaryColor, defaults.primaryColor),
+    accentColor: safeColor(value.accentColor, defaults.accentColor),
+    title: String(value.title || defaults.title).trim().slice(0, 36) || defaults.title,
+    footer: String(value.footer || defaults.footer).trim().slice(0, 120) || defaults.footer,
+    logoDataUrl: safeLogo(value.logoDataUrl),
+    paperWidth,
+    logoSize: numberWithin(value.logoSize, defaults.logoSize, 4, 10),
+    titleSize: numberWithin(value.titleSize, defaults.titleSize, 8, 12),
+    textSize: numberWithin(value.textSize, defaults.textSize, 5.5, 8),
+    dataSize: numberWithin(value.dataSize, defaults.dataSize, 6.5, 9.5),
+    spacing: numberWithin(value.spacing, defaults.spacing, 0.35, 1.2),
+    qrSize: numberWithin(value.qrSize, defaults.qrSize, 18, 22),
+    margin: numberWithin(value.margin, defaults.margin, 1.5, 3.5),
+    showEstablishment: booleanValue(value.showEstablishment, defaults.showEstablishment),
+    showEventMeta: booleanValue(value.showEventMeta, defaults.showEventMeta),
+    showPayment: booleanValue(value.showPayment, defaults.showPayment),
+    showFooter: booleanValue(value.showFooter, defaults.showFooter)
+  };
+}
+function effectiveTicketDesign(value = {}, paperWidth) {
+  const design = normalizeTicketDesign({ ...value, paperWidth: paperWidth ?? value.paperWidth });
+  return { ...design, qrSize: Math.min(design.qrSize, design.paperWidth === 58 ? 20 : 22), logoSize: Math.min(design.logoSize, design.paperWidth === 58 ? 8 : 10) };
+}
+
 // ticket-tools-source.js
 var clean = (value, fallback = "") => String(value ?? fallback).trim();
-var safeColor = (value, fallback) => /^#[0-9a-f]{6}$/i.test(String(value || "")) ? value : fallback;
-function splitText(pdf, text, width, limit = 2) {
-  return pdf.splitTextToSize(clean(text), width).slice(0, limit);
+var mmPerPoint = 0.3528;
+function textLines(pdf, value, width, size) {
+  pdf.setFontSize(size);
+  return pdf.splitTextToSize(clean(value), width);
 }
-async function createTicketPdf(tickets, design = {}) {
+function centeredLines(pdf, lines, x2, y3, size, lineHeight = 1.05) {
+  pdf.setFontSize(size);
+  const step = size * mmPerPoint * lineHeight;
+  lines.forEach((line, index2) => pdf.text(line, x2, y3 + index2 * step, { align: "center" }));
+  return lines.length * step;
+}
+function addEventLogo(pdf, dataUrl, pageWidth, y3, maximumHeight) {
+  if (!dataUrl) return 0;
+  try {
+    const properties = pdf.getImageProperties(dataUrl);
+    const maximumWidth = pageWidth * 0.68;
+    const ratio = Math.min(maximumWidth / properties.width, maximumHeight / properties.height);
+    const width = properties.width * ratio;
+    const height = properties.height * ratio;
+    pdf.addImage(dataUrl, dataUrl.startsWith("data:image/jpeg") ? "JPEG" : "PNG", (pageWidth - width) / 2, y3, width, height, void 0, "FAST");
+    return height;
+  } catch (_3) {
+    return 0;
+  }
+}
+function informationRows(ticket, design) {
+  const rows = [
+    [{ label: "MODALIDADE", value: ticket.admissionType }, { label: "INGRESSO", value: ticket.ticketTypeName || "Ingresso" }],
+    [{ label: "PARTICIPANTE", value: ticket.participantName || "Participante", wide: true }]
+  ];
+  if (ticket.reservationLabel) rows.push([{ label: "RESERVA", value: ticket.reservationLabel, wide: true }]);
+  const last = [{ label: "VALOR", value: clean(ticket.ticketValue, "R$ 0,00") }];
+  if (design.showPayment) last.push({ label: "PAGAMENTO", value: [ticket.paymentStatus, ticket.paymentDetail].filter(Boolean).join(" \xB7 ") });
+  rows.push(last);
+  return rows;
+}
+function measureInformation(pdf, rows, contentWidth, textSize, dataSize, spacing) {
+  pdf.setFont("helvetica", "bold");
+  return rows.map((row) => {
+    const columnWidth = row.length === 1 ? contentWidth : (contentWidth - spacing * 2) / 2;
+    const cells = row.map((cell) => ({ ...cell, lines: textLines(pdf, cell.value, columnWidth - 1, dataSize), width: columnWidth }));
+    const height = textSize * mmPerPoint + Math.max(...cells.map((cell) => cell.lines.length)) * dataSize * mmPerPoint * 1.04 + spacing;
+    return { cells, height };
+  });
+}
+async function createTicketPdf(tickets, designValue = {}) {
   if (!Array.isArray(tickets) || !tickets.length) throw new Error("Nenhum ingresso dispon\xEDvel para gerar o PDF.");
-  const primary = safeColor(design.primaryColor, "#17375f");
-  const accent = safeColor(design.accentColor, "#14b886");
-  const title = clean(design.title, "INGRESSO DIGITAL").slice(0, 36);
-  const footer = clean(design.footer, "Apresente este QR Code na entrada.").slice(0, 120);
-  const pdf = new E({ orientation: "portrait", unit: "mm", format: [90, 160], compress: true });
+  const design = effectiveTicketDesign(designValue, designValue.paperWidth);
+  const pageWidth = design.paperWidth;
+  const pageHeight = 80;
+  const pdf = new E({ orientation: "portrait", unit: "mm", format: [pageWidth, pageHeight], compress: true });
   for (let index2 = 0; index2 < tickets.length; index2 += 1) {
-    if (index2) pdf.addPage([90, 160], "portrait");
+    if (index2) pdf.addPage([pageWidth, pageHeight], "portrait");
     const ticket = tickets[index2];
-    const qr = await import_qrcode.default.toDataURL(ticket.validationUrl, { width: 560, margin: 1, errorCorrectionLevel: "M", color: { dark: primary, light: "#ffffff" } });
-    pdf.setFillColor("#f4f7fb");
-    pdf.rect(0, 0, 90, 160, "F");
-    pdf.setFillColor(primary);
-    pdf.roundedRect(5, 5, 80, 150, 4, 4, "F");
-    pdf.setFillColor(accent);
-    pdf.roundedRect(5, 5, 80, 27, 4, 4, "F");
-    pdf.rect(5, 26, 80, 6, "F");
-    pdf.setTextColor("#ffffff");
-    pdf.setFont("helvetica", "bold");
-    pdf.setFontSize(8);
-    pdf.text(title.toUpperCase(), 45, 14, { align: "center" });
-    pdf.setFontSize(15);
-    splitText(pdf, ticket.eventName, 69, 2).forEach((line, lineIndex) => pdf.text(line, 45, 21 + lineIndex * 6, { align: "center" }));
+    const dense = Boolean(ticket.reservationLabel) || clean(ticket.participantName).length > 32 || clean(ticket.ticketTypeName).length > 24 || design.titleSize > 10 || design.dataSize > 8 || design.spacing > 0.7 || design.logoSize > 8 || design.qrSize > 20;
+    const layout = dense ? { ...design, logoSize: Math.min(design.logoSize, 5.5), titleSize: Math.min(design.titleSize, 9), textSize: Math.min(design.textSize, 5.8), dataSize: Math.min(design.dataSize, 6.8), spacing: Math.min(design.spacing, 0.4), qrSize: Math.min(design.qrSize, 18), margin: Math.min(design.margin, 2.5) } : design;
+    const qr = ticket.qrDataUrl || await import_qrcode.default.toDataURL(ticket.validationUrl, { width: 560, margin: 1, errorCorrectionLevel: "M", color: { dark: layout.primaryColor, light: "#ffffff" } });
+    const center = pageWidth / 2;
+    const margin = layout.margin;
+    const contentWidth = pageWidth - margin * 2;
     pdf.setFillColor("#ffffff");
-    pdf.roundedRect(9, 36, 72, 111, 3, 3, "F");
-    pdf.setTextColor(primary);
-    pdf.setFontSize(7);
-    pdf.text("PARTICIPANTE", 45, 45, { align: "center" });
-    pdf.setFontSize(12);
-    splitText(pdf, ticket.participantName || "Participante", 62, 2).forEach((line, lineIndex) => pdf.text(line, 45, 51 + lineIndex * 5, { align: "center" }));
-    pdf.setTextColor("#526173");
-    pdf.setFont("helvetica", "normal");
-    pdf.setFontSize(7);
-    pdf.text(clean(ticket.admissionType, "INGRESSO INDIVIDUAL").toUpperCase(), 45, 63, { align: "center" });
-    pdf.setTextColor(primary);
+    pdf.rect(0, 0, pageWidth, pageHeight, "F");
+    pdf.setDrawColor(layout.primaryColor);
+    pdf.setLineWidth(0.35);
+    pdf.roundedRect(margin / 2, margin / 2, pageWidth - margin, pageHeight - margin, 1.5, 1.5, "S");
+    pdf.setFillColor(layout.accentColor);
+    pdf.rect(margin / 2, margin / 2, pageWidth - margin, 0.8, "F");
+    let y3 = margin + 0.7;
+    const logoHeight = addEventLogo(pdf, layout.logoDataUrl, pageWidth, y3, layout.logoSize);
+    if (logoHeight) y3 += logoHeight + layout.spacing;
+    pdf.setTextColor(layout.primaryColor);
     pdf.setFont("helvetica", "bold");
-    pdf.setFontSize(9);
-    pdf.text(splitText(pdf, ticket.ticketTypeName || "Ingresso", 62, 1), 45, 68, { align: "center" });
-    pdf.setTextColor("#526173");
-    pdf.setFont("helvetica", "normal");
-    pdf.setFontSize(7);
-    pdf.text(`${clean(ticket.eventDate)}  |  ${clean(ticket.eventPlace)}`.slice(0, 58), 45, 74, { align: "center" });
-    pdf.setFontSize(6);
-    pdf.text("VALOR", 27, 81, { align: "center" });
-    pdf.text("PAGAMENTO", 63, 81, { align: "center" });
-    pdf.setFont("helvetica", "bold");
-    pdf.setFontSize(8.5);
-    pdf.setTextColor(primary);
-    pdf.text(clean(ticket.ticketValue, "R$ 0,00"), 27, 86, { align: "center" });
-    pdf.text(clean(ticket.paymentStatus, "Pendente").toUpperCase(), 63, 86, { align: "center" });
-    pdf.setFont("helvetica", "normal");
-    pdf.setTextColor("#526173");
-    pdf.setFontSize(5.5);
-    pdf.text(clean(ticket.paymentDetail).slice(0, 28), 63, 90, { align: "center" });
+    if (layout.showEstablishment) {
+      pdf.setFontSize(layout.textSize);
+      pdf.text("LE BEEF", center, y3 + layout.textSize * mmPerPoint, { align: "center" });
+      y3 += layout.textSize * mmPerPoint + layout.spacing * 0.45;
+    }
+    let titleSize = layout.titleSize;
+    let titleLines = textLines(pdf, layout.title.toUpperCase(), contentWidth - 2, titleSize);
+    while (titleLines.length > 2 && titleSize > 6) {
+      titleSize -= 0.5;
+      titleLines = textLines(pdf, layout.title.toUpperCase(), contentWidth - 2, titleSize);
+    }
+    y3 += centeredLines(pdf, titleLines, center, y3 + titleSize * mmPerPoint, titleSize) + layout.spacing * 0.3;
+    let eventSize = Math.min(layout.dataSize + 1, 10);
+    let eventLines = textLines(pdf, ticket.eventName || "Evento", contentWidth - 2, eventSize);
+    while (eventLines.length > 2 && eventSize > 6) {
+      eventSize -= 0.5;
+      eventLines = textLines(pdf, ticket.eventName || "Evento", contentWidth - 2, eventSize);
+    }
+    y3 += centeredLines(pdf, eventLines, center, y3 + eventSize * mmPerPoint, eventSize);
+    if (layout.showEventMeta) {
+      pdf.setFont("helvetica", "normal");
+      const meta = [ticket.eventDate, ticket.eventPlace].filter(Boolean).join(" \xB7 ");
+      const metaLines = textLines(pdf, meta, contentWidth - 3, layout.textSize);
+      y3 += centeredLines(pdf, metaLines, center, y3 + layout.textSize * mmPerPoint, layout.textSize) + Math.max(0.55, layout.spacing);
+    }
+    pdf.setDrawColor("#6b7280");
+    pdf.setLineDashPattern([1.2, 0.8], 0);
+    pdf.line(margin, y3, pageWidth - margin, y3);
+    pdf.setLineDashPattern([], 0);
+    y3 += layout.spacing;
+    const sequenceY = pageHeight - margin - 0.7;
+    const footerLines = layout.showFooter ? textLines(pdf, layout.footer, contentWidth - 2, layout.textSize) : [];
+    const footerHeight = footerLines.length * layout.textSize * mmPerPoint * 1.04;
+    const shortCodeY = sequenceY - layout.textSize * mmPerPoint - footerHeight - 0.6;
+    const qrY = shortCodeY - layout.qrSize - layout.textSize * mmPerPoint - 0.5;
+    const rows = informationRows(ticket, layout);
+    let textSize = layout.textSize;
+    let dataSize = layout.dataSize;
+    let spacing = layout.spacing;
+    let measured = measureInformation(pdf, rows, contentWidth, textSize, dataSize, spacing);
+    while (y3 + measured.reduce((sum, row) => sum + row.height, 0) > qrY - 0.7 && dataSize > 5.5) {
+      dataSize -= 0.25;
+      textSize = Math.max(4.8, textSize - 0.15);
+      spacing = Math.max(0.25, spacing - 0.05);
+      measured = measureInformation(pdf, rows, contentWidth, textSize, dataSize, spacing);
+    }
+    measured.forEach((row) => {
+      const columnWidth = row.cells[0].width;
+      row.cells.forEach((cell, cellIndex) => {
+        const x2 = row.cells.length === 1 ? center : margin + columnWidth * (cellIndex + 0.5) + spacing * 2 * cellIndex;
+        pdf.setTextColor("#526173");
+        pdf.setFont("helvetica", "bold");
+        pdf.setFontSize(textSize);
+        pdf.text(cell.label, x2, y3 + textSize * mmPerPoint, { align: "center" });
+        pdf.setTextColor(layout.primaryColor);
+        pdf.setFontSize(dataSize);
+        centeredLines(pdf, cell.lines, x2, y3 + textSize * mmPerPoint + dataSize * mmPerPoint, dataSize, 1.04);
+      });
+      y3 += row.height;
+    });
     pdf.setFillColor("#ffffff");
     pdf.setDrawColor("#d9e1ea");
-    pdf.roundedRect(24, 93, 42, 42, 2, 2, "FD");
-    pdf.addImage(qr, "PNG", 27, 96, 36, 36, void 0, "FAST");
-    pdf.setTextColor(primary);
+    pdf.roundedRect(center - layout.qrSize / 2 - 0.7, qrY - 0.7, layout.qrSize + 1.4, layout.qrSize + 1.4, 1, 1, "FD");
+    pdf.addImage(qr, "PNG", center - layout.qrSize / 2, qrY, layout.qrSize, layout.qrSize, void 0, "FAST");
+    pdf.setTextColor(layout.primaryColor);
     pdf.setFont("courier", "bold");
-    pdf.setFontSize(7);
-    pdf.text(clean(ticket.shortCode), 45, 139, { align: "center" });
+    pdf.setFontSize(layout.textSize + 0.5);
+    pdf.text(clean(ticket.shortCode), center, shortCodeY, { align: "center" });
+    if (footerLines.length) {
+      pdf.setFont("helvetica", "normal");
+      pdf.setTextColor("#526173");
+      centeredLines(pdf, footerLines, center, shortCodeY + layout.textSize * mmPerPoint + 0.5, layout.textSize, 1.04);
+    }
     pdf.setFont("helvetica", "normal");
+    pdf.setFontSize(Math.max(5, layout.textSize - 0.5));
     pdf.setTextColor("#526173");
-    pdf.setFontSize(6.5);
-    splitText(pdf, footer, 61, 2).forEach((line, lineIndex) => pdf.text(line, 45, 144 + lineIndex * 3.2, { align: "center" }));
-    pdf.setTextColor("#ffffff");
-    pdf.setFontSize(6);
-    pdf.text(`LE BEEF  |  ${index2 + 1}/${tickets.length}`, 45, 152, { align: "center" });
+    pdf.text(`Ingresso ${index2 + 1} de ${tickets.length}`, center, sequenceY, { align: "center" });
   }
   return pdf.output("blob");
 }
