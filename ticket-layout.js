@@ -4,7 +4,7 @@ export const DEFAULT_TICKET_DESIGN = Object.freeze({
   primaryColor: "#17375f", accentColor: "#14b886", title: "INGRESSO DIGITAL",
   footer: "Apresente este QR Code na entrada.", logoDataUrl: "", paperWidth: 58,
   logoSize: 7, titleSize: 10, textSize: 6.5, dataSize: 7.5,
-  spacing: 0.65, qrSize: 19, margin: 2,
+  spacing: 0.65, qrSize: 28, qrSpacing: 1.5, margin: 2,
   showEstablishment: true, showEventMeta: true, showPayment: true, showFooter: true
 });
 
@@ -29,7 +29,8 @@ export function normalizeTicketDesign(value = {}) {
     logoDataUrl: safeLogo(value.logoDataUrl), paperWidth,
     logoSize: numberWithin(value.logoSize, defaults.logoSize, 4, 10), titleSize: numberWithin(value.titleSize, defaults.titleSize, 8, 12),
     textSize: numberWithin(value.textSize, defaults.textSize, 5.5, 8), dataSize: numberWithin(value.dataSize, defaults.dataSize, 6.5, 9.5),
-    spacing: numberWithin(value.spacing, defaults.spacing, 0.35, 1.2), qrSize: numberWithin(value.qrSize, defaults.qrSize, 18, 22),
+    spacing: numberWithin(value.spacing, defaults.spacing, 0.35, 1.2), qrSize: numberWithin(value.qrSize, defaults.qrSize, 18, 40),
+    qrSpacing: numberWithin(value.qrSpacing, defaults.qrSpacing, 0, 20),
     margin: numberWithin(value.margin, defaults.margin, 1.5, 3.5),
     showEstablishment: booleanValue(value.showEstablishment, defaults.showEstablishment),
     showEventMeta: booleanValue(value.showEventMeta, defaults.showEventMeta),
@@ -39,5 +40,13 @@ export function normalizeTicketDesign(value = {}) {
 
 export function effectiveTicketDesign(value = {}, paperWidth) {
   const design = normalizeTicketDesign({ ...value, paperWidth: paperWidth ?? value.paperWidth });
-  return { ...design, qrSize: Math.min(design.qrSize, design.paperWidth === 58 ? 20 : 22), logoSize: Math.min(design.logoSize, design.paperWidth === 58 ? 8 : 10) };
+  return { ...design, logoSize: Math.min(design.logoSize, design.paperWidth === 58 ? 8 : 10) };
+}
+
+export function ticketHeightForDesign(value = {}, paperWidth) {
+  const design = effectiveTicketDesign(value, paperWidth);
+  const enlargedQr = Math.max(0, design.qrSize - 28);
+  const movedDown = Math.max(0, design.qrSpacing - DEFAULT_TICKET_DESIGN.qrSpacing);
+  const enlargedQrWithLogo = enlargedQr > 0 && design.logoDataUrl ? design.logoSize : 0;
+  return Math.min(130, Math.ceil((80 + enlargedQr + movedDown + enlargedQrWithLogo) * 2) / 2);
 }

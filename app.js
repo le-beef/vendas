@@ -6,8 +6,8 @@ import { createEventPages } from "./pages.js?v=4";
 import { decodeQrImageData } from "./qr-scanner-tools.js?v=1";
 import { eventIsArchived, eventArchiveDeadline } from "./event-archive.js?v=1";
 import { createTicketPdf, createQrDataUrl } from "./ticket-tools.js?v=5";
-import { THERMAL_PAPER_WIDTHS, buildThermalPrintHtml, normalizeThermalPaperWidth } from "./thermal-print.js?v=2";
-import { DEFAULT_TICKET_DESIGN, normalizeTicketDesign } from "./ticket-layout.js?v=1";
+import { THERMAL_PAPER_WIDTHS, buildThermalPrintHtml, normalizeThermalPaperWidth } from "./thermal-print.js?v=3";
+import { DEFAULT_TICKET_DESIGN, normalizeTicketDesign, ticketHeightForDesign } from "./ticket-layout.js?v=2";
 
 const demoEvents = [
   { id: "demo-1", name: "Festival de Inverno", date: "2026-08-02", place: "Espaço Aurora", capacity: 300, ticketTypes: [{ id: "inteira", name: "Inteira", price: 85, capacity: 200 }, { id: "meia", name: "Meia-entrada", price: 42.5, capacity: 100 }], packages: [{ id: "combo-casal", name: "Combo Casal", discountType: "percent", discountValue: 10, discountPercent: 10, regularPrice: 127.5, price: 114.75, items: [{ ticketTypeId: "inteira", quantity: 1 }, { ticketTypeId: "meia", quantity: 1 }] }] },
@@ -325,13 +325,13 @@ function ticketDesignFromConfigForm() {
     logoDataUrl: form.dataset.logoData || "", paperWidth: form.elements.paperWidth.value,
     logoSize: form.elements.logoSize.value, titleSize: form.elements.titleSize.value,
     textSize: form.elements.textSize.value, dataSize: form.elements.dataSize.value,
-    spacing: form.elements.spacing.value, qrSize: form.elements.qrSize.value, margin: form.elements.margin.value,
+    spacing: form.elements.spacing.value, qrSize: form.elements.qrSize.value, qrSpacing: form.elements.qrSpacing.value, margin: form.elements.margin.value,
     showEstablishment: form.elements.showEstablishment.checked, showEventMeta: form.elements.showEventMeta.checked,
     showPayment: form.elements.showPayment.checked, showFooter: form.elements.showFooter.checked
   });
 }
 function updateTicketConfigOutputs(design) {
-  const units = { logoSize: "mm", titleSize: "pt", textSize: "pt", dataSize: "pt", spacing: "mm", qrSize: "mm", margin: "mm" };
+  const units = { logoSize: "mm", titleSize: "pt", textSize: "pt", dataSize: "pt", spacing: "mm", qrSize: "mm", qrSpacing: "mm", margin: "mm" };
   Object.entries(units).forEach(([name, unit]) => { const output = document.querySelector(`[data-ticket-output="${name}"]`); if (output) output.textContent = `${design[name]} ${unit}`; });
   const image = $("ticketLogoPreview");
   image.hidden = !design.logoDataUrl;
@@ -356,7 +356,7 @@ async function renderTicketConfigPreview() {
   const documentHtml = buildThermalPrintHtml({ event: { ...event, name: event.name || "Nome do evento", dateText: event.date ? dateText(event.date) : "30/09/2026", place: event.place || "Le Beef" }, sale: { buyerName: ticket.participantName }, tickets: [ticket], qrCodes: [qrCode], paperWidth: design.paperWidth, ticketDesign: design });
   const frame = $("ticketPreviewFrame");
   frame.style.width = `${Math.round(design.paperWidth * 3.7795)}px`;
-  frame.style.height = `${Math.round(80 * 3.7795)}px`;
+  frame.style.height = `${Math.round(ticketHeightForDesign(design) * 3.7795)}px`;
   frame.srcdoc = documentHtml;
 }
 function populateTicketConfigPage(event, designValue = eventTicketDesign(event)) {
@@ -365,7 +365,7 @@ function populateTicketConfigPage(event, designValue = eventTicketDesign(event))
   const design = normalizeTicketDesign(designValue);
   form.dataset.eventId = event.id;
   form.dataset.logoData = design.logoDataUrl;
-  ["title", "footer", "primaryColor", "accentColor", "paperWidth", "logoSize", "titleSize", "textSize", "dataSize", "spacing", "qrSize", "margin"].forEach((name) => { form.elements[name].value = design[name]; });
+  ["title", "footer", "primaryColor", "accentColor", "paperWidth", "logoSize", "titleSize", "textSize", "dataSize", "spacing", "qrSize", "qrSpacing", "margin"].forEach((name) => { form.elements[name].value = design[name]; });
   ["showEstablishment", "showEventMeta", "showPayment", "showFooter"].forEach((name) => { form.elements[name].checked = design[name]; });
   renderTicketConfigPreview();
 }
@@ -394,10 +394,14 @@ async function saveTicketDesignConfig() {
   const design = ticketDesignFromConfigForm();
   try {
     if (isDemo) { event.ticketDesign = design; persistDemo(); }
-    else await update(ref(db, `events/${event.id}`), { ticketDesign: design, updatedAt: Date.now() });
-    event.ticketDesign = design;
+    else {
+      await update(ref(db, `events/${event.id}`), { ticketDesign: design, updatedAt: Date.now() });
+      const savedDesign = await get(ref(db, `events/${event.id}/ticketDesign`));
+      if (!savedDesign.exists()) throw new Error("A configuração não foi encontrada após salvar.");
+      event.ticketDesign = normalizeTicketDesign(savedDesign.val());
+    }
     render();
-    toast("Configuração do ingresso salva.");
+    toast("Configuração salva neste evento e confirmada no Firebase.");
   } catch (error) { console.error(error); toast(error.message || "Não foi possível salvar a configuração."); }
 }
 function saleTypeQuantity(sale, ticketType, event) { return saleStockItems(sale, event).filter((item) => item.ticketTypeId === ticketType.id || item.ticketTypeName === ticketType.name).reduce((sum, item) => sum + Number(item.quantity || 0), 0); }

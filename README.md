@@ -1,5 +1,11 @@
 # Le Beef — painel de vendas de ingressos
 
+## QR Code térmico configurável — versão 5.8.3
+
+- O QR Code da impressão térmica pode ser configurado de 18 mm até 40 mm.
+- O novo controle de espaço antes do QR Code move o código para cima ou para baixo e fica salvo no evento.
+- A impressão respeita diretamente os tamanhos e espaçamentos configurados, sem reduções automáticas invisíveis.
+
 ## Abertura na página inicial — versão 5.8.2
 
 - Ao conectar ou reconectar ao Firebase, o painel sempre abre na seleção de eventos.
