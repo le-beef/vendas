@@ -45,7 +45,7 @@
     <link rel="stylesheet" href="table-reservation-details.css?v=2" />
     <link rel="stylesheet" href="table-reservation-final.css?v=1" />
     <link rel="stylesheet" href="table-reservation-harmony.css?v=4" />
-    <link rel="stylesheet" href="ticketing.css?v=4" />
+    <link rel="stylesheet" href="ticketing.css?v=5" />
     <link rel="stylesheet" href="theme.css?v=11" />
     <link rel="stylesheet" href="pages.css?v=2" />
     <style id="topbar-critical-styles">
@@ -193,7 +193,7 @@
       </section>
     </main>
 
-    <footer class="site-footer">Le Beef | Versão: 5.4.1</footer>
+    <footer class="site-footer">Le Beef | Versão: 5.5.0</footer>
 
     <button class="fab" data-open="saleModal" data-roles="admin,event_manager,seller" aria-label="Registrar venda">+</button>
 
@@ -330,6 +330,24 @@
       </form>
     </dialog>
 
+    <dialog id="ticketSendModal" class="ticket-send-modal">
+      <div class="ticket-send-shell">
+        <div class="modal-heading"><div><p class="eyebrow">INGRESSO GERADO</p><h2>Enviar ingresso</h2></div><button class="close" type="button" data-close-ticket-send aria-label="Fechar">×</button></div>
+        <div class="ticket-send-contact"><strong id="ticketSendName">Participante</strong><span id="ticketSendPhone">Telefone</span></div>
+        <button id="shareTicketFile" class="ticket-send-choice ticket-send-any" type="button"><span aria-hidden="true">↗</span><span><strong>Escolher contato e enviar PDF</strong><small>Abre o compartilhamento do celular com o PDF anexado. Escolha WhatsApp normal, Business e o destinatário.</small></span></button>
+        <div id="ticketSendRegisteredOptions" class="ticket-send-registered"><p>Enviar para o número cadastrado</p><button type="button" data-ticket-whatsapp="personal"><span class="whatsapp-option-badge" aria-hidden="true">W</span><span><strong>WhatsApp normal</strong><small>Baixa o PDF e abre a conversa cadastrada</small></span></button><button type="button" data-ticket-whatsapp="business"><span class="whatsapp-option-badge" aria-hidden="true">B</span><span><strong>WhatsApp Business</strong><small>Baixa o PDF e abre a conversa cadastrada</small></span></button></div>
+        <p class="ticket-send-hint">Por segurança do Android, uma conversa específica não pode receber um arquivo automaticamente. Nessas duas opções, anexe o PDF baixado na conversa.</p>
+      </div>
+    </dialog>
+
+    <dialog id="ticketDeleteModal" class="ticket-delete-modal">
+      <div class="ticket-delete-shell">
+        <div class="modal-heading"><div><p class="eyebrow">SEGURANÇA DO INGRESSO</p><h2>Excluir ingresso gerado?</h2></div><button class="close" type="button" data-close-ticket-delete aria-label="Fechar">×</button></div>
+        <div class="ticket-delete-warning"><strong id="ticketDeleteParticipant">Participante</strong><p>O QR Code atual será invalidado imediatamente. Use esta opção somente em caso de perda ou roubo; depois será possível gerar um novo ingresso.</p></div>
+        <div class="ticket-delete-actions"><button class="button secondary" type="button" data-close-ticket-delete>Cancelar</button><button id="confirmTicketDelete" class="button danger" type="button">Sim, excluir ingresso</button></div>
+      </div>
+    </dialog>
+
     <dialog id="qrValidationModal" class="qr-validation-modal">
       <div class="qr-validation-shell">
         <div class="modal-heading"><div><p class="eyebrow">PORTARIA</p><h2>Validar ingresso</h2></div><button class="close" type="button" data-close-qr-validation aria-label="Fechar">×</button></div>
@@ -363,6 +381,6 @@
     <script src="pwa.js"></script>
     <script src="theme.js?v=1"></script>
     <script src="excel-export.js?v=37"></script>
-    <script type="module" src="app.js?v=67"></script>
+    <script type="module" src="app.js?v=68"></script>
   </body>
 </html>

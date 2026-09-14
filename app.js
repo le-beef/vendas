@@ -5,7 +5,7 @@ import { firebaseConfig } from "./firebase-config.js";
 import { createEventPages } from "./pages.js?v=3";
 import { decodeQrImageData } from "./qr-scanner-tools.js?v=1";
 import { eventIsArchived, eventArchiveDeadline } from "./event-archive.js?v=1";
-import { createTicketPdf, createQrDataUrl } from "./ticket-tools.js?v=1";
+import { createTicketPdf, createQrDataUrl } from "./ticket-tools.js?v=2";
 
 const demoEvents = [
   { id: "demo-1", name: "Festival de Inverno", date: "2026-08-02", place: "Espaço Aurora", capacity: 300, ticketTypes: [{ id: "inteira", name: "Inteira", price: 85, capacity: 200 }, { id: "meia", name: "Meia-entrada", price: 42.5, capacity: 100 }], packages: [{ id: "combo-casal", name: "Combo Casal", discountType: "percent", discountValue: 10, discountPercent: 10, regularPrice: 127.5, price: 114.75, items: [{ ticketTypeId: "inteira", quantity: 1 }, { ticketTypeId: "meia", quantity: 1 }] }] },
@@ -276,10 +276,17 @@ function storedQrTickets(sale) {
   return source.filter(Boolean);
 }
 function qrTicketBlueprints(sale, event) {
-  if (isTableReservation(sale)) return reservationOccupants(sale).map((name, index) => ({ sourceKey: `table:${index}`, participantName: name, ticketTypeId: "table-chair", ticketTypeName: `${sale.reservationLabel || "Mesa/bistrô"} - cadeira ${index + 1}`, occupantIndex: index }));
+  if (isTableReservation(sale)) {
+    const occupants = reservationOccupants(sale);
+    const fallbackValue = occupants.length ? saleTotal(sale, event) / occupants.length : 0;
+    return occupants.map((name, index) => ({ sourceKey: `table:${index}`, participantName: name, ticketTypeId: "table-chair", ticketTypeName: `${sale.reservationLabel || "Mesa/bistrô"} - cadeira ${index + 1}`, occupantIndex: index, value: Number(sale.occupantPricing?.[index]?.finalPrice ?? fallbackValue) }));
+  }
   const blueprints = [];
-  saleStockItems(sale, event).forEach((item) => {
-    for (let index = 0; index < Number(item.quantity || 0); index += 1) blueprints.push({ sourceKey: `ticket:${item.ticketTypeId || item.ticketTypeName}:${index}`, participantName: sale.buyerName || "Participante", ticketTypeId: item.ticketTypeId || "ticket", ticketTypeName: item.ticketTypeName || "Ingresso", occupantIndex: null });
+  const stockItems = saleStockItems(sale, event);
+  const regularTotal = stockItems.reduce((sum, item) => sum + Number(item.unitPrice || 0) * Number(item.quantity || 0), 0);
+  stockItems.forEach((item) => {
+    const value = regularTotal ? saleTotal(sale, event) * Number(item.unitPrice || 0) / regularTotal : 0;
+    for (let index = 0; index < Number(item.quantity || 0); index += 1) blueprints.push({ sourceKey: `ticket:${item.ticketTypeId || item.ticketTypeName}:${index}`, participantName: sale.buyerName || "Participante", ticketTypeId: item.ticketTypeId || "ticket", ticketTypeName: item.ticketTypeName || "Ingresso", occupantIndex: null, value });
   });
   return blueprints;
 }
@@ -480,31 +487,93 @@ function ticketPdfName(event, sale) {
   const clean = (value) => normalizedSearch(value).replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
   return `ingressos-${clean(event?.name || "evento")}-${clean(sale?.buyerName || "participante")}.pdf`;
 }
-async function buildTicketPdf(saleId) {
+function hasGeneratedTicket(sale, event) {
+  const tickets = qrTicketsFor(sale, event);
+  return Boolean(tickets.length && tickets.every((ticket) => ticket.token));
+}
+async function buildTicketPdf(saleId, generate = false) {
   const sale = state.sales.find((item) => item.id === saleId);
   if (!sale) throw new Error("Venda não encontrada.");
   const event = state.events.find((item) => item.id === sale.eventId);
-  const tickets = await ensureQrTickets(sale);
-  const printable = tickets.map((ticket) => ({ ...ticket, eventName: event?.name || "Evento", eventDate: event?.date ? dateText(event.date) : "", eventPlace: event?.place || "", validationUrl: qrValidationUrl(ticket.token), shortCode: ticket.token.slice(-8).toUpperCase() }));
+  const tickets = generate ? await ensureQrTickets(sale) : qrTicketsFor(sale, event);
+  if (!tickets.length || tickets.some((ticket) => !ticket.token)) throw new Error("Gere o ingresso antes de visualizar ou enviar.");
+  const paymentStatus = sale.courtesy || sale.paymentMethod === "courtesy" ? "Cortesia" : sale.paid ? "Pago" : "Pendente";
+  const paymentDetail = sale.paid && !sale.courtesy ? paymentMethodLabel(sale.paymentMethod) : sale.courtesy ? "Sem cobrança" : "Aguardando pagamento";
+  const printable = tickets.map((ticket) => ({ ...ticket, eventName: event?.name || "Evento", eventDate: event?.date ? dateText(event.date) : "", eventPlace: event?.place || "", validationUrl: qrValidationUrl(ticket.token), shortCode: ticket.token.slice(-8).toUpperCase(), ticketValue: money.format(Number(ticket.value || 0)), paymentStatus, paymentDetail }));
   const blob = await createTicketPdf(printable, eventTicketDesign(event));
   return { blob, filename: ticketPdfName(event, sale), sale, event, count: tickets.length };
 }
 function downloadBlob(blob, filename) { const url = URL.createObjectURL(blob); const link = document.createElement("a"); link.href = url; link.download = filename; document.body.append(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 1500); }
-async function downloadTicketPdf(saleId) {
-  try { const result = await buildTicketPdf(saleId); downloadBlob(result.blob, result.filename); toast(`${result.count} ingresso(s) gerado(s) em PDF.`); }
+async function generateTicketPdf(saleId) {
+  try { const result = await buildTicketPdf(saleId, true); downloadBlob(result.blob, result.filename); render(); toast(`${result.count} ingresso(s) gerado(s) em PDF.`); }
   catch (error) { console.error(error); toast(error.message || "Não foi possível gerar os ingressos."); }
 }
-async function shareTicketPdf(saleId) {
+async function viewTicketPdf(saleId) {
+  const preview = window.open("", "_blank");
+  try {
+    const result = await buildTicketPdf(saleId);
+    const url = URL.createObjectURL(result.blob);
+    if (preview) preview.location.href = url;
+    else downloadBlob(result.blob, result.filename);
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+  } catch (error) { preview?.close(); console.error(error); toast(error.message || "Não foi possível abrir o ingresso."); }
+}
+function openTicketSendOptions(saleId) {
+  const sale = state.sales.find((item) => item.id === saleId);
+  const event = state.events.find((item) => item.id === sale?.eventId);
+  if (!sale || !hasGeneratedTicket(sale, event)) return toast("Gere o ingresso antes de enviar.");
+  const modal = $("ticketSendModal");
+  modal.dataset.saleId = saleId;
+  $("ticketSendName").textContent = sale.buyerName || "Participante";
+  $("ticketSendPhone").textContent = formatPhoneDisplay(sale.buyerPhone) || "Telefone não informado";
+  $("ticketSendRegisteredOptions").hidden = !whatsappNumber(sale.buyerPhone);
+  if (!modal.open) modal.showModal();
+}
+async function shareGeneratedTicketPdf(saleId) {
   try {
     const result = await buildTicketPdf(saleId);
     const file = new File([result.blob], result.filename, { type: "application/pdf" });
     const message = `Ingresso(s) de ${result.sale.buyerName || "participante"} para ${result.event?.name || "o evento"}.`;
     if (navigator.share && (!navigator.canShare || navigator.canShare({ files: [file] }))) { await navigator.share({ files: [file], title: `Ingressos - ${result.event?.name || "Le Beef"}`, text: message }); return; }
     downloadBlob(result.blob, result.filename);
-    toast("PDF baixado. No computador, anexe o arquivo manualmente no WhatsApp.");
-    const number = whatsappNumber(result.sale.buyerPhone);
-    if (number) window.open(`https://wa.me/${number}?text=${encodeURIComponent(`${message} Estou enviando o PDF com o QR Code em anexo.`)}`, "_blank", "noopener,noreferrer");
+    toast("O compartilhamento de arquivos não está disponível. O PDF foi baixado.");
   } catch (error) { if (error?.name !== "AbortError") { console.error(error); toast(error.message || "Não foi possível compartilhar os ingressos."); } }
+}
+async function sendTicketToRegisteredWhatsapp(saleId, appType) {
+  try {
+    const result = await buildTicketPdf(saleId);
+    const number = whatsappNumber(result.sale.buyerPhone);
+    if (!number) throw new Error("Esta venda não possui telefone cadastrado.");
+    downloadBlob(result.blob, result.filename);
+    $("ticketSendModal").close();
+    const message = encodeURIComponent(`Olá, ${result.sale.buyerName || "participante"}! O PDF do seu ingresso para ${result.event?.name || "o evento"} foi baixado neste aparelho. Anexe o arquivo “${result.filename}” nesta conversa.`);
+    const fallbackUrl = `https://wa.me/${number}?text=${message}`;
+    if (/Android/i.test(navigator.userAgent)) {
+      const packageName = appType === "business" ? "com.whatsapp.w4b" : "com.whatsapp";
+      window.location.assign(`intent://send?phone=${number}&text=${message}#Intent;scheme=whatsapp;package=${packageName};S.browser_fallback_url=${encodeURIComponent(fallbackUrl)};end`);
+    } else window.open(fallbackUrl, "_blank", "noopener,noreferrer");
+  } catch (error) { console.error(error); toast(error.message || "Não foi possível abrir o WhatsApp."); }
+}
+function openDeleteGeneratedTicket(saleId) {
+  const sale = state.sales.find((item) => item.id === saleId);
+  if (!sale) return;
+  $("ticketDeleteModal").dataset.saleId = saleId;
+  $("ticketDeleteParticipant").textContent = sale.buyerName || "Participante";
+  if (!$("ticketDeleteModal").open) $("ticketDeleteModal").showModal();
+}
+async function deleteGeneratedTicket(saleId) {
+  if (!requireRole(["admin", "event_manager", "seller"])) return;
+  const sale = state.sales.find((item) => item.id === saleId);
+  const event = state.events.find((item) => item.id === sale?.eventId);
+  if (!sale) return;
+  if (qrTicketsFor(sale, event).some((ticket) => ticket.checkedIn)) return toast("Não é possível excluir um ingresso que já teve check-in.");
+  try {
+    if (isDemo) { delete sale.qrTickets; persistDemo(); }
+    else { await set(ref(db, `sales/${saleId}/qrTickets`), null); delete sale.qrTickets; }
+    $("ticketDeleteModal").close();
+    render();
+    toast("Ingresso excluído. O QR Code antigo não é mais válido e um novo pode ser gerado.");
+  } catch (error) { console.error(error); toast("Não foi possível excluir o ingresso."); }
 }
 function locateQrTicket(token) {
   for (const sale of state.sales) {
@@ -950,7 +1019,9 @@ function toggleParticipantCard(row) { if (!row) return; const expanded = row.cla
 function toggleTableReservationCard(card) { if (!card) return; const expanded = card.classList.toggle("is-expanded"); card.setAttribute("aria-expanded", String(expanded)); const button = card.querySelector("[data-toggle-table-reservation-details]"); if (button) button.textContent = expanded ? "Ocultar detalhes" : "Detalhar"; }
 function ticketFileActionsHtml(sale) {
   if (!hasRole("admin", "event_manager", "seller") || !isCommercialSale(sale)) return "";
-  return `<div class="ticket-file-actions"><button class="ticket-file-button" type="button" data-ticket-pdf="${sale.id}">QR em PDF</button><button class="ticket-file-button ticket-share-button" type="button" data-ticket-share="${sale.id}">Enviar ingresso</button></div>`;
+  const event = state.events.find((item) => item.id === sale.eventId);
+  if (!hasGeneratedTicket(sale, event)) return `<div class="ticket-file-actions is-not-generated"><button class="ticket-file-button ticket-generate-button" type="button" data-ticket-generate="${sale.id}">Gerar ingresso em PDF</button></div>`;
+  return `<div class="ticket-file-actions is-generated"><button class="ticket-file-button" type="button" data-ticket-view="${sale.id}">Ver ingresso</button><button class="ticket-file-button ticket-share-button" type="button" data-ticket-send="${sale.id}">Enviar ingresso</button><button class="ticket-file-button ticket-delete-button" type="button" data-ticket-delete="${sale.id}">Excluir ingresso</button></div>`;
 }
 function tableReservationCheckinsHtml(sale) {
   const occupants = reservationOccupants(sale);
@@ -1990,18 +2061,28 @@ document.addEventListener("click", (event) => {
   toggleTableOccupantCheckin(occupantCheckin.dataset.tableOccupantCheckin, occupantCheckin.dataset.occupantIndex);
 });
 document.addEventListener("click", (event) => {
-  const pdfButton = event.target.closest("[data-ticket-pdf]");
-  const shareButton = event.target.closest("[data-ticket-share]");
-  if (!pdfButton && !shareButton) return;
+  const generateButton = event.target.closest("[data-ticket-generate]");
+  const viewButton = event.target.closest("[data-ticket-view]");
+  const sendButton = event.target.closest("[data-ticket-send]");
+  const deleteButton = event.target.closest("[data-ticket-delete]");
+  if (!generateButton && !viewButton && !sendButton && !deleteButton) return;
   event.preventDefault();
   event.stopPropagation();
-  const button = pdfButton || shareButton;
+  if (sendButton) return openTicketSendOptions(sendButton.dataset.ticketSend);
+  if (deleteButton) return openDeleteGeneratedTicket(deleteButton.dataset.ticketDelete);
+  const button = generateButton || viewButton;
   const label = button.textContent;
-  button.disabled = true;
-  button.textContent = "Gerando...";
-  const action = pdfButton ? downloadTicketPdf(pdfButton.dataset.ticketPdf) : shareTicketPdf(shareButton.dataset.ticketShare);
+  button.disabled = true; button.textContent = generateButton ? "Gerando..." : "Abrindo...";
+  const action = generateButton ? generateTicketPdf(generateButton.dataset.ticketGenerate) : viewTicketPdf(viewButton.dataset.ticketView);
   Promise.resolve(action).finally(() => { button.disabled = false; button.textContent = label; });
 });
+$("shareTicketFile").addEventListener("click", () => { const saleId = $("ticketSendModal").dataset.saleId; $("ticketSendModal").close(); shareGeneratedTicketPdf(saleId); });
+$("ticketSendModal").addEventListener("click", (event) => { const button = event.target.closest("[data-ticket-whatsapp]"); if (button) sendTicketToRegisteredWhatsapp($("ticketSendModal").dataset.saleId, button.dataset.ticketWhatsapp); });
+$("ticketSendModal").addEventListener("cancel", (event) => { event.preventDefault(); $("ticketSendModal").close(); });
+document.querySelector("[data-close-ticket-send]").addEventListener("click", () => $("ticketSendModal").close());
+$("ticketDeleteModal").addEventListener("cancel", (event) => { event.preventDefault(); $("ticketDeleteModal").close(); });
+document.querySelectorAll("[data-close-ticket-delete]").forEach((button) => button.addEventListener("click", () => $("ticketDeleteModal").close()));
+$("confirmTicketDelete").addEventListener("click", () => deleteGeneratedTicket($("ticketDeleteModal").dataset.saleId));
 $("confirmQrCheckin").addEventListener("click", () => toggleQrTicketCheckin($("qrValidationModal").dataset.token));
 $("qrValidationModal").addEventListener("cancel", (event) => { event.preventDefault(); $("qrValidationModal").close(); location.hash = "portaria"; });
 document.querySelector("[data-close-qr-validation]").addEventListener("click", () => { $("qrValidationModal").close(); location.hash = "portaria"; });

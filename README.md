@@ -1,5 +1,12 @@
 # Le Beef — painel de vendas de ingressos
 
+## Ciclo do ingresso gerado — versão 5.5.0
+
+- Antes da emissão aparece somente “Gerar ingresso em PDF”; depois, aparecem “Ver ingresso”, “Enviar ingresso” e “Excluir ingresso”.
+- Excluir exige confirmação, invalida o QR antigo e permite emitir um novo em caso de perda ou roubo; ingressos que já tiveram check-in não podem ser excluídos.
+- O envio permite compartilhar o PDF anexado escolhendo aplicativo e destinatário, ou baixar o PDF e abrir WhatsApp normal/Business no número cadastrado.
+- Cada página do PDF exibe conteúdo centralizado, valor individual e situação do pagamento.
+
 ## Permissão da câmera e alertas sonoros — versão 5.4.1
 
 - Antes de abrir o leitor, a Portaria exibe uma orientação para autorizar a câmera no Android ou navegador.
