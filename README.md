@@ -1,5 +1,17 @@
 # Le Beef — painel de vendas de ingressos
 
+## Nomenclatura das ações de venda — versão 5.8.6
+
+- Vendas individuais, mesas e bistrôs agora usam os mesmos textos: `Editar venda` e `Excluir venda`.
+- A padronização também aparece nas listas completas e na edição da reserva.
+
+## Altura configurável da impressão — versão 5.8.5
+
+- A altura de cada ingresso térmico agora pode ser escolhida entre 80 mm e 140 mm, em intervalos de 5 mm.
+- A altura escolhida na Configuração do ingresso fica salva no evento e aparece como padrão ao abrir a impressão.
+- O diálogo de impressão também permite alterar a altura apenas para aquela impressão.
+- Pré-visualização e página térmica usam a mesma altura, sem barras de rolagem internas no ingresso.
+
 ## Detalhes e ações do ingresso — versão 5.8.4
 
 - As funções do ingresso ficam agrupadas antes das ações gerais da venda.

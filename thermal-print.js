@@ -1,4 +1,4 @@
-import { TICKET_PAPER_WIDTHS, effectiveTicketDesign, ticketHeightForDesign } from "./ticket-layout.js?v=2";
+import { TICKET_PAPER_WIDTHS, effectiveTicketDesign, ticketHeightForDesign } from "./ticket-layout.js?v=3";
 
 export const THERMAL_PAPER_WIDTHS = TICKET_PAPER_WIDTHS;
 const html = (value) => String(value ?? "").replace(/[&<>"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[character]);
@@ -33,15 +33,15 @@ function ticketMarkup({ event, sale, ticket, qrCode, design, index, count }) {
   </article>`;
 }
 
-export function buildThermalPrintHtml({ event, sale, tickets, qrCodes, paperWidth, ticketDesign = {} }) {
+export function buildThermalPrintHtml({ event, sale, tickets, qrCodes, paperWidth, paperHeight, ticketDesign = {} }) {
   const width = normalizeThermalPaperWidth(paperWidth ?? ticketDesign.paperWidth);
-  const design = effectiveTicketDesign(ticketDesign, width);
+  const design = effectiveTicketDesign({ ...ticketDesign, ...(paperHeight === undefined ? {} : { ticketHeight: paperHeight }) }, width);
   const ticketHeight = ticketHeightForDesign(design, width);
   if (!Array.isArray(tickets) || !tickets.length) throw new Error("Nenhum ingresso disponível para impressão.");
   if (!Array.isArray(qrCodes) || qrCodes.length !== tickets.length) throw new Error("Não foi possível preparar os QR Codes para impressão.");
   const pages = tickets.map((ticket, index) => ticketMarkup({ event, sale, ticket, qrCode: qrCodes[index], design, index, count: tickets.length })).join("");
   return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Ingressos - ${html(event.name || "Le Beef")}</title><style>
-    @page{size:${width}mm ${ticketHeight}mm;margin:0}*{box-sizing:border-box}html,body{width:${width}mm;margin:0;padding:0;background:#fff;color:#000;font-family:Arial,Helvetica,sans-serif}
+    @page{size:${width}mm ${ticketHeight}mm;margin:0}*{box-sizing:border-box}html,body{width:${width}mm;margin:0;padding:0;overflow:hidden;background:#fff;color:#000;font-family:Arial,Helvetica,sans-serif}
     .thermal-ticket{--space:${design.spacing}mm;--text:${design.textSize}pt;--data:${design.dataSize}pt;width:${width}mm;height:${ticketHeight}mm;padding:${design.margin}mm;display:flex;flex-direction:column;gap:var(--space);overflow:hidden;overflow-wrap:anywhere;background:#fff;break-inside:avoid;page-break-inside:avoid;break-after:page;page-break-after:always}
     .thermal-ticket+.thermal-ticket{break-before:page;page-break-before:always}.thermal-ticket:last-child{break-after:auto;page-break-after:auto}header,.event,.validation{text-align:center}.event-logo{display:block;width:auto;max-width:72%;height:auto;max-height:${design.logoSize}mm;margin:0 auto var(--space);object-fit:contain}.establishment{display:block;font-size:var(--text);font-weight:800;letter-spacing:.14em}h1{margin:0;font-size:${design.titleSize}pt;line-height:1.05}h2{margin:0;font-size:calc(var(--data) + 1pt);line-height:1.08}.event p{margin:.25mm 0 0;font-size:var(--text);line-height:1.1}.separator{flex:0 0 auto;border-top:.25mm dashed #000}
     .information-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--space) calc(var(--space) * 2)}.information-cell{text-align:center;min-width:0}.information-cell.wide{grid-column:1/-1}.information-cell span{display:block;margin-bottom:.15mm;font-size:calc(var(--text) - .5pt);font-weight:800;letter-spacing:.06em}.information-cell strong{display:block;font-size:var(--data);line-height:1.08}.validation{margin-top:${design.qrSpacing}mm;display:grid;justify-items:center;gap:.25mm}.qr-code{display:block;width:${design.qrSize}mm;height:${design.qrSize}mm;object-fit:contain;image-rendering:pixelated}.short-code{font-family:"Courier New",monospace;font-size:calc(var(--text) + .5pt);letter-spacing:.1em}.footer{margin:0;font-size:var(--text);line-height:1.08}.sequence{font-size:calc(var(--text) - .5pt)}

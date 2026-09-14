@@ -1,8 +1,10 @@
 export const TICKET_PAPER_WIDTHS = [58, 80];
+export const TICKET_HEIGHT_MIN = 80;
+export const TICKET_HEIGHT_MAX = 140;
 
 export const DEFAULT_TICKET_DESIGN = Object.freeze({
   primaryColor: "#17375f", accentColor: "#14b886", title: "INGRESSO DIGITAL",
-  footer: "Apresente este QR Code na entrada.", logoDataUrl: "", paperWidth: 58,
+  footer: "Apresente este QR Code na entrada.", logoDataUrl: "", paperWidth: 58, ticketHeight: 80,
   logoSize: 7, titleSize: 10, textSize: 6.5, dataSize: 7.5,
   spacing: 0.65, qrSize: 28, qrSpacing: 1.5, margin: 2,
   showEstablishment: true, showEventMeta: true, showPayment: true, showFooter: true
@@ -27,6 +29,7 @@ export function normalizeTicketDesign(value = {}) {
     title: String(value.title || defaults.title).trim().slice(0, 36) || defaults.title,
     footer: String(value.footer || defaults.footer).trim().slice(0, 120) || defaults.footer,
     logoDataUrl: safeLogo(value.logoDataUrl), paperWidth,
+    ticketHeight: numberWithin(value.ticketHeight, defaults.ticketHeight, TICKET_HEIGHT_MIN, TICKET_HEIGHT_MAX),
     logoSize: numberWithin(value.logoSize, defaults.logoSize, 4, 10), titleSize: numberWithin(value.titleSize, defaults.titleSize, 8, 12),
     textSize: numberWithin(value.textSize, defaults.textSize, 5.5, 8), dataSize: numberWithin(value.dataSize, defaults.dataSize, 6.5, 9.5),
     spacing: numberWithin(value.spacing, defaults.spacing, 0.35, 1.2), qrSize: numberWithin(value.qrSize, defaults.qrSize, 18, 40),
@@ -45,8 +48,5 @@ export function effectiveTicketDesign(value = {}, paperWidth) {
 
 export function ticketHeightForDesign(value = {}, paperWidth) {
   const design = effectiveTicketDesign(value, paperWidth);
-  const enlargedQr = Math.max(0, design.qrSize - 28);
-  const movedDown = Math.max(0, design.qrSpacing - DEFAULT_TICKET_DESIGN.qrSpacing);
-  const enlargedQrWithLogo = enlargedQr > 0 && design.logoDataUrl ? design.logoSize : 0;
-  return Math.min(130, Math.ceil((80 + enlargedQr + movedDown + enlargedQrWithLogo) * 2) / 2);
+  return numberWithin(design.ticketHeight, DEFAULT_TICKET_DESIGN.ticketHeight, TICKET_HEIGHT_MIN, TICKET_HEIGHT_MAX);
 }
