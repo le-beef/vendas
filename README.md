@@ -1,5 +1,11 @@
 # Le Beef — painel de vendas de ingressos
 
+## Mesas persistentes e Excel da Portaria — versão 5.8.7
+
+- Reservas de mesas e bistrôs permanecem detalhadas e na mesma posição após gerar, excluir ou alterar ingressos e pagamentos.
+- O pagamento das reservas voltou a ser alterado diretamente pelo botão `Pendente` ou `Pago`, como nas vendas individuais.
+- A Portaria ganhou um Excel completo com participantes individuais, ocupantes de mesas e bistrôs, pagamentos, QR Codes e situação/data de cada check-in na mesma planilha.
+
 ## Nomenclatura das ações de venda — versão 5.8.6
 
 - Vendas individuais, mesas e bistrôs agora usam os mesmos textos: `Editar venda` e `Excluir venda`.

@@ -2,7 +2,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/11.
 import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged, browserLocalPersistence, inMemoryPersistence, setPersistence, createUserWithEmailAndPassword, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js";
 import { getDatabase, ref, push, set, update, onValue, get, query, orderByChild, equalTo, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-database.js";
 import { firebaseConfig } from "./firebase-config.js";
-import { createEventPages } from "./pages.js?v=4";
+import { createEventPages } from "./pages.js?v=5";
 import { decodeQrImageData } from "./qr-scanner-tools.js?v=1";
 import { eventIsArchived, eventArchiveDeadline } from "./event-archive.js?v=1";
 import { createTicketPdf, createQrDataUrl } from "./ticket-tools.js?v=5";
@@ -27,6 +27,8 @@ let tableReservationAreaFilter = "all";
 let tableReservationPaymentFilter = "all";
 const expandedParticipantSaleIds = new Set();
 let participantViewportAnchor = null;
+const expandedTableReservationSaleIds = new Set();
+let tableReservationViewportAnchor = null;
 let eventMapDraft = { areas: [], furniture: [] };
 let activeMapEditorArea = "";
 let activeMapViewerArea = "";
@@ -611,8 +613,9 @@ async function buildTicketPdf(saleId, generate = false) {
 function downloadBlob(blob, filename) { const url = URL.createObjectURL(blob); const link = document.createElement("a"); link.href = url; link.download = filename; document.body.append(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 1500); }
 function preserveParticipantDetails(saleId) {
   const row = [...document.querySelectorAll("#salesList [data-sale-row]")].find((item) => item.dataset.saleRow === saleId);
+  if (!row?.classList.contains("is-expanded")) return;
   expandedParticipantSaleIds.add(saleId);
-  if (row) participantViewportAnchor = { saleId, top: row.getBoundingClientRect().top, expiresAt: Date.now() + 5000 };
+  participantViewportAnchor = { saleId, top: row.getBoundingClientRect().top, expiresAt: Date.now() + 5000 };
 }
 function restoreParticipantViewport() {
   if (!participantViewportAnchor || participantViewportAnchor.expiresAt < Date.now()) { participantViewportAnchor = null; return; }
@@ -624,8 +627,29 @@ function restoreParticipantViewport() {
     participantViewportAnchor = null;
   });
 }
+function preserveTableReservationDetails(saleId) {
+  const card = [...document.querySelectorAll("#tableReservationsList [data-table-sale-id]")].find((item) => item.dataset.tableSaleId === saleId);
+  if (!card?.classList.contains("is-expanded")) return;
+  expandedTableReservationSaleIds.add(saleId);
+  tableReservationViewportAnchor = { saleId, top: card.getBoundingClientRect().top, expiresAt: Date.now() + 5000 };
+}
+function restoreTableReservationViewport() {
+  if (!tableReservationViewportAnchor || tableReservationViewportAnchor.expiresAt < Date.now()) { tableReservationViewportAnchor = null; return; }
+  const anchor = tableReservationViewportAnchor;
+  requestAnimationFrame(() => {
+    const card = [...document.querySelectorAll("#tableReservationsList [data-table-sale-id]")].find((item) => item.dataset.tableSaleId === anchor.saleId);
+    if (!card) return;
+    window.scrollBy(0, card.getBoundingClientRect().top - anchor.top);
+    tableReservationViewportAnchor = null;
+  });
+}
+function preserveSaleDetails(saleId) {
+  const sale = state.sales.find((item) => item.id === saleId);
+  if (isTableReservation(sale)) preserveTableReservationDetails(saleId);
+  else preserveParticipantDetails(saleId);
+}
 async function generateTicketPdf(saleId) {
-  preserveParticipantDetails(saleId);
+  preserveSaleDetails(saleId);
   try {
     const sale = state.sales.find((item) => item.id === saleId);
     if (!sale) throw new Error("Venda não encontrada.");
@@ -767,7 +791,7 @@ async function deleteGeneratedTicket(saleId) {
   const event = state.events.find((item) => item.id === sale?.eventId);
   if (!sale) return;
   if (qrTicketsFor(sale, event).some((ticket) => ticket.checkedIn)) return toast("Não é possível excluir um ingresso que já teve check-in.");
-  preserveParticipantDetails(saleId);
+  preserveSaleDetails(saleId);
   try {
     const ticketCount = storedQrTickets(sale).length;
     const details = `Excluiu ${ticketCount} ingresso${ticketCount === 1 ? "" : "s"} com QR Code (${isTableReservation(sale) ? "mesa/bistrô" : "individual"}).`;
@@ -1272,7 +1296,7 @@ function getSaleTicketItems() {
   });
 }
 function toggleParticipantCard(row) { if (!row) return; const expanded = row.classList.toggle("is-expanded"); const saleId = row.dataset.saleRow; if (saleId) { if (expanded) expandedParticipantSaleIds.add(saleId); else expandedParticipantSaleIds.delete(saleId); } row.setAttribute("aria-expanded", String(expanded)); const button = row.querySelector("[data-toggle-sale-details]"); if (button) button.textContent = expanded ? "Ocultar detalhes" : "Detalhar"; }
-function toggleTableReservationCard(card) { if (!card) return; const expanded = card.classList.toggle("is-expanded"); card.setAttribute("aria-expanded", String(expanded)); const button = card.querySelector("[data-toggle-table-reservation-details]"); if (button) button.textContent = expanded ? "Ocultar detalhes" : "Detalhar"; }
+function toggleTableReservationCard(card) { if (!card) return; const expanded = card.classList.toggle("is-expanded"); const saleId = card.dataset.tableSaleId; if (saleId) { if (expanded) expandedTableReservationSaleIds.add(saleId); else expandedTableReservationSaleIds.delete(saleId); } card.setAttribute("aria-expanded", String(expanded)); const button = card.querySelector("[data-toggle-table-reservation-details]"); if (button) button.textContent = expanded ? "Ocultar detalhes" : "Detalhar"; }
 function ticketFileActionsHtml(sale) {
   if (!hasRole("admin", "event_manager", "seller") || !isCommercialSale(sale)) return "";
   const event = state.events.find((item) => item.id === sale.eventId);
@@ -1460,16 +1484,21 @@ function renderTableReservationsList(event, eventSales) {
   $("tableReservationCount").textContent = `${reservations.length} ${reservations.length === 1 ? "reservada" : "reservadas"} • ${filteredPeople} ${filteredPeople === 1 ? "pessoa" : "pessoas"}`;
   $("clearTableReservationSearch").hidden = !tableReservationSearchQuery;
   const canManage = hasRole("admin", "event_manager", "seller");
+  const paymentForTableReservation = (sale) => {
+    const courtesy = saleIsCourtesy(sale, event) || sale.courtesy;
+    const control = courtesy ? `<span class="payment paid courtesy-payment">Cortesia</span>` : canManage ? `<button class="payment ${sale.paid ? "paid" : ""}" type="button" data-paid="${sale.id}">${sale.paid ? "✓ Pago" : "Pendente"}</button>` : `<span class="payment ${sale.paid ? "paid" : ""}">${sale.paid ? "✓ Pago" : "Pendente"}</span>`;
+    return `${control}${paymentDetailsHtml(sale)}`;
+  };
   $("tableReservationsList").innerHTML = reservations.length ? reservations.map((sale) => {
     const occupants = Array.isArray(sale.occupants) ? sale.occupants : Object.values(sale.occupants || {});
-    const payment = sale.paid ? `<span class="payment paid">✓ Pago</span>${paymentDetailsHtml(sale)}` : `<span class="payment">Pendente</span>`;
+    const payment = paymentForTableReservation(sale);
     const actions = canManage ? `<button class="delete-button table-reservation-delete" type="button" data-delete-sale="${sale.id}">Excluir venda</button>` : "";
     const peopleCount = occupants.length || sale.quantity || 1;
+    const expanded = expandedTableReservationSaleIds.has(sale.id);
     const details = `<div class="table-reservation-expanded"><div><small>Mesa / bistrô</small><strong>${escapeHtml(sale.reservationLabel || "Reserva")}</strong></div><div><small>Responsável</small><strong>${escapeHtml(sale.buyerName || "Sem responsável")}</strong></div><div><small>Quantidade de pessoas</small><strong>${peopleCount} ${peopleCount === 1 ? "pessoa" : "pessoas"}</strong></div>${tableReservationDiscountHtml(sale)}<div class="table-reservation-expanded-contact"><small>Contato</small><span>${escapeHtml(formatPhoneDisplay(sale.buyerPhone) || "Não informado")}</span>${whatsappButtonHtml(sale, event.name)}</div><div><small>Ocupantes</small><span>${escapeHtml(occupants.join(", ") || "Nenhum ocupante informado")}</span></div><div class="table-reservation-expanded-checkins"><small>Entradas (${reservationCheckinCount(sale)}/${peopleCount})</small>${tableReservationCheckinsHtml(sale)}</div><div><small>Pagamento</small>${payment}</div>${ticketFileActionsHtml(sale)}<div class="table-reservation-expanded-actions"><button class="edit-button" type="button" data-open-table-reservation="${sale.furnitureId}">Editar venda</button>${actions}</div></div>`;
-    return `<article class="table-reservation-card" aria-expanded="false"><div class="table-reservation-main"><strong>${escapeHtml(sale.buyerName || "Sem responsável")}</strong><small>${escapeHtml(sale.reservationLabel || "Reserva")} · ${peopleCount} ${peopleCount === 1 ? "pessoa" : "pessoas"} · ${reservationCheckinCount(sale)}/${peopleCount} check-ins</small></div><div class="table-reservation-total"><strong>${money.format(saleTotal(sale, event))}</strong></div><div class="table-reservation-contact">${whatsappButtonHtml(sale, event.name)}</div><div class="table-reservation-payment">${payment}</div><button class="participant-detail-toggle" type="button" data-toggle-table-reservation-details>Detalhar</button>${details}</article>`;
+    return `<article class="table-reservation-card${expanded ? " is-expanded" : ""}" data-table-sale-id="${sale.id}" aria-expanded="${expanded}"><div class="table-reservation-main"><strong>${escapeHtml(sale.buyerName || "Sem responsável")}</strong><small>${escapeHtml(sale.reservationLabel || "Reserva")} · ${peopleCount} ${peopleCount === 1 ? "pessoa" : "pessoas"} · ${reservationCheckinCount(sale)}/${peopleCount} check-ins</small></div><div class="table-reservation-total"><strong>${money.format(saleTotal(sale, event))}</strong></div><div class="table-reservation-contact">${whatsappButtonHtml(sale, event.name)}</div><div class="table-reservation-payment">${payment}</div><button class="participant-detail-toggle" type="button" data-toggle-table-reservation-details>${expanded ? "Ocultar detalhes" : "Detalhar"}</button>${details}</article>`;
   }).join("") : `<div class="empty">${tableReservationSearchQuery ? "Nenhuma reserva encontrada." : "Nenhuma reserva registrada neste evento."}</div>`;
   const totalAllReservations = allReservations.reduce((sum, sale) => sum + saleTotal(sale, event), 0);
-  const paymentForTableReservation = (sale) => sale.paid ? `<span class="payment paid">✓ Pago</span>${paymentDetailsHtml(sale)}` : `<span class="payment">Pendente</span>`;
   $("allTableReservationsTitle").textContent = `Reservas — ${event.name}`;
   $("allTableReservationsTotal").textContent = money.format(totalAllReservations);
   $("allTableReservationsList").innerHTML = allReservations.length ? allReservations.map((sale) => { const occupants = reservationOccupants(sale); const peopleCount = occupants.length || sale.quantity || 1; return `<tr class="sales-row table-reservation-all-row"><td data-label="Responsável"><strong>${escapeHtml(sale.buyerName || "Sem responsável")}</strong><small>${peopleCount} pessoas · ${reservationCheckinCount(sale)}/${peopleCount} check-ins</small></td><td data-label="Mesa / bistrô"><strong>${escapeHtml(sale.reservationLabel || "Reserva")}</strong><small>${escapeHtml(mapAreaLabel(sale.reservationArea || ""))}</small></td><td class="sale-note" data-label="Contato / ocupantes"><span class="phone-line"><strong>${escapeHtml(formatPhoneDisplay(sale.buyerPhone) || "Não informado")}</strong>${whatsappButtonHtml(sale, event.name)}</span><small>${escapeHtml(occupants.join(", "))}</small><div class="table-reservation-all-checkins"><small>Entradas (${reservationCheckinCount(sale)}/${peopleCount})</small>${tableReservationCheckinsHtml(sale)}</div></td><td data-label="Evento">${escapeHtml(event.name)}</td><td class="financial-column" data-label="Valor">${money.format(saleTotal(sale, event))}</td><td class="financial-column" data-label="Pagamento">${paymentForTableReservation(sale)}</td><td data-label="Ações"><div class="table-all-actions"><button class="edit-button" type="button" data-open-table-reservation="${sale.furnitureId}">Editar venda</button>${canManage ? `<button class="delete-button" data-delete-sale="${sale.id}">Excluir venda</button>` : ""}</div>${ticketFileActionsHtml(sale)}</td></tr>`; }).join("") : `<tr><td colspan="7" class="empty">Nenhuma reserva neste evento.</td></tr>`;
@@ -1955,6 +1984,7 @@ function render() {
   syncApplicationPage();
   scheduleArchiveRefresh();
   restoreParticipantViewport();
+  restoreTableReservationViewport();
 }
 
 async function saveEvent(data, id = "") {
@@ -2056,6 +2086,7 @@ async function saveSale(data, id = "") {
 async function toggleCheckin(id) {
   if (!requireRole(["admin", "event_manager", "seller", "door"])) return;
   const sale = state.sales.find((item) => item.id === id); if (!sale) return;
+  preserveSaleDetails(id);
   const event = state.events.find((item) => item.id === sale.eventId);
   const value = !saleFullyCheckedIn(sale, event);
   const details = value ? "Realizou o check-in do participante." : "Desfez o check-in do participante.";
@@ -2066,6 +2097,7 @@ async function toggleCheckin(id) {
 async function toggleTableOccupantCheckin(id, occupantIndex) {
   if (!requireRole(["admin", "event_manager", "seller", "door"])) return;
   const sale = state.sales.find((item) => item.id === id);
+  preserveSaleDetails(id);
   const occupants = reservationOccupants(sale);
   const index = Number(occupantIndex);
   if (!sale || !isTableReservation(sale) || !Number.isInteger(index) || index < 0 || index >= occupants.length) return;
@@ -2099,6 +2131,7 @@ async function toggleTableOccupantCheckin(id, occupantIndex) {
 async function togglePayment(id) {
   if (!requireRole(["admin", "event_manager", "seller"])) return;
   const sale = state.sales.find((item) => item.id === id); if (!sale) return;
+  preserveSaleDetails(id);
   if (sale.courtesy || saleIsCourtesy(sale)) return toast("Cortesias não possuem cobrança para alterar.");
   if (!sale.paid) {
     const form = $("paymentConfirmationForm");
@@ -2117,6 +2150,7 @@ async function togglePayment(id) {
 async function confirmSalePayment(data) {
   if (!requireRole(["admin", "event_manager", "seller"])) return;
   const sale = state.sales.find((item) => item.id === data.saleId); if (!sale) throw new Error("Venda não encontrada.");
+  preserveSaleDetails(sale.id);
   if (!PAYMENT_METHOD_LABELS[data.paymentMethod]) throw new Error("Selecione a forma de pagamento.");
   if (!data.paymentDate) throw new Error("Informe a data do pagamento.");
   const details = `Confirmou o pagamento por ${paymentMethodLabel(data.paymentMethod)} em ${paymentDateLabel(data.paymentDate)}.`;
@@ -2178,7 +2212,7 @@ async function toggleEventArchive(id) {
     toast(restore ? "Evento restaurado." : "Evento arquivado.");
   } catch(error) { toast(`Não foi possível atualizar o evento: ${error.message}`); }
 }
-const syncEventPages = createEventPages({ normalize:normalizedSearch, escape:escapeHtml, isTable:isTableReservation, occupants:reservationOccupants, checkins:reservationOccupantCheckins, isArchived:eventIsArchived, canManage:canAdministerEvent, toggleArchive:toggleEventArchive });
+const syncEventPages = createEventPages({ normalize:normalizedSearch, escape:escapeHtml, isTable:isTableReservation, occupants:reservationOccupants, checkins:reservationOccupantCheckins, isArchived:eventIsArchived, canManage:canAdministerEvent, toggleArchive:toggleEventArchive, exportCheckins:() => { if (requireRole(["admin", "event_manager", "seller", "door"])) window.exportSalesXlsx(state.sales, state.events, selectedEventId, "checkins"); } });
 let archiveRefreshTimer;
 function scheduleArchiveRefresh() {
   clearTimeout(archiveRefreshTimer);
@@ -2311,8 +2345,8 @@ $("deleteTableReservation").addEventListener("click", async () => { const id = $
 $("occupyTableWithoutSale").addEventListener("click", occupyTableWithoutSale);
 $("releaseTableOccupancy").addEventListener("click", releaseTableOccupancy);
 $("eventForm").addEventListener("submit", async (event) => { event.preventDefault(); const form = event.currentTarget; try { const data = Object.fromEntries(new FormData(form)); data.ticketTypes = getTicketTypes(); if (!data.ticketTypes.length) throw new Error("Informe ao menos um tipo ou lote com valor e quantidade."); data.packages = getPackages(data.ticketTypes); data.tableMap = { areas: [...eventMapDraft.areas], furniture: eventMapDraft.furniture.map((item) => ({ ...item })) }; await saveEvent(data, form.dataset.editId); form.reset(); resetPackages(); resetTicketTypes(); resetEventMapDraft(); $("eventModal").close(); } catch (error) { toast(error.message); } });
-$("saleForm").addEventListener("submit", async (event) => { event.preventDefault(); const form = event.currentTarget; try { const data = Object.fromEntries(new FormData(form)); data.items = getSaleTicketItems(); await saveSale(data, form.dataset.editId); form.reset(); $("saleTicketItemsList").innerHTML = ""; $("saleModal").close(); } catch (error) { toast(error.message); } });
-$("tableReservationForm").addEventListener("submit", async (event) => { event.preventDefault(); const form = event.currentTarget; try { const data = Object.fromEntries(new FormData(form)); await saveTableReservation(data); form.reset(); $("tableOccupantsList").innerHTML = ""; $("tableReservationModal").close(); } catch (error) { toast(error.message); } });
+$("saleForm").addEventListener("submit", async (event) => { event.preventDefault(); const form = event.currentTarget; try { const data = Object.fromEntries(new FormData(form)); if (form.dataset.editId) preserveSaleDetails(form.dataset.editId); data.items = getSaleTicketItems(); await saveSale(data, form.dataset.editId); form.reset(); $("saleTicketItemsList").innerHTML = ""; $("saleModal").close(); } catch (error) { toast(error.message); } });
+$("tableReservationForm").addEventListener("submit", async (event) => { event.preventDefault(); const form = event.currentTarget; try { const data = Object.fromEntries(new FormData(form)); if (data.saleId) preserveSaleDetails(data.saleId); await saveTableReservation(data); form.reset(); $("tableOccupantsList").innerHTML = ""; $("tableReservationModal").close(); } catch (error) { toast(error.message); } });
 document.addEventListener("click", (event) => {
   const occupantCheckin = event.target.closest("[data-table-occupant-checkin]");
   if (!occupantCheckin) return;

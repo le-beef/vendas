@@ -25,6 +25,7 @@ main{padding-top:28px;padding-bottom:40px}
 #pageEventActions .event-actions{display:flex;justify-content:flex-start;flex-wrap:wrap}
 #pageEventActions [data-selected-action="sale"],#pageEventActions [data-selected-action="export"],#pageEventActions [data-selected-action="history"]{display:none!important}
 .door-tools{display:grid;grid-template-columns:2fr 1fr;gap:12px;margin-top:24px}.door-tools input,.door-tools select{width:100%;min-height:46px}
+.door-export{display:flex;justify-content:flex-end;margin-top:10px}.door-export .button{min-height:42px}
 #doorCount{color:var(--muted);font-size:12px}
 #doorList{display:grid;gap:8px}.door-person{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px;border:1px solid var(--line);border-radius:12px}
 .door-person>div{min-width:0}.door-person strong{overflow-wrap:anywhere}.door-person small{display:block;margin-top:5px;color:var(--muted);font-size:12px}.door-person button{flex-shrink:0;min-height:42px}
@@ -51,7 +52,7 @@ html[data-theme="dark"] .door-person{border-color:#334155}
  .event-navigation [data-page-link="portaria"],.event-navigation [data-page-link="relatorio-financeiro"],.event-navigation [data-page-link="historico"]{display:none}
  .workspace-panel{padding:18px 14px}.workspace-panel h1{font-size:24px}
  .page-shortcuts{grid-template-columns:1fr}.page-shortcuts a{padding:17px;gap:5px}
- .door-tools{grid-template-columns:1fr;gap:8px}.door-person{padding:12px}.door-person strong{font-size:14px}.door-person button{font-size:11px}
+ .door-tools{grid-template-columns:1fr;gap:8px}.door-export .button{width:100%}.door-person{padding:12px}.door-person strong{font-size:14px}.door-person button{font-size:11px}
  .event-workspace .site-footer{padding-left:0}.sales-panel{margin-bottom:0!important}
  .hero>.button{display:block!important}.hero .subtitle{font-size:13px}.hero{align-items:flex-start;flex-direction:column}
 }
