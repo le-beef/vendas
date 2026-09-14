@@ -1,5 +1,11 @@
 # Le Beef — painel de vendas de ingressos
 
+## Impressão simplificada — versão 5.8.9
+
+- O botão `IMPRIMIR` usa amarelo com texto dourado-escuro em vendas individuais e reservas de mesas/bistrôs.
+- A altura do ingresso não é mais escolhida novamente ao imprimir: a impressão usa a medida salva na Configuração do ingresso.
+- O seletor desabilitado de impressora foi removido. A impressora real é escolhida no diálogo oficial do navegador após clicar em `Abrir impressão`.
+
 ## Botões responsivos e padronizados — versão 5.8.8
 
 - `Trocar evento` agora segue o padrão dos botões secundários e ocupa a largura disponível no celular, como os botões de Excel.

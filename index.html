@@ -45,7 +45,7 @@
     <link rel="stylesheet" href="table-reservation-details.css?v=2" />
     <link rel="stylesheet" href="table-reservation-final.css?v=1" />
     <link rel="stylesheet" href="table-reservation-harmony.css?v=4" />
-    <link rel="stylesheet" href="ticketing.css?v=10" />
+    <link rel="stylesheet" href="ticketing.css?v=11" />
     <link rel="stylesheet" href="ticket-config.css?v=1" />
     <link rel="stylesheet" href="theme.css?v=11" />
     <link rel="stylesheet" href="pages.css?v=4" />
@@ -210,7 +210,7 @@
       </section>
     </main>
 
-    <footer class="site-footer">Le Beef | Versão: 5.8.8</footer>
+    <footer class="site-footer">Le Beef | Versão: 5.8.9</footer>
 
     <button class="fab" data-open="saleModal" data-roles="admin,event_manager,seller" aria-label="Registrar venda">+</button>
 
@@ -369,10 +369,8 @@
     <dialog id="thermalPrintModal" class="thermal-print-modal">
       <div class="thermal-print-shell">
         <div class="modal-heading"><div><p class="eyebrow">IMPRESSÃO TÉRMICA</p><h2>Configurar impressão</h2></div><button class="close" type="button" data-close-thermal-print aria-label="Fechar">×</button></div>
-        <label>Impressora<select id="thermalPrinter" disabled><option value="browser">Selecionar no diálogo do sistema</option></select></label>
-        <p class="thermal-printer-explanation">Por segurança, o navegador mostra as impressoras instaladas somente no diálogo oficial que será aberto na próxima etapa.</p>
         <label>Largura do papel<select id="thermalPaperWidth"><option value="58">58 mm</option><option value="80">80 mm</option></select></label>
-        <label>Altura do ingresso<select id="thermalPaperHeight"><option value="80">80 mm</option><option value="85">85 mm</option><option value="90">90 mm</option><option value="95">95 mm</option><option value="100">100 mm</option><option value="105">105 mm</option><option value="110">110 mm</option><option value="115">115 mm</option><option value="120">120 mm</option><option value="125">125 mm</option><option value="130">130 mm</option><option value="135">135 mm</option><option value="140">140 mm</option></select></label>
+        <p class="thermal-printer-explanation">A altura e o visual seguem a Configuração do ingresso. Após clicar em “Abrir impressão”, escolha a impressora no diálogo oficial do navegador.</p>
         <div class="thermal-print-actions"><button class="button secondary" type="button" data-close-thermal-print>Cancelar</button><button id="confirmThermalPrint" class="button primary" type="button">Abrir impressão</button></div>
       </div>
     </dialog>
@@ -411,6 +409,6 @@
     <script src="pwa.js"></script>
     <script src="theme.js?v=1"></script>
     <script src="excel-export.js?v=38"></script>
-    <script type="module" src="app.js?v=81"></script>
+    <script type="module" src="app.js?v=82"></script>
   </body>
 </html>

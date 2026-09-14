@@ -669,23 +669,13 @@ async function viewTicketPdf(saleId) {
     setTimeout(() => URL.revokeObjectURL(url), 60000);
   } catch (error) { preview?.close(); console.error(error); toast(error.message || "Não foi possível abrir o ingresso."); }
 }
-function thermalPrintProviders() {
-  const providers = [{ id: "browser", label: "Selecionar no diálogo do sistema" }];
-  if (typeof window.leBeefPrintBridge?.printHtml === "function") providers.unshift({ id: "bridge", label: window.leBeefPrintBridge.name || "Impressora conectada pelo aplicativo auxiliar" });
-  return providers;
-}
 function openThermalPrintSettings(saleId) {
   const sale = state.sales.find((item) => item.id === saleId);
   const event = state.events.find((item) => item.id === sale?.eventId);
   if (!sale || !sale.paid || !hasGeneratedTicket(sale, event)) return toast("Confirme o pagamento e gere o ingresso antes de imprimir.");
   const modal = $("thermalPrintModal");
-  const printer = $("thermalPrinter");
-  const providers = thermalPrintProviders();
-  printer.innerHTML = providers.map((provider) => `<option value="${provider.id}">${escapeHtml(provider.label)}</option>`).join("");
-  printer.disabled = providers.length === 1;
   const design = eventTicketDesign(event);
   $("thermalPaperWidth").value = String(design.paperWidth);
-  $("thermalPaperHeight").value = String(design.ticketHeight);
   modal.dataset.saleId = saleId;
   modal.showModal();
 }
@@ -718,10 +708,9 @@ async function printGeneratedTicket() {
   if (!sale || !sale.paid) return toast("Confirme o pagamento antes de imprimir.");
   const paperWidth = normalizeThermalPaperWidth($("thermalPaperWidth").value);
   if (!THERMAL_PAPER_WIDTHS.includes(paperWidth)) return toast("Selecione uma largura de papel válida.");
-  const paperHeight = ticketHeightForDesign({ ticketHeight: $("thermalPaperHeight").value });
-  const providerId = $("thermalPrinter").value || "browser";
-  const printWindow = providerId === "browser" ? window.open("", "_blank", "popup,width=560,height=760") : null;
-  if (providerId === "browser" && !printWindow) return toast("O navegador bloqueou a janela de impressão. Autorize pop-ups e tente novamente.");
+  const printBridge = typeof window.leBeefPrintBridge?.printHtml === "function" ? window.leBeefPrintBridge : null;
+  const printWindow = printBridge ? null : window.open("", "_blank", "popup,width=560,height=760");
+  if (!printBridge && !printWindow) return toast("O navegador bloqueou a janela de impressão. Autorize pop-ups e tente novamente.");
   const button = $("confirmThermalPrint");
   const originalLabel = button.textContent;
   button.disabled = true;
@@ -729,9 +718,10 @@ async function printGeneratedTicket() {
   try {
     localStorage.setItem("le-beef-thermal-paper-width", String(paperWidth));
     const printData = await thermalPrintData(sale);
+    const paperHeight = ticketHeightForDesign(printData.ticketDesign, paperWidth);
     const documentHtml = buildThermalPrintHtml({ ...printData, paperWidth, paperHeight });
     modal.close();
-    if (providerId === "bridge") await window.leBeefPrintBridge.printHtml({ html: documentHtml, paperWidth, paperHeight, jobName: `Ingressos - ${printData.event.name || "Le Beef"}` });
+    if (printBridge) await printBridge.printHtml({ html: documentHtml, paperWidth, paperHeight, jobName: `Ingressos - ${printData.event.name || "Le Beef"}` });
     else await sendThermalPrintToBrowser(printWindow, documentHtml);
   } catch (error) {
     printWindow?.close();
