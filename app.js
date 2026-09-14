@@ -6,6 +6,7 @@ import { createEventPages } from "./pages.js?v=3";
 import { decodeQrImageData } from "./qr-scanner-tools.js?v=1";
 import { eventIsArchived, eventArchiveDeadline } from "./event-archive.js?v=1";
 import { createTicketPdf, createQrDataUrl } from "./ticket-tools.js?v=3";
+import { THERMAL_PAPER_WIDTHS, buildThermalPrintHtml, normalizeThermalPaperWidth } from "./thermal-print.js?v=1";
 
 const demoEvents = [
   { id: "demo-1", name: "Festival de Inverno", date: "2026-08-02", place: "Espaço Aurora", capacity: 300, ticketTypes: [{ id: "inteira", name: "Inteira", price: 85, capacity: 200 }, { id: "meia", name: "Meia-entrada", price: 42.5, capacity: 100 }], packages: [{ id: "combo-casal", name: "Combo Casal", discountType: "percent", discountValue: 10, discountPercent: 10, regularPrice: 127.5, price: 114.75, items: [{ ticketTypeId: "inteira", quantity: 1 }, { ticketTypeId: "meia", quantity: 1 }] }] },
@@ -529,6 +530,76 @@ async function viewTicketPdf(saleId) {
     else downloadBlob(result.blob, result.filename);
     setTimeout(() => URL.revokeObjectURL(url), 60000);
   } catch (error) { preview?.close(); console.error(error); toast(error.message || "Não foi possível abrir o ingresso."); }
+}
+function thermalPrintProviders() {
+  const providers = [{ id: "browser", label: "Selecionar no diálogo do sistema" }];
+  if (typeof window.leBeefPrintBridge?.printHtml === "function") providers.unshift({ id: "bridge", label: window.leBeefPrintBridge.name || "Impressora conectada pelo aplicativo auxiliar" });
+  return providers;
+}
+function openThermalPrintSettings(saleId) {
+  const sale = state.sales.find((item) => item.id === saleId);
+  const event = state.events.find((item) => item.id === sale?.eventId);
+  if (!sale || !sale.paid || !hasGeneratedTicket(sale, event)) return toast("Confirme o pagamento e gere o ingresso antes de imprimir.");
+  const modal = $("thermalPrintModal");
+  const printer = $("thermalPrinter");
+  const providers = thermalPrintProviders();
+  printer.innerHTML = providers.map((provider) => `<option value="${provider.id}">${escapeHtml(provider.label)}</option>`).join("");
+  printer.disabled = providers.length === 1;
+  $("thermalPaperWidth").value = String(normalizeThermalPaperWidth(localStorage.getItem("le-beef-thermal-paper-width")));
+  modal.dataset.saleId = saleId;
+  modal.showModal();
+}
+async function thermalPrintData(sale) {
+  const event = state.events.find((item) => item.id === sale.eventId);
+  const tickets = qrTicketsFor(sale, event);
+  if (!tickets.length || tickets.some((ticket) => !ticket.token)) throw new Error("Gere o ingresso antes de imprimir.");
+  const paymentStatus = sale.courtesy || sale.paymentMethod === "courtesy" ? "Cortesia" : sale.paid ? "Pago" : "Pendente";
+  const paymentDetail = sale.paid && !sale.courtesy ? `${paymentMethodLabel(sale.paymentMethod)}${sale.paymentDate ? ` em ${paymentDateLabel(sale.paymentDate)}` : ""}` : sale.courtesy ? "Sem cobrança" : "Aguardando pagamento";
+  const printableTickets = tickets.map((ticket) => ({ ...ticket, admissionType: isTableReservation(sale) ? `${furnitureKindLabel(sale.furnitureKind)} / reserva` : "Ingresso individual", reservationLabel: isTableReservation(sale) ? sale.reservationLabel || "Mesa/bistrô" : "", ticketValue: money.format(Number(ticket.value || 0)), paymentStatus, paymentDetail, shortCode: ticket.token.slice(-8).toUpperCase() }));
+  const qrCodes = await Promise.all(tickets.map((ticket) => createQrDataUrl(qrValidationUrl(ticket.token), { width: 480 })));
+  return { event: { ...event, dateText: event?.date ? dateText(event.date) : "" }, sale, tickets: printableTickets, qrCodes, ticketDesign: eventTicketDesign(event) };
+}
+async function sendThermalPrintToBrowser(printWindow, documentHtml) {
+  printWindow.document.open();
+  printWindow.document.write(documentHtml);
+  printWindow.document.close();
+  await new Promise((resolve) => {
+    if (printWindow.document.readyState === "complete") resolve();
+    else printWindow.addEventListener("load", resolve, { once: true });
+  });
+  await Promise.all([...printWindow.document.images].map((image) => image.decode?.().catch(() => {}) || Promise.resolve()));
+  printWindow.addEventListener("afterprint", () => printWindow.close(), { once: true });
+  printWindow.focus();
+  printWindow.print();
+}
+async function printGeneratedTicket() {
+  const modal = $("thermalPrintModal");
+  const sale = state.sales.find((item) => item.id === modal.dataset.saleId);
+  if (!sale || !sale.paid) return toast("Confirme o pagamento antes de imprimir.");
+  const paperWidth = normalizeThermalPaperWidth($("thermalPaperWidth").value);
+  if (!THERMAL_PAPER_WIDTHS.includes(paperWidth)) return toast("Selecione uma largura de papel válida.");
+  const providerId = $("thermalPrinter").value || "browser";
+  const printWindow = providerId === "browser" ? window.open("", "_blank", "popup,width=560,height=760") : null;
+  if (providerId === "browser" && !printWindow) return toast("O navegador bloqueou a janela de impressão. Autorize pop-ups e tente novamente.");
+  const button = $("confirmThermalPrint");
+  const originalLabel = button.textContent;
+  button.disabled = true;
+  button.textContent = "Preparando...";
+  try {
+    localStorage.setItem("le-beef-thermal-paper-width", String(paperWidth));
+    const printData = await thermalPrintData(sale);
+    const documentHtml = buildThermalPrintHtml({ ...printData, paperWidth });
+    modal.close();
+    if (providerId === "bridge") await window.leBeefPrintBridge.printHtml({ html: documentHtml, paperWidth, jobName: `Ingressos - ${printData.event.name || "Le Beef"}` });
+    else await sendThermalPrintToBrowser(printWindow, documentHtml);
+  } catch (error) {
+    printWindow?.close();
+    console.error(error);
+    toast(error.message || "Não foi possível preparar a impressão.");
+  } finally {
+    button.disabled = false;
+    button.textContent = originalLabel;
+  }
 }
 function openTicketSendOptions(saleId) {
   const sale = state.sales.find((item) => item.id === saleId);
@@ -1090,7 +1161,7 @@ function ticketFileActionsHtml(sale) {
   if (!hasRole("admin", "event_manager", "seller") || !isCommercialSale(sale)) return "";
   const event = state.events.find((item) => item.id === sale.eventId);
   if (!hasGeneratedTicket(sale, event)) return sale.paid ? `<div class="ticket-file-actions is-not-generated"><button class="ticket-file-button ticket-generate-button" type="button" data-ticket-generate="${sale.id}">Gerar ingresso em PDF</button></div>` : `<div class="ticket-generation-locked"><strong>Ingresso aguardando pagamento</strong><span>Confirme o pagamento para liberar a geração do PDF e QR Code.</span></div>`;
-  return `<div class="ticket-file-actions is-generated"><button class="ticket-file-button" type="button" data-ticket-view="${sale.id}">Ver ingresso</button><button class="ticket-file-button ticket-share-button" type="button" data-ticket-send="${sale.id}">Enviar ingresso</button><button class="ticket-file-button ticket-delete-button" type="button" data-ticket-delete="${sale.id}">Excluir ingresso</button></div>`;
+  return `<div class="ticket-file-actions is-generated"><button class="ticket-file-button" type="button" data-ticket-view="${sale.id}">Ver ingresso</button><button class="ticket-file-button ticket-share-button" type="button" data-ticket-send="${sale.id}">Enviar ingresso</button><button class="ticket-file-button ticket-print-button" type="button" data-ticket-print="${sale.id}">IMPRIMIR</button><button class="ticket-file-button ticket-delete-button" type="button" data-ticket-delete="${sale.id}">Excluir ingresso</button></div>`;
 }
 function tableReservationCheckinsHtml(sale) {
   const occupants = reservationOccupants(sale);
@@ -2152,11 +2223,13 @@ document.addEventListener("click", (event) => {
   const generateButton = event.target.closest("[data-ticket-generate]");
   const viewButton = event.target.closest("[data-ticket-view]");
   const sendButton = event.target.closest("[data-ticket-send]");
+  const printButton = event.target.closest("[data-ticket-print]");
   const deleteButton = event.target.closest("[data-ticket-delete]");
-  if (!generateButton && !viewButton && !sendButton && !deleteButton) return;
+  if (!generateButton && !viewButton && !sendButton && !printButton && !deleteButton) return;
   event.preventDefault();
   event.stopPropagation();
   if (sendButton) return openTicketSendOptions(sendButton.dataset.ticketSend);
+  if (printButton) return openThermalPrintSettings(printButton.dataset.ticketPrint);
   if (deleteButton) return openDeleteGeneratedTicket(deleteButton.dataset.ticketDelete);
   const button = generateButton || viewButton;
   const label = button.textContent;
@@ -2171,6 +2244,9 @@ document.querySelector("[data-close-ticket-send]").addEventListener("click", () 
 $("ticketDeleteModal").addEventListener("cancel", (event) => { event.preventDefault(); $("ticketDeleteModal").close(); });
 document.querySelectorAll("[data-close-ticket-delete]").forEach((button) => button.addEventListener("click", () => $("ticketDeleteModal").close()));
 $("confirmTicketDelete").addEventListener("click", () => deleteGeneratedTicket($("ticketDeleteModal").dataset.saleId));
+$("thermalPrintModal").addEventListener("cancel", (event) => { event.preventDefault(); $("thermalPrintModal").close(); });
+document.querySelectorAll("[data-close-thermal-print]").forEach((button) => button.addEventListener("click", () => $("thermalPrintModal").close()));
+$("confirmThermalPrint").addEventListener("click", printGeneratedTicket);
 $("confirmQrCheckin").addEventListener("click", () => toggleQrTicketCheckin($("qrValidationModal").dataset.token));
 $("nextQrScan").addEventListener("click", () => { $("qrValidationModal").close(); location.hash = "portaria"; openQrScanner(); });
 $("qrValidationModal").addEventListener("cancel", (event) => { event.preventDefault(); $("qrValidationModal").close(); location.hash = "portaria"; });

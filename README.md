@@ -1,5 +1,12 @@
 # Le Beef — painel de vendas de ingressos
 
+## Impressão térmica real — versão 5.7.0
+
+- Ingressos gerados podem ser impressos em layout térmico de 58 mm ou 80 mm.
+- A escolha da impressora acontece no diálogo nativo do navegador e do sistema operacional.
+- Cada ingresso imprime apenas evento, participante, modalidade, tipo, reserva, valor, pagamento, QR Code e código de validação.
+- O transporte de impressão possui ponto de integração opcional para um futuro aplicativo auxiliar (`window.leBeefPrintBridge.printHtml`).
+
 ## Modal de mesa responsivo — versão 5.6.1
 
 - O diálogo de mesa ocupada respeita margens mínimas no desktop e no celular.
