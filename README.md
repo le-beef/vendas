@@ -1,5 +1,15 @@
 # Le Beef — painel de vendas de ingressos
 
+## Tempo do Toast — versão 5.7.2
+
+- Os avisos temporários permanecem visíveis durante 5 segundos.
+
+## Toast responsivo — versão 5.7.1
+
+- Mantém os avisos temporários inteiramente dentro da viewport em computadores, tablets e celulares.
+- Respeita a área segura inferior do aparelho e limita a largura com 16 px de margem lateral em telas estreitas.
+- Permite quebra de linha e crescimento automático para mensagens longas, sem alterar o visual nem a duração dos avisos.
+
 ## Impressão térmica real — versão 5.7.0
 
 - Ingressos gerados podem ser impressos em layout térmico de 58 mm ou 80 mm.

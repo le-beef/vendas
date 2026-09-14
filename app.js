@@ -2032,7 +2032,7 @@ async function deleteSale(id) {
   return true;
 }
 async function deleteEvent(id) { if (!requireRole(["admin"], "Somente administradores podem excluir eventos.")) return; const event = state.events.find((item) => item.id === id); if (!event || !confirm(`Excluir o evento “${event.name}” e todas as vendas e históricos dele? Esta ação não pode ser desfeita.`)) return; const changes = { [`events/${id}`]: null }; state.sales.filter((sale) => sale.eventId === id).forEach((sale) => { changes[`sales/${sale.id}`] = null; }); state.auditLogs.filter((log) => log.eventId === id).forEach((log) => { changes[`auditLogs/${log.id}`] = null; }); if (isDemo) { state.events = state.events.filter((item) => item.id !== id); state.sales = state.sales.filter((sale) => sale.eventId !== id); state.auditLogs = state.auditLogs.filter((log) => log.eventId !== id); persistDemo(); render(); } else { await update(ref(db), changes); } toast("Evento, vendas e históricos vinculados excluídos."); }
-function toast(message) { const el = $("toast"); el.textContent = message; el.classList.add("visible"); setTimeout(() => el.classList.remove("visible"), 3200); }
+function toast(message) { const el = $("toast"); el.textContent = message; el.classList.add("visible"); setTimeout(() => el.classList.remove("visible"), 5000); }
 function setPasswordVisibility(button, visible) {
   const input = $(button.dataset.togglePassword);
   if (!input) return;
