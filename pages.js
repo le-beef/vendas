@@ -4,7 +4,7 @@ export function createEventPages(api) {
   const header = document.querySelector('.selected-event-header');
   main.prepend(header);
   const actions = header.querySelector('.event-actions');
-  header.insertAdjacentHTML('beforeend', '<a class="switch-event" href="#eventos">⇄ Trocar evento</a>');
+  header.insertAdjacentHTML('beforeend', '<a class="switch-event button secondary" href="#eventos">⇄ Trocar evento</a>');
   const nav = document.createElement('nav');
   nav.className = 'event-navigation';
   nav.setAttribute('aria-label', 'Navegação do evento');

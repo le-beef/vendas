@@ -1,5 +1,11 @@
 # Le Beef — painel de vendas de ingressos
 
+## Botões responsivos e padronizados — versão 5.8.8
+
+- `Trocar evento` agora segue o padrão dos botões secundários e ocupa a largura disponível no celular, como os botões de Excel.
+- Ações de ingresso usam duas colunas no computador e no celular, evitando cortes em `IMPRIMIR` e `Excluir ingresso`.
+- Botões de ingresso, venda, reservas e exportação compartilham altura, alinhamento e tratamento de textos, preservando as cores de cada função.
+
 ## Mesas persistentes e Excel da Portaria — versão 5.8.7
 
 - Reservas de mesas e bistrôs permanecem detalhadas e na mesma posição após gerar, excluir ou alterar ingressos e pagamentos.
