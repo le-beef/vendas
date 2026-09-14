@@ -25,6 +25,8 @@ let participantSearchQuery = "";
 let tableReservationSearchQuery = "";
 let tableReservationAreaFilter = "all";
 let tableReservationPaymentFilter = "all";
+const expandedParticipantSaleIds = new Set();
+let participantViewportAnchor = null;
 let eventMapDraft = { areas: [], furniture: [] };
 let activeMapEditorArea = "";
 let activeMapViewerArea = "";
@@ -607,8 +609,30 @@ async function buildTicketPdf(saleId, generate = false) {
   return { blob, filename: ticketPdfName(event, sale), sale, event, count: tickets.length };
 }
 function downloadBlob(blob, filename) { const url = URL.createObjectURL(blob); const link = document.createElement("a"); link.href = url; link.download = filename; document.body.append(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 1500); }
+function preserveParticipantDetails(saleId) {
+  const row = [...document.querySelectorAll("#salesList [data-sale-row]")].find((item) => item.dataset.saleRow === saleId);
+  expandedParticipantSaleIds.add(saleId);
+  if (row) participantViewportAnchor = { saleId, top: row.getBoundingClientRect().top, expiresAt: Date.now() + 5000 };
+}
+function restoreParticipantViewport() {
+  if (!participantViewportAnchor || participantViewportAnchor.expiresAt < Date.now()) { participantViewportAnchor = null; return; }
+  const anchor = participantViewportAnchor;
+  requestAnimationFrame(() => {
+    const row = [...document.querySelectorAll("#salesList [data-sale-row]")].find((item) => item.dataset.saleRow === anchor.saleId);
+    if (!row) return;
+    window.scrollBy(0, row.getBoundingClientRect().top - anchor.top);
+    participantViewportAnchor = null;
+  });
+}
 async function generateTicketPdf(saleId) {
-  try { const result = await buildTicketPdf(saleId, true); downloadBlob(result.blob, result.filename); render(); toast(`${result.count} ingresso(s) gerado(s) em PDF.`); }
+  preserveParticipantDetails(saleId);
+  try {
+    const sale = state.sales.find((item) => item.id === saleId);
+    if (!sale) throw new Error("Venda não encontrada.");
+    const tickets = await ensureQrTickets(sale);
+    render();
+    toast(`${tickets.length} ingresso(s) gerado(s) com sucesso.`);
+  }
   catch (error) { console.error(error); toast(error.message || "Não foi possível gerar os ingressos."); }
 }
 async function viewTicketPdf(saleId) {
@@ -740,6 +764,7 @@ async function deleteGeneratedTicket(saleId) {
   const event = state.events.find((item) => item.id === sale?.eventId);
   if (!sale) return;
   if (qrTicketsFor(sale, event).some((ticket) => ticket.checkedIn)) return toast("Não é possível excluir um ingresso que já teve check-in.");
+  preserveParticipantDetails(saleId);
   try {
     const ticketCount = storedQrTickets(sale).length;
     const details = `Excluiu ${ticketCount} ingresso${ticketCount === 1 ? "" : "s"} com QR Code (${isTableReservation(sale) ? "mesa/bistrô" : "individual"}).`;
@@ -1243,8 +1268,7 @@ function getSaleTicketItems() {
     return { kind: "package", packageKind: option.item.packageKind || "package", packageId: option.item.id, packageName: option.item.name, ticketTypeId: `package:${option.item.id}`, ticketTypeName: `${option.item.packageKind === "courtesy" ? "Cortesia" : "Pacote"}: ${option.item.name}`, unitPrice: Number(option.item.price || 0), quantity, subtotal: Number(option.item.price || 0) * quantity, components };
   });
 }
-function addSaleEditButtons() { if (!hasRole("admin", "event_manager", "seller")) return; document.querySelectorAll("[data-sale-row]").forEach((row) => { const actions = row.lastElementChild; if (!actions?.querySelector("[data-edit-sale]")) { const button = document.createElement("button"); button.type = "button"; button.className = "edit-button"; button.dataset.editSale = row.dataset.saleRow; button.textContent = "Editar"; actions.prepend(button); } }); }
-function toggleParticipantCard(row) { if (!row) return; const expanded = row.classList.toggle("is-expanded"); row.setAttribute("aria-expanded", String(expanded)); const button = row.querySelector("[data-toggle-sale-details]"); if (button) button.textContent = expanded ? "Ocultar detalhes" : "Detalhar"; }
+function toggleParticipantCard(row) { if (!row) return; const expanded = row.classList.toggle("is-expanded"); const saleId = row.dataset.saleRow; if (saleId) { if (expanded) expandedParticipantSaleIds.add(saleId); else expandedParticipantSaleIds.delete(saleId); } row.setAttribute("aria-expanded", String(expanded)); const button = row.querySelector("[data-toggle-sale-details]"); if (button) button.textContent = expanded ? "Ocultar detalhes" : "Detalhar"; }
 function toggleTableReservationCard(card) { if (!card) return; const expanded = card.classList.toggle("is-expanded"); card.setAttribute("aria-expanded", String(expanded)); const button = card.querySelector("[data-toggle-table-reservation-details]"); if (button) button.textContent = expanded ? "Ocultar detalhes" : "Detalhar"; }
 function ticketFileActionsHtml(sale) {
   if (!hasRole("admin", "event_manager", "seller") || !isCommercialSale(sale)) return "";
@@ -1920,14 +1944,14 @@ function render() {
   const canManageSales = hasRole("admin", "event_manager", "seller");
   const paymentControl = (sale) => { const courtesy = saleIsCourtesy(sale, selectedEvent) || sale.courtesy; return `<span class="payment-display">${courtesy ? `<span class="payment paid courtesy-payment">Cortesia</span>` : canManageSales ? `<button class="payment ${sale.paid ? "paid" : ""}" data-paid="${sale.id}">${sale.paid ? "✓ Pago" : "Pendente"}</button>` : `<span class="payment ${sale.paid ? "paid" : ""}">${sale.paid ? "✓ Pago" : "Pendente"}</span>`}${paymentDetailsHtml(sale)}</span>`; };
   const checkinControl = (sale) => { const total = saleQuantity(sale, selectedEvent); const done = saleCheckinCount(sale, selectedEvent); const checked = total > 0 && done === total; return `<button class="status ${checked ? "checked" : ""}" data-checkin="${sale.id}">${checked ? "✓ Check-in" : done ? `${done}/${total} entradas` : "Fazer check-in"}</button>`; };
-  const actionControl = (sale) => canManageSales ? `${ticketFileActionsHtml(sale)}<button class="delete-button" data-delete-sale="${sale.id}">Excluir</button>` : `<span class="role-readonly">Somente consulta</span>`;
-  $("salesList").innerHTML = visibleSales.length ? visibleSales.map((sale) => { const quantity = saleQuantity(sale, selectedEvent); const total = saleTotal(sale, selectedEvent); return `<tr class="sales-row" data-sale-row="${sale.id}" aria-expanded="false"><td><span class="desktop-participant-content"><strong>${escapeHtml(sale.buyerName)}</strong><small>${quantity} ingresso${quantity > 1 ? "s" : ""}</small>${participantContactHtml(sale, selectedEvent?.name)}</span><span class="mobile-card-overview"><span class="mobile-overview-participant"><small class="mobile-field-label">Participante</small><strong>${escapeHtml(sale.buyerName)}</strong><small>${quantity} ingresso${quantity > 1 ? "s" : ""}</small></span><span class="mobile-overview-value mobile-financial"><small class="mobile-field-label">Valor</small><strong>${money.format(total)}</strong></span><span class="mobile-overview-contact"><span>${escapeHtml(formatPhoneDisplay(sale.buyerPhone) || "Sem telefone")}</span>${whatsappButtonHtml(sale, selectedEvent?.name)}</span><span class="mobile-overview-payment mobile-financial"><small class="mobile-field-label">Pagamento</small>${paymentControl(sale)}</span><span class="mobile-overview-entry"><small class="mobile-field-label">Entrada</small>${checkinControl(sale)}</span><button class="participant-detail-toggle" type="button" data-toggle-sale-details>Detalhar</button></span></td><td>${saleTicketBreakdownHtml(sale, selectedEvent)}</td><td class="sale-observation">${escapeHtml(sale.notes || "Sem observação")}</td><td class="financial-column mobile-detail-original">${money.format(total)}</td><td class="financial-column mobile-detail-original">${paymentControl(sale)}</td><td class="mobile-detail-original">${checkinControl(sale)}</td><td>${actionControl(sale)}</td></tr>`; }).join("") : `<tr><td colspan="7" class="empty">${participantSearchQuery || activeFilterCount ? "Nenhum participante encontrado com esses filtros." : "Nenhuma venda neste evento."}</td></tr>`;
+  const actionControl = (sale) => canManageSales ? `${ticketFileActionsHtml(sale)}<div class="sale-record-actions"><button class="edit-button" type="button" data-edit-sale="${sale.id}">Editar</button><button class="delete-button" type="button" data-delete-sale="${sale.id}">Excluir</button></div>` : `<span class="role-readonly">Somente consulta</span>`;
+  $("salesList").innerHTML = visibleSales.length ? visibleSales.map((sale) => { const quantity = saleQuantity(sale, selectedEvent); const total = saleTotal(sale, selectedEvent); const expanded = expandedParticipantSaleIds.has(sale.id); return `<tr class="sales-row${expanded ? " is-expanded" : ""}" data-sale-row="${sale.id}" aria-expanded="${expanded}"><td><span class="desktop-participant-content"><strong>${escapeHtml(sale.buyerName)}</strong><small>${quantity} ingresso${quantity > 1 ? "s" : ""}</small>${participantContactHtml(sale, selectedEvent?.name)}</span><span class="mobile-card-overview"><span class="mobile-overview-participant"><small class="mobile-field-label">Participante</small><strong>${escapeHtml(sale.buyerName)}</strong><small>${quantity} ingresso${quantity > 1 ? "s" : ""}</small></span><span class="mobile-overview-value mobile-financial"><small class="mobile-field-label">Valor</small><strong>${money.format(total)}</strong></span><span class="mobile-overview-contact"><span>${escapeHtml(formatPhoneDisplay(sale.buyerPhone) || "Sem telefone")}</span>${whatsappButtonHtml(sale, selectedEvent?.name)}</span><span class="mobile-overview-payment mobile-financial"><small class="mobile-field-label">Pagamento</small>${paymentControl(sale)}</span><span class="mobile-overview-entry"><small class="mobile-field-label">Entrada</small>${checkinControl(sale)}</span><button class="participant-detail-toggle" type="button" data-toggle-sale-details>${expanded ? "Ocultar detalhes" : "Detalhar"}</button></span></td><td>${saleTicketBreakdownHtml(sale, selectedEvent)}</td><td class="sale-observation">${escapeHtml(sale.notes || "Sem observação")}</td><td class="financial-column mobile-detail-original">${money.format(total)}</td><td class="financial-column mobile-detail-original">${paymentControl(sale)}</td><td class="mobile-detail-original">${checkinControl(sale)}</td><td>${actionControl(sale)}</td></tr>`; }).join("") : `<tr><td colspan="7" class="empty">${participantSearchQuery || activeFilterCount ? "Nenhum participante encontrado com esses filtros." : "Nenhuma venda neste evento."}</td></tr>`;
   $("allSalesList").innerHTML = visibleSales.length ? visibleSales.map((sale) => { const quantity = saleQuantity(sale, selectedEvent); const rowTotal = filteredTicketType ? saleTypeTotal(sale, filteredTicketType, selectedEvent) : saleTotal(sale, selectedEvent); return `<tr class="sales-row" data-sale-row="${sale.id}"><td><strong>${escapeHtml(sale.buyerName)}</strong><small>${quantity} ingresso${quantity > 1 ? "s" : ""}</small></td><td>${saleTicketBreakdownHtml(sale, selectedEvent)}</td><td class="sale-note"><span class="phone-line"><strong>${escapeHtml(formatPhoneDisplay(sale.buyerPhone) || "Não informado")}</strong>${whatsappButtonHtml(sale, selectedEvent?.name)}</span>${sale.notes ? `<small>${escapeHtml(sale.notes)}</small>` : ""}</td><td>${escapeHtml(selectedEvent?.name || "Evento removido")}</td><td class="financial-column">${money.format(rowTotal)}</td><td class="financial-column">${paymentControl(sale)}</td><td>${checkinControl(sale)}</td><td>${actionControl(sale)}</td></tr>`; }).join("") : `<tr><td colspan="8" class="empty">${participantSearchQuery || activeFilterCount ? "Nenhum participante encontrado com esses filtros." : "Nenhum participante neste evento."}</td></tr>`;
-  addSaleEditButtons();
   const currentEvent = $("saleEvent").value; $("saleEvent").innerHTML = `<option value="">Selecione o evento</option>${events.map((event) => `<option value="${event.id}">${escapeHtml(event.name)} — ${priceLabel(event)}</option>`).join("")}`; if (events.some((event) => event.id === currentEvent)) $("saleEvent").value = currentEvent; populateSaleTicketItemOptions($("saleEvent").value);
   renderAuditHistory();
   syncApplicationPage();
   scheduleArchiveRefresh();
+  restoreParticipantViewport();
 }
 
 async function saveEvent(data, id = "") {

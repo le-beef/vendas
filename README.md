@@ -1,5 +1,11 @@
 # Le Beef — painel de vendas de ingressos
 
+## Detalhes e ações do ingresso — versão 5.8.4
+
+- As funções do ingresso ficam agrupadas antes das ações gerais da venda.
+- Editar e Excluir aparecem juntos no final dos detalhes, lado a lado.
+- Gerar um ingresso não baixa mais o PDF automaticamente e mantém o participante expandido na mesma posição da tela.
+
 ## QR Code térmico configurável — versão 5.8.3
 
 - O QR Code da impressão térmica pode ser configurado de 18 mm até 40 mm.
