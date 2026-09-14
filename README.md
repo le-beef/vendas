@@ -1,5 +1,10 @@
 # Le Beef — painel de vendas de ingressos
 
+## PDF restaurado — versão 5.8.1
+
+- O PDF voltou ao mesmo visual da versão 5.7.2, no formato vertical de 90 × 160 mm.
+- A alteração é exclusiva do PDF; impressão térmica, QR Code, validação e demais recursos permanecem iguais.
+
 ## Ingresso térmico compacto — versão 5.8.0
 
 - PDF e impressão pelo navegador usam páginas independentes de 80 mm de altura, nas larguras de 58 mm ou 80 mm.
