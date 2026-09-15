@@ -5,8 +5,8 @@ import { firebaseConfig } from "./firebase-config.js";
 import { createEventPages } from "./pages.js?v=6";
 import { decodeQrImageData } from "./qr-scanner-tools.js?v=1";
 import { eventIsArchived, eventArchiveDeadline } from "./event-archive.js?v=1";
-import { createTicketPdf, createQrDataUrl } from "./ticket-tools.js?v=5";
-import { THERMAL_PAPER_WIDTHS, buildThermalPrintHtml, normalizeThermalPaperWidth } from "./thermal-print.js?v=5";
+import { createTicketPdf, createQrDataUrl } from "./ticket-tools.js?v=6";
+import { THERMAL_PAPER_WIDTHS, buildThermalPrintHtml, normalizeThermalPaperWidth } from "./thermal-print.js?v=6";
 import { DEFAULT_TICKET_DESIGN, normalizeTicketDesign, ticketHeightForDesign } from "./ticket-layout.js?v=3";
 
 const demoEvents = [
@@ -348,7 +348,7 @@ function qrTicketsFor(sale, event) {
   return blueprints.map((blueprint, index) => {
     const item = stored.find((ticket) => ticket.sourceKey === blueprint.sourceKey) || stored[index] || {};
     const legacyChecked = isTableReservation(sale) ? reservationOccupantCheckins(sale)[blueprint.occupantIndex] : Boolean(sale.checkedIn);
-    return { ...blueprint, token: item.token || "", checkedIn: item.checkedIn === undefined ? legacyChecked : Boolean(item.checkedIn), checkedInAt: item.checkedInAt || null };
+    return { ...blueprint, token: item.token || "", checkedIn: item.checkedIn === undefined ? legacyChecked : Boolean(item.checkedIn), checkedInAt: item.checkedInAt || null, generatedAt:item.generatedAt || null, generatedByUid:item.generatedByUid || "", generatedByName:item.generatedByName || "", generatedByEmail:item.generatedByEmail || "" };
   });
 }
 function saleCheckinCount(sale, event) { const tickets = qrTicketsFor(sale, event); return tickets.length ? tickets.filter((ticket) => ticket.checkedIn).length : sale.checkedIn ? saleQuantity(sale, event) : 0; }
@@ -389,7 +389,7 @@ async function renderTicketConfigPreview() {
   if (revision !== ticketPreviewRevision) return;
   const event = state.events.find((item) => item.id === form.dataset.eventId) || {};
   const type = ticketTypesFor(event)[0] || { name: "Ingresso", price: 29.9 };
-  const ticket = { admissionType: "Ingresso individual", participantName: "Alanda Silva", ticketTypeName: type.name, reservationLabel: "", ticketValue: money.format(Number(type.price || 29.9)), paymentStatus: "Pago", paymentDetail: "Pix em 14/09/2026", shortCode: "2C4E26E9" };
+  const ticket = { admissionType: "Ingresso individual", participantName: "Alanda Silva", ticketTypeName: type.name, reservationLabel: "", ticketValue: money.format(Number(type.price || 29.9)), paymentStatus: "Pago", paymentDetail: "Pix em 14/09/2026", shortCode: "2C4E26E9", generatedByName:"Administrador", generatedAtText:"14/09/2026 às 12:04" };
   const documentHtml = buildThermalPrintHtml({ event: { ...event, name: event.name || "Nome do evento", dateText: event.date ? dateText(event.date) : "30/09/2026", place: event.place || "Le Beef" }, sale: { buyerName: ticket.participantName }, tickets: [ticket], qrCodes: [qrCode], paperWidth: design.paperWidth, ticketDesign: design });
   const frame = $("ticketPreviewFrame");
   frame.style.width = `${Math.round(design.paperWidth * 3.7795)}px`;
@@ -611,9 +611,13 @@ async function ensureQrTickets(sale) {
   if (!sale.paid) throw new Error("Confirme o pagamento antes de gerar os ingressos.");
   const event = state.events.find((item) => item.id === sale.eventId);
   const existing = qrTicketsFor(sale, event);
-  const tickets = existing.map((ticket) => ({ ...ticket, token: ticket.token || qrToken() }));
+  const generatedAt = Date.now();
+  const generatedByUid = currentUser?.uid || "unknown";
+  const generatedByName = currentUserProfile?.name || currentUser?.email || "Usuário";
+  const generatedByEmail = currentUser?.email || currentUserProfile?.email || "";
+  const tickets = existing.map((ticket) => ticket.token ? ticket : { ...ticket, token:qrToken(), generatedAt, generatedByUid, generatedByName, generatedByEmail });
   if (!tickets.length) throw new Error("Esta venda não possui participantes para gerar ingressos.");
-  const serialized = tickets.map((ticket) => ({ sourceKey: ticket.sourceKey, participantName: ticket.participantName, ticketTypeId: ticket.ticketTypeId, ticketTypeName: ticket.ticketTypeName, occupantIndex: ticket.occupantIndex, token: ticket.token, checkedIn: Boolean(ticket.checkedIn), ...(ticket.checkedInAt ? { checkedInAt: ticket.checkedInAt } : {}) }));
+  const serialized = tickets.map((ticket) => ({ sourceKey: ticket.sourceKey, participantName: ticket.participantName, ticketTypeId: ticket.ticketTypeId, ticketTypeName: ticket.ticketTypeName, occupantIndex: ticket.occupantIndex, token: ticket.token, checkedIn: Boolean(ticket.checkedIn), ...(ticket.checkedInAt ? { checkedInAt: ticket.checkedInAt } : {}), ...(ticket.generatedAt ? { generatedAt:ticket.generatedAt } : {}), ...(ticket.generatedByUid ? { generatedByUid:ticket.generatedByUid } : {}), ...(ticket.generatedByName ? { generatedByName:ticket.generatedByName } : {}), ...(ticket.generatedByEmail ? { generatedByEmail:ticket.generatedByEmail } : {}) }));
   const details = `Gerou ${tickets.length} ingresso${tickets.length === 1 ? "" : "s"} em PDF com QR Code (${isTableReservation(sale) ? "mesa/bistrô" : "individual"}).`;
   if (isDemo) { sale.qrTickets = serialized; appendDemoAudit("edited", sale, details); persistDemo(); }
   else {
@@ -627,6 +631,16 @@ function ticketPdfName(event, sale) {
   const clean = (value) => normalizedSearch(value).replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
   return `ingressos-${clean(event?.name || "evento")}-${clean(sale?.buyerName || "participante")}.pdf`;
 }
+function ticketGenerationOrigin(sale, ticket) {
+  const generationLog = state.auditLogs
+    .filter((log) => log.saleId === sale.id && /gerou .*ingresso/i.test(String(log.details || "")))
+    .sort((a, b) => Number(b.timestamp || 0) - Number(a.timestamp || 0))[0];
+  const timestamp = Number(ticket.generatedAt || generationLog?.timestamp);
+  const generatedAtText = Number.isFinite(timestamp) && timestamp > 0
+    ? `${new Date(timestamp).toLocaleDateString("pt-BR", { day:"2-digit", month:"2-digit", year:"numeric" })} às ${new Date(timestamp).toLocaleTimeString("pt-BR", { hour:"2-digit", minute:"2-digit" })}`
+    : "Data e hora não registradas";
+  return { generatedByName:ticket.generatedByName || generationLog?.actorName || "Usuário não identificado", generatedAtText };
+}
 function hasGeneratedTicket(sale, event) {
   const tickets = qrTicketsFor(sale, event);
   return Boolean(tickets.length && tickets.every((ticket) => ticket.token));
@@ -639,7 +653,7 @@ async function buildTicketPdf(saleId, generate = false) {
   if (!tickets.length || tickets.some((ticket) => !ticket.token)) throw new Error("Gere o ingresso antes de visualizar ou enviar.");
   const paymentStatus = sale.courtesy || sale.paymentMethod === "courtesy" ? "Cortesia" : sale.paid ? "Pago" : "Pendente";
   const paymentDetail = sale.paid && !sale.courtesy ? paymentMethodLabel(sale.paymentMethod) : sale.courtesy ? "Sem cobrança" : "Aguardando pagamento";
-  const printable = tickets.map((ticket) => ({ ...ticket, admissionType: isTableReservation(sale) ? `${furnitureKindLabel(sale.furnitureKind)} / reserva` : "Ingresso individual", eventName: event?.name || "Evento", eventDate: event?.date ? dateText(event.date) : "", eventPlace: event?.place || "", validationUrl: qrValidationUrl(ticket.token), shortCode: ticket.token.slice(-8).toUpperCase(), ticketValue: money.format(Number(ticket.value || 0)), paymentStatus, paymentDetail }));
+  const printable = tickets.map((ticket) => ({ ...ticket, admissionType: isTableReservation(sale) ? `${furnitureKindLabel(sale.furnitureKind)} / reserva` : "Ingresso individual", eventName: event?.name || "Evento", eventDate: event?.date ? dateText(event.date) : "", eventPlace: event?.place || "", validationUrl: qrValidationUrl(ticket.token), shortCode: ticket.token.slice(-8).toUpperCase(), ticketValue: money.format(Number(ticket.value || 0)), paymentStatus, paymentDetail, ...ticketGenerationOrigin(sale, ticket) }));
   const blob = await createTicketPdf(printable, eventTicketDesign(event));
   return { blob, filename: ticketPdfName(event, sale), sale, event, count: tickets.length };
 }
@@ -718,7 +732,7 @@ async function thermalPrintData(sale) {
   if (!tickets.length || tickets.some((ticket) => !ticket.token)) throw new Error("Gere o ingresso antes de imprimir.");
   const paymentStatus = sale.courtesy || sale.paymentMethod === "courtesy" ? "Cortesia" : sale.paid ? "Pago" : "Pendente";
   const paymentDetail = sale.paid && !sale.courtesy ? `${paymentMethodLabel(sale.paymentMethod)}${sale.paymentDate ? ` em ${paymentDateLabel(sale.paymentDate)}` : ""}` : sale.courtesy ? "Sem cobrança" : "Aguardando pagamento";
-  const printableTickets = tickets.map((ticket) => ({ ...ticket, admissionType: isTableReservation(sale) ? `${furnitureKindLabel(sale.furnitureKind)} / reserva` : "Ingresso individual", reservationLabel: isTableReservation(sale) ? sale.reservationLabel || "Mesa/bistrô" : "", ticketValue: money.format(Number(ticket.value || 0)), paymentStatus, paymentDetail, shortCode: ticket.token.slice(-8).toUpperCase() }));
+  const printableTickets = tickets.map((ticket) => ({ ...ticket, admissionType: isTableReservation(sale) ? `${furnitureKindLabel(sale.furnitureKind)} / reserva` : "Ingresso individual", reservationLabel: isTableReservation(sale) ? sale.reservationLabel || "Mesa/bistrô" : "", ticketValue: money.format(Number(ticket.value || 0)), paymentStatus, paymentDetail, shortCode: ticket.token.slice(-8).toUpperCase(), ...ticketGenerationOrigin(sale, ticket) }));
   const qrCodes = await Promise.all(tickets.map((ticket) => createQrDataUrl(qrValidationUrl(ticket.token), { width: 480 })));
   return { event: { ...event, dateText: event?.date ? dateText(event.date) : "" }, sale, tickets: printableTickets, qrCodes, ticketDesign: eventTicketDesign(event) };
 }

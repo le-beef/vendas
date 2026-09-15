@@ -1,5 +1,12 @@
 # Le Beef — painel de vendas de ingressos
 
+## Identificação da geração dos ingressos — versão 5.8.13
+
+- Ao gerar um ingresso, o sistema grava junto ao QR Code o usuário, a data e a hora exatos da geração.
+- O PDF digital e a impressão térmica exibem essas informações no rodapé de cada ingresso.
+- Os dados permanecem imutáveis enquanto o ingresso existir; somente excluir e gerar novamente cria um novo registro de geração.
+- As regras do Firebase validam e impedem a alteração isolada desses dados depois que foram gravados.
+
 ## Separação física dos ingressos e tema claro — versão 5.8.12
 
 - Impressões com dois ou mais ingressos recebem uma faixa física de 5 mm após cada ingresso.
