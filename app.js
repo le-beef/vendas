@@ -2,7 +2,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/11.
 import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged, browserLocalPersistence, inMemoryPersistence, setPersistence, createUserWithEmailAndPassword, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js";
 import { getDatabase, ref, push, set, update, onValue, get, query, orderByChild, equalTo, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-database.js";
 import { firebaseConfig } from "./firebase-config.js";
-import { createEventPages } from "./pages.js?v=6";
+import { createEventPages } from "./pages.js?v=7";
 import { decodeQrImageData } from "./qr-scanner-tools.js?v=1";
 import { eventIsArchived, eventArchiveDeadline } from "./event-archive.js?v=1";
 import { createTicketPdf, createQrDataUrl } from "./ticket-tools.js?v=6";
@@ -177,7 +177,7 @@ async function handleAuthenticatedUser(user) {
   clearDataSubscriptions();
   if (!user) {
     clearSelectedEventSession(); sessionStorage.removeItem(AUTH_SESSION_KEY); if (!location.hash.startsWith("#validar=")) navigateToEventsHome();
-    currentUser = null; currentUserProfile = null; state = { events: [], sales: [], users: [], auditLogs: [] }; $("connectionDot").classList.remove("online"); $("connectionText").textContent = "Desconectado"; if ($("userManagementModal").open) $("userManagementModal").close(); applyRolePermissions(); render(); showAccessModal(); return;
+    currentUser = null; currentUserProfile = null; state = { events: [], sales: [], users: [], auditLogs: [] }; $("connectionDot").classList.remove("online"); $("connectionText").textContent = "Desconectado"; applyRolePermissions(); render(); showAccessModal(); return;
   }
   try {
     const profileSnapshot = await get(ref(db, `users/${user.uid}`));
@@ -1979,6 +1979,7 @@ function syncApplicationPage() {
   if (selectedEventId && state.events.some((event) => event.id === selectedEventId)) rememberSelectedEvent(selectedEventId);
   const selectedEvent = state.events.find((event) => event.id === selectedEventId);
   syncEventPages({event:selectedEvent, events:state.events, sales:state.sales.filter(sale => sale.eventId === selectedEventId && isCommercialSale(sale)), admin:hasRole("admin"), manager:hasRole("admin", "event_manager"), seller:hasRole("admin", "event_manager", "seller"), tables:eventUsesTableMap(selectedEvent)});
+  if (location.hash === "#gerenciar-usuarios" && hasRole("admin")) renderUsers();
   syncQrValidationFromHash();
 }
 
@@ -2338,7 +2339,7 @@ $("accessModal").addEventListener("cancel", (event) => event.preventDefault());
 $("accessForm").addEventListener("submit", async (event) => { event.preventDefault(); if (!auth) return; const button = $("accessSubmitButton"); button.disabled = true; button.textContent = "Entrando..."; $("accessError").textContent = ""; try { await signInWithEmailAndPassword(auth, $("accessEmail").value.trim(), $("accessPassword").value); $("accessPassword").value = ""; hidePasswords($("accessForm")); } catch (error) { $("accessError").textContent = authErrorMessage(error); } finally { button.disabled = false; button.textContent = "Entrar no painel"; } });
 $("resetPasswordButton").addEventListener("click", async () => { const email = $("accessEmail").value.trim(); if (!auth) { $("accessError").textContent = "O Firebase ainda está carregando. Tente novamente."; return; } if (!email) { $("accessError").textContent = "Digite seu e-mail para redefinir a senha."; $("accessEmail").focus(); return; } try { await sendPasswordResetEmail(auth, email); $("accessError").textContent = "Enviamos as instruções para o seu e-mail."; } catch (error) { $("accessError").textContent = authErrorMessage(error); } });
 $("logoutButton").addEventListener("click", async () => { $("userMenu").open = false; if (isDemo) { toast("O modo local usa um perfil de demonstração."); return; } await signOut(auth); });
-$("manageUsersButton").addEventListener("click", () => { if (!requireRole(["admin"])) return; $("userMenu").open = false; renderUsers(); $("userManagementModal").showModal(); });
+$("manageUsersButton").addEventListener("click", () => { if (!requireRole(["admin"])) return; $("userMenu").open = false; location.hash = selectedEventId ? "gerenciar-usuarios" : "eventos"; if (!selectedEventId) toast("Selecione um evento e acesse Gerenciar usuários pela área Mais."); });
 document.querySelector('#createUserForm [name="role"]').addEventListener("change", syncCreateUserEventAccess);
 $("createUserForm").addEventListener("reset", () => setTimeout(renderCreateUserEventOptions));
 $("createUserForm").addEventListener("submit", async (event) => { event.preventDefault(); const form = event.currentTarget; const button = $("createUserButton"); button.disabled = true; button.textContent = "Criando..."; try { await createManagedUser(Object.fromEntries(new FormData(form))); form.reset(); hidePasswords(form); toast("Usuário criado com sucesso."); } catch (error) { toast(authErrorMessage(error)); } finally { button.disabled = false; button.textContent = "+ Criar usuário"; } });

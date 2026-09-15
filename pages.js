@@ -12,7 +12,7 @@ export function createEventPages(api) {
   nav.innerHTML = links.map(([id,icon,label]) => `<a href="#${id}" data-page-link="${id}"><span aria-hidden="true">${icon}</span>${label}</a>`).join('');
   document.body.append(nav);
   const extra = document.createElement('div');
-  extra.innerHTML = `<section id="pageMore" class="workspace-panel" hidden><p class="eyebrow">EVENTO</p><h1>Mais opções</h1><p class="page-description">Acesse as ferramentas e configurações deste evento.</p><div class="page-shortcuts"><a href="#portaria">✓ <strong>Portaria</strong><small>Busca e check-in individual</small></a><a href="#relatorio-financeiro" data-manager>▥ <strong>Financeiro</strong><small>Recebimentos e vendedores</small></a><a href="#historico" data-manager>◷ <strong>Histórico</strong><small>Alterações da equipe</small></a><a href="#configuracao-ingresso" data-admin>▤ <strong>Configuração do ingresso</strong><small>Logo, tamanhos e prévia térmica</small></a></div><h2 data-manager>Configurações do evento</h2><div id="pageEventActions"></div></section><section id="pageDoor" class="workspace-panel" hidden><p class="eyebrow">PORTARIA</p><h1>Receber participantes</h1><p class="page-description">Leia o QR Code ou pesquise pelo nome, telefone ou mesa para registrar cada entrada.</p><div class="door-qr-card"><span class="door-qr-icon" aria-hidden="true"></span><div><strong>Validar ingresso pelo QR Code</strong><small>Abra a câmera, aponte para o código e confira se o ingresso está válido ou já foi utilizado.</small></div><button id="openQrScanner" class="button primary" type="button">Abrir câmera</button><button id="chooseQrImage" class="button secondary" type="button">Ler uma foto</button><input id="qrImageInput" type="file" accept="image/*" capture="environment" hidden></div><div class="door-tools"><label><span class="sr-only">Buscar participante</span><input id="doorSearch" type="search" placeholder="Nome, telefone ou mesa" autocomplete="off"></label><label><span class="sr-only">Situação da entrada</span><select id="doorFilter"><option value="all">Todas as entradas</option><option value="waiting">Aguardando</option><option value="checked">Check-in realizado</option></select></label></div><div class="door-export"><button id="exportDoorCheckins" class="button secondary" type="button">Excel completo dos check-ins</button></div><p id="doorCount" role="status"></p><div id="doorList"></div></section><section id="pageHistory" class="workspace-panel" hidden></section>`;
+  extra.innerHTML = `<section id="pageMore" class="workspace-panel" hidden><p class="eyebrow">EVENTO</p><h1>Mais opções</h1><p class="page-description">Acesse as ferramentas e configurações deste evento.</p><div class="page-shortcuts"><a href="#portaria">✓ <strong>Portaria</strong><small>Busca e check-in individual</small></a><a href="#relatorio-financeiro" data-manager>▥ <strong>Financeiro</strong><small>Recebimentos e vendedores</small></a><a href="#historico" data-manager>◷ <strong>Histórico</strong><small>Alterações da equipe</small></a><a href="#configuracao-ingresso" data-admin>▤ <strong>Configuração do ingresso</strong><small>Logo, tamanhos e prévia térmica</small></a><a href="#gerenciar-usuarios" data-admin>♙ <strong>Gerenciar usuários</strong><small>Contas, perfis e eventos permitidos</small></a></div><h2 data-manager>Configurações do evento</h2><div id="pageEventActions"></div></section><section id="pageDoor" class="workspace-panel" hidden><p class="eyebrow">PORTARIA</p><h1>Receber participantes</h1><p class="page-description">Leia o QR Code ou pesquise pelo nome, telefone ou mesa para registrar cada entrada.</p><div class="door-qr-card"><span class="door-qr-icon" aria-hidden="true"></span><div><strong>Validar ingresso pelo QR Code</strong><small>Abra a câmera, aponte para o código e confira se o ingresso está válido ou já foi utilizado.</small></div><button id="openQrScanner" class="button primary" type="button">Abrir câmera</button><button id="chooseQrImage" class="button secondary" type="button">Ler uma foto</button><input id="qrImageInput" type="file" accept="image/*" capture="environment" hidden></div><div class="door-tools"><label><span class="sr-only">Buscar participante</span><input id="doorSearch" type="search" placeholder="Nome, telefone ou mesa" autocomplete="off"></label><label><span class="sr-only">Situação da entrada</span><select id="doorFilter"><option value="all">Todas as entradas</option><option value="waiting">Aguardando</option><option value="checked">Check-in realizado</option></select></label></div><div class="door-export"><button id="exportDoorCheckins" class="button secondary" type="button">Excel completo dos check-ins</button></div><p id="doorCount" role="status"></p><div id="doorList"></div></section><section id="pageHistory" class="workspace-panel" hidden></section>`;
   main.append(...extra.children);
   document.querySelector('.events-panel').insertAdjacentHTML('beforebegin', '<div id="archiveHomeLink" class="page-action"><a class="button secondary" href="#arquivados">▣ Eventos arquivados <span id="archiveCount">0</span></a></div>');
   main.insertAdjacentHTML('beforeend', '<section id="pageArchived" class="workspace-panel" hidden><a class="button secondary" href="#eventos">← Eventos ativos</a><p class="eyebrow" style="margin-top:24px">ARQUIVO</p><h1>Eventos arquivados</h1><p class="page-description">Eventos encerrados e arquivados manualmente. O arquivamento automático ocorre às 23h59 do dia seguinte ao evento, no horário de Brasília.</p><div id="archivedEventsList" class="archive-list"></div></section>');
@@ -53,10 +53,11 @@ export function createEventPages(api) {
   return function sync(data) {
     context = data;
     let page = location.hash.slice(1) || 'eventos';
-    if (!['eventos', 'arquivados', 'configuracao-ingresso', ...links.map(l => l[0])].includes(page)) page = 'eventos';
+    if (!['eventos', 'arquivados', 'configuracao-ingresso', 'gerenciar-usuarios', ...links.map(l => l[0])].includes(page)) page = 'eventos';
     if (!data.event && page !== 'arquivados') page = 'eventos';
     if (['relatorio-financeiro','historico'].includes(page) && !data.manager) page = 'resumo';
     if (page === 'configuracao-ingresso' && !data.admin) page = 'resumo';
+    if (page === 'gerenciar-usuarios' && !data.admin) page = 'resumo';
     if (page === 'mesas' && !data.tables) page = 'resumo';
     const home = page === 'eventos';
     const globalPage = home || page === 'arquivados';
@@ -84,6 +85,7 @@ export function createEventPages(api) {
     byId('tableReservationsPanel').hidden = page !== 'mesas' || !data.tables;
     byId('financialReportPage').hidden = page !== 'relatorio-financeiro';
     byId('pageTicketConfig').hidden = page !== 'configuracao-ingresso';
+    byId('pageUsers').hidden = page !== 'gerenciar-usuarios';
     byId('pageMore').hidden = page !== 'mais';
     byId('pageDoor').hidden = page !== 'portaria';
     byId('pageHistory').hidden = page !== 'historico';
@@ -95,7 +97,7 @@ export function createEventPages(api) {
       const route = link.dataset.pageLink;
       link.hidden = (route === 'mesas' && !data.tables) || (['historico','relatorio-financeiro'].includes(route) && !data.manager);
       link.classList.toggle('active', route === page);
-      link.classList.toggle('mobile-parent-active', route === 'mais' && ['portaria','historico','relatorio-financeiro','configuracao-ingresso'].includes(page));
+      link.classList.toggle('mobile-parent-active', route === 'mais' && ['portaria','historico','relatorio-financeiro','configuracao-ingresso','gerenciar-usuarios'].includes(page));
       if (route === page) link.setAttribute('aria-current','page'); else link.removeAttribute('aria-current');
     });
     const key = `${data.event?.id || ''}:${page}`;
@@ -103,7 +105,7 @@ export function createEventPages(api) {
       previous = key;
       requestAnimationFrame(() => window.scrollTo({top:positions.get(key) || 0,behavior:'instant'}));
     }
-    document.title = `${home ? 'Meus eventos' : page === 'arquivados' ? 'Eventos arquivados' : page === 'configuracao-ingresso' ? 'Configuração do ingresso' : links.find(l => l[0] === page)?.[2] || 'Evento'}${!globalPage ? ` — ${data.event.name}` : ''} | Le Beef`;
+    document.title = `${home ? 'Meus eventos' : page === 'arquivados' ? 'Eventos arquivados' : page === 'configuracao-ingresso' ? 'Configuração do ingresso' : page === 'gerenciar-usuarios' ? 'Gerenciar usuários' : links.find(l => l[0] === page)?.[2] || 'Evento'}${!globalPage ? ` — ${data.event.name}` : ''} | Le Beef`;
     if (page === 'portaria') renderDoor();
   };
 }

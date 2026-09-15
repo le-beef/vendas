@@ -26,7 +26,7 @@
     <link rel="stylesheet" href="whatsapp.css?v=23" />
     <link rel="stylesheet" href="pwa.css?v=7" />
     <link rel="stylesheet" href="financial-report.css?v=20" />
-    <link rel="stylesheet" href="auth-permissions.css?v=18" />
+    <link rel="stylesheet" href="auth-permissions.css?v=19" />
     <link rel="stylesheet" href="audit-log.css?v=27" />
     <link rel="stylesheet" href="payment-closing.css?v=28" />
     <link rel="stylesheet" href="event-access.css?v=18" />
@@ -196,9 +196,24 @@
           </div>
         </form>
       </section>
+
+      <section id="pageUsers" class="workspace-panel user-management-page" hidden>
+        <div class="user-management-shell">
+          <div class="user-management-page-heading"><div><p class="eyebrow">ACESSOS</p><h1>Gerenciar usuários</h1><p>Crie contas individuais e defina o que cada pessoa pode fazer.</p></div><a class="button secondary" href="#mais">← Voltar</a></div>
+          <form id="createUserForm" class="create-user-form">
+            <fieldset id="createUserEventAccess" class="create-user-event-access"><legend>Eventos permitidos</legend><p id="createUserEventHint">Marque um ou mais eventos que esta pessoa poderá acessar.</p><div id="createUserEvents" class="user-event-options"></div></fieldset>
+            <div class="two-columns"><label>Nome<input name="name" required placeholder="Nome da pessoa" /></label><label>E-mail<input name="email" type="email" required autocomplete="off" placeholder="nome@exemplo.com" /></label></div>
+            <div class="two-columns"><label>Senha inicial<div class="password-input-wrap"><input id="newUserPassword" name="password" type="password" minlength="6" required autocomplete="new-password" placeholder="Mínimo de 6 caracteres" /><button class="password-visibility" type="button" data-toggle-password="newUserPassword" aria-label="Mostrar senha" aria-pressed="false" title="Mostrar senha"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"></path><circle cx="12" cy="12" r="3"></circle><path class="password-visibility-slash" d="M4 4l16 16"></path></svg></button></div></label><label>Perfil<select name="role" required><option value="seller">Vendedor</option><option value="door">Portaria</option><option value="event_manager">Gerente do evento</option><option value="admin">Administrador</option></select></label></div>
+            <button id="createUserButton" class="button primary" type="submit">+ Criar usuário</button>
+          </form>
+          <div class="permission-guide"><div><strong>Administrador</strong><span>Acesso completo, eventos, financeiro e usuários.</span></div><div><strong>Gerente do evento</strong><span>Administra somente os eventos atribuídos.</span></div><div><strong>Vendedor</strong><span>Vendas, pagamentos, check-in e Excel.</span></div><div><strong>Portaria</strong><span>Consulta de participantes e check-in.</span></div></div>
+          <div class="users-section-heading"><div><p class="eyebrow">EQUIPE</p><h2>Usuários cadastrados</h2></div><span id="usersCount">0 usuários</span></div>
+          <div id="usersList" class="users-list"><div class="empty">Carregando usuários...</div></div>
+        </div>
+      </section>
     </main>
 
-    <footer class="site-footer">Le Beef | Versão: 5.8.14</footer>
+    <footer class="site-footer">Le Beef | Versão: 5.8.15</footer>
 
     <button class="fab" data-open="saleModal" data-roles="admin,event_manager,seller" aria-label="Registrar venda">+</button>
 
@@ -300,21 +315,6 @@
       <div class="table-wrap"><table class="all-sales-table"><thead><tr><th>Responsável</th><th>Mesa / bistrô</th><th>Contato / ocupantes</th><th>Evento</th><th class="financial-column">Valor</th><th class="financial-column">Pagamento</th><th>Ações</th></tr></thead><tbody id="allTableReservationsList"></tbody></table></div>
     </dialog>
 
-    <dialog id="userManagementModal" class="user-management-modal">
-      <div class="user-management-shell">
-        <div class="modal-heading"><div><p class="eyebrow">ACESSOS</p><h2>Gerenciar usuários</h2><p>Crie contas individuais e defina o que cada pessoa pode fazer.</p></div><button class="close" type="button" data-close="userManagementModal" aria-label="Fechar">×</button></div>
-        <form id="createUserForm" class="create-user-form">
-          <fieldset id="createUserEventAccess" class="create-user-event-access"><legend>Eventos permitidos</legend><p id="createUserEventHint">Marque um ou mais eventos que esta pessoa poderá acessar.</p><div id="createUserEvents" class="user-event-options"></div></fieldset>
-          <div class="two-columns"><label>Nome<input name="name" required placeholder="Nome da pessoa" /></label><label>E-mail<input name="email" type="email" required autocomplete="off" placeholder="nome@exemplo.com" /></label></div>
-          <div class="two-columns"><label>Senha inicial<div class="password-input-wrap"><input id="newUserPassword" name="password" type="password" minlength="6" required autocomplete="new-password" placeholder="Mínimo de 6 caracteres" /><button class="password-visibility" type="button" data-toggle-password="newUserPassword" aria-label="Mostrar senha" aria-pressed="false" title="Mostrar senha"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"></path><circle cx="12" cy="12" r="3"></circle><path class="password-visibility-slash" d="M4 4l16 16"></path></svg></button></div></label><label>Perfil<select name="role" required><option value="seller">Vendedor</option><option value="door">Portaria</option><option value="event_manager">Gerente do evento</option><option value="admin">Administrador</option></select></label></div>
-          <button id="createUserButton" class="button primary" type="submit">+ Criar usuário</button>
-        </form>
-        <div class="permission-guide"><div><strong>Administrador</strong><span>Acesso completo, eventos, financeiro e usuários.</span></div><div><strong>Gerente do evento</strong><span>Administra somente os eventos atribuídos.</span></div><div><strong>Vendedor</strong><span>Vendas, pagamentos, check-in e Excel.</span></div><div><strong>Portaria</strong><span>Consulta de participantes e check-in.</span></div></div>
-        <div class="users-section-heading"><div><p class="eyebrow">EQUIPE</p><h3>Usuários cadastrados</h3></div><span id="usersCount">0 usuários</span></div>
-        <div id="usersList" class="users-list"><div class="empty">Carregando usuários...</div></div>
-      </div>
-    </dialog>
-
     <dialog id="auditLogModal" class="audit-log-modal">
       <div class="audit-log-shell">
         <div class="modal-heading audit-log-heading"><div><p class="eyebrow">AUDITORIA</p><h2 id="auditLogTitle">Histórico de alterações</h2><p>Criações, edições, exclusões, pagamentos e check-ins das vendas.</p></div><button class="close" type="button" data-close="auditLogModal" aria-label="Fechar">×</button></div>
@@ -396,6 +396,6 @@
     <div id="toast" role="status" aria-live="polite"></div>
     <script src="pwa.js"></script>
     <script src="excel-export.js?v=38"></script>
-    <script type="module" src="app.js?v=86"></script>
+    <script type="module" src="app.js?v=87"></script>
   </body>
 </html>

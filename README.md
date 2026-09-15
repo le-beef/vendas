@@ -1,5 +1,12 @@
 # Le Beef — painel de vendas de ingressos
 
+## Página dedicada para usuários — versão 5.8.15
+
+- A área Mais possui um novo acesso para Gerenciar usuários, visível somente aos administradores.
+- Cadastro, perfis, permissões por evento, bloqueio, redefinição de senha e exclusão agora ficam em uma página própria.
+- O antigo diálogo de usuários foi removido, mantendo todas as funções administrativas existentes.
+- A nova página foi adaptada para computador e celular.
+
 ## Configurações independentes por impressora — versão 5.8.14
 
 - Os modelos térmicos de 58 mm e 80 mm agora são armazenados separadamente em cada evento.
