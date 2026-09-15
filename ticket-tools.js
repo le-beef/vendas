@@ -29667,10 +29667,10 @@ async function createTicketPdf(tickets, design = {}) {
     pdf.setFontSize(6.5);
     splitText(pdf, footer, 61, 2).forEach((line, lineIndex) => pdf.text(line, 45, 144 + lineIndex * 3.2, { align: "center" }));
     pdf.setTextColor("#ffffff");
-    pdf.setFontSize(5.2);
-    pdf.text(splitText(pdf, `Gerado por: ${clean(ticket.generatedByName, "Usu\xE1rio n\xE3o identificado")}`, 73, 1), 45, 150.5, { align: "center" });
+    pdf.setFontSize(5);
+    pdf.text(splitText(pdf, `Gerado por: ${clean(ticket.generatedByName, "Usu\xE1rio n\xE3o identificado")} | ${clean(ticket.generatedAtText, "Data e hora n\xE3o registradas")}`, 73, 1), 45, 151, { align: "center" });
     pdf.setFontSize(4.8);
-    pdf.text(splitText(pdf, `LE BEEF | ${clean(ticket.generatedAtText, "Data e hora n\xE3o registradas")} | ${index2 + 1}/${tickets.length}`, 73, 1), 45, 153.3, { align: "center" });
+    pdf.text(splitText(pdf, `LE BEEF | Ingresso ${index2 + 1}/${tickets.length}`, 73, 1), 45, 153.5, { align: "center" });
   }
   return pdf.output("blob");
 }

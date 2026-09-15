@@ -1,5 +1,17 @@
 # Le Beef — painel de vendas de ingressos
 
+## Identificação da geração em uma linha — versão 5.8.20
+
+- O nome do usuário e a data/hora de geração agora aparecem juntos em uma única linha no rodapé.
+- O mesmo padrão foi aplicado ao ingresso térmico e ao PDF digital.
+- Em papel de 58 mm, o texto usa tamanho compacto próprio para permanecer em uma linha.
+
+## Margem de corte restaurada — versão 5.8.19
+
+- Restaurados os 5 mm completamente livres depois de cada ingresso e antes da marca de corte.
+- A linha grossa tracejada e a tesoura em SVG ficam em uma faixa própria após essa margem.
+- A altura física da página impressa considera os 5 mm livres e a faixa de corte, sem sobreposição ao ingresso seguinte.
+
 ## Linha de corte reforçada — versão 5.8.18
 
 - A linha de corte entre ingressos térmicos ficou mais grossa, preta, tracejada e ocupa toda a largura útil.
