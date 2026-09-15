@@ -29596,8 +29596,77 @@ E.API.PDFObject = (function() {
 // ticket-tools-source.js
 var clean = (value, fallback = "") => String(value ?? fallback).trim();
 var safeColor = (value, fallback) => /^#[0-9a-f]{6}$/i.test(String(value || "")) ? value : fallback;
+var PDF_LAYOUTS = ["default", "double", "notched", "dashed"];
 function splitText(pdf, text, width, limit = 2) {
   return pdf.splitTextToSize(clean(text), width).slice(0, limit);
+}
+function drawPdfFrame(pdf, layout, primary, accent) {
+  pdf.setFillColor("#f4f7fb");
+  pdf.rect(0, 0, 90, 160, "F");
+  pdf.setLineDashPattern([], 0);
+  if (layout === "double") {
+    pdf.setFillColor("#ffffff");
+    pdf.setDrawColor(primary);
+    pdf.setLineWidth(1.1);
+    pdf.roundedRect(5, 5, 80, 150, 4, 4, "FD");
+    pdf.setDrawColor(accent);
+    pdf.setLineWidth(0.45);
+    pdf.roundedRect(7, 7, 76, 146, 3, 3, "S");
+    pdf.setFillColor(primary);
+    pdf.roundedRect(7, 7, 76, 25, 3, 3, "F");
+    pdf.rect(7, 26, 76, 6, "F");
+    return { footerColor: primary };
+  }
+  if (layout === "dashed") {
+    pdf.setFillColor("#ffffff");
+    pdf.setDrawColor(primary);
+    pdf.setLineWidth(0.8);
+    pdf.setLineDashPattern([2.2, 1.2], 0);
+    pdf.roundedRect(5, 5, 80, 150, 4, 4, "FD");
+    pdf.setLineDashPattern([], 0);
+    pdf.setFillColor(primary);
+    pdf.roundedRect(7, 7, 76, 25, 3, 3, "F");
+    pdf.rect(7, 26, 76, 6, "F");
+    return { footerColor: primary };
+  }
+  pdf.setFillColor(primary);
+  pdf.roundedRect(5, 5, 80, 150, 4, 4, "F");
+  pdf.setFillColor(accent);
+  pdf.roundedRect(5, 5, 80, 27, 4, 4, "F");
+  pdf.rect(5, 26, 80, 6, "F");
+  return { footerColor: "#ffffff", notched: layout === "notched" };
+}
+function addPdfLogo(pdf, logoDataUrl) {
+  if (!logoDataUrl) return false;
+  try {
+    const properties = pdf.getImageProperties(logoDataUrl);
+    const scale = Math.min(20 / properties.width, 5.5 / properties.height);
+    const width = properties.width * scale, height = properties.height * scale;
+    const format = /^data:image\/jpeg/i.test(logoDataUrl) ? "JPEG" : "PNG";
+    pdf.addImage(logoDataUrl, format, 45 - width / 2, 6.2, width, height, void 0, "FAST");
+    return true;
+  } catch (error) {
+    console.warn("N\xE3o foi poss\xEDvel adicionar a logo ao PDF.", error);
+    return false;
+  }
+}
+async function flattenPdfLogo(logoDataUrl, backgroundColor) {
+  if (!logoDataUrl || /^data:image\/jpeg/i.test(logoDataUrl) || typeof Image === "undefined" || typeof document === "undefined") return logoDataUrl;
+  return new Promise((resolve) => {
+    const image = new Image();
+    image.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.max(1, image.naturalWidth);
+      canvas.height = Math.max(1, image.naturalHeight);
+      const context = canvas.getContext("2d");
+      context.fillStyle = backgroundColor;
+      context.fillRect(0, 0, canvas.width, canvas.height);
+      context.drawImage(image, 0, 0);
+      resolve(canvas.toDataURL("image/jpeg", 0.94));
+    };
+    image.onerror = () => resolve("");
+    image.src = logoDataUrl;
+  });
 }
 async function createTicketPdf(tickets, design = {}) {
   if (!Array.isArray(tickets) || !tickets.length) throw new Error("Nenhum ingresso dispon\xEDvel para gerar o PDF.");
@@ -29605,26 +29674,36 @@ async function createTicketPdf(tickets, design = {}) {
   const accent = safeColor(design.accentColor, "#14b886");
   const title = clean(design.title, "INGRESSO DIGITAL").slice(0, 36);
   const footer = clean(design.footer, "Apresente este QR Code na entrada.").slice(0, 120);
+  const layout = PDF_LAYOUTS.includes(design.pdfLayout) ? design.pdfLayout : "default";
+  const rawPdfLogoDataUrl = /^data:image\/(?:png|jpeg);base64,/i.test(clean(design.pdfLogoDataUrl)) ? clean(design.pdfLogoDataUrl) : "";
+  const pdfLogoDataUrl = await flattenPdfLogo(rawPdfLogoDataUrl, layout === "default" || layout === "notched" ? accent : primary);
   const pdf = new E({ orientation: "portrait", unit: "mm", format: [90, 160], compress: true });
   for (let index2 = 0; index2 < tickets.length; index2 += 1) {
     if (index2) pdf.addPage([90, 160], "portrait");
     const ticket = tickets[index2];
     const qr = ticket.qrDataUrl || await import_qrcode.default.toDataURL(ticket.validationUrl, { width: 560, margin: 1, errorCorrectionLevel: "M", color: { dark: primary, light: "#ffffff" } });
-    pdf.setFillColor("#f4f7fb");
-    pdf.rect(0, 0, 90, 160, "F");
-    pdf.setFillColor(primary);
-    pdf.roundedRect(5, 5, 80, 150, 4, 4, "F");
-    pdf.setFillColor(accent);
-    pdf.roundedRect(5, 5, 80, 27, 4, 4, "F");
-    pdf.rect(5, 26, 80, 6, "F");
+    const frame = drawPdfFrame(pdf, layout, primary, accent);
+    const hasLogo = Boolean(pdfLogoDataUrl);
     pdf.setTextColor("#ffffff");
     pdf.setFont("helvetica", "bold");
     pdf.setFontSize(8);
-    pdf.text(title.toUpperCase(), 45, 14, { align: "center" });
+    pdf.text(title.toUpperCase(), 45, hasLogo ? 16 : 14, { align: "center" });
     pdf.setFontSize(15);
-    splitText(pdf, ticket.eventName, 69, 2).forEach((line, lineIndex) => pdf.text(line, 45, 21 + lineIndex * 6, { align: "center" }));
+    splitText(pdf, ticket.eventName, 69, 2).forEach((line, lineIndex) => pdf.text(line, 45, (hasLogo ? 23 : 21) + lineIndex * 6, { align: "center" }));
     pdf.setFillColor("#ffffff");
-    pdf.roundedRect(9, 36, 72, 111, 3, 3, "F");
+    pdf.setDrawColor(layout === "double" || layout === "dashed" ? primary : "#ffffff");
+    if (layout === "dashed") pdf.setLineDashPattern([1.6, 1], 0);
+    pdf.roundedRect(9, 36, 72, 111, 3, 3, layout === "double" || layout === "dashed" ? "FD" : "F");
+    pdf.setLineDashPattern([], 0);
+    if (frame.notched) {
+      pdf.setFillColor("#f4f7fb");
+      pdf.circle(5, 80, 3.5, "F");
+      pdf.circle(85, 80, 3.5, "F");
+    } else if (layout === "default") {
+      pdf.setFillColor("#f4f7fb");
+      pdf.circle(-5, -5, 1, "F");
+    }
+    pdf.setFillColor("#f4f7fb");
     pdf.setTextColor(primary);
     pdf.setFontSize(7);
     pdf.text("PARTICIPANTE", 45, 45, { align: "center" });
@@ -29666,11 +29745,13 @@ async function createTicketPdf(tickets, design = {}) {
     pdf.setTextColor("#526173");
     pdf.setFontSize(6.5);
     splitText(pdf, footer, 61, 2).forEach((line, lineIndex) => pdf.text(line, 45, 144 + lineIndex * 3.2, { align: "center" }));
-    pdf.setTextColor("#ffffff");
+    pdf.setTextColor(frame.footerColor);
     pdf.setFontSize(5);
     pdf.text(splitText(pdf, `Gerado por: ${clean(ticket.generatedByName, "Usu\xE1rio n\xE3o identificado")} | ${clean(ticket.generatedAtText, "Data e hora n\xE3o registradas")}`, 73, 1), 45, 151, { align: "center" });
     pdf.setFontSize(4.8);
     pdf.text(splitText(pdf, `LE BEEF | Ingresso ${index2 + 1}/${tickets.length}`, 73, 1), 45, 153.5, { align: "center" });
+    pdf.setTextColor(primary);
+    if (hasLogo) addPdfLogo(pdf, pdfLogoDataUrl);
   }
   return pdf.output("blob");
 }

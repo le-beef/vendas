@@ -5,7 +5,7 @@ import { firebaseConfig } from "./firebase-config.js";
 import { createEventPages } from "./pages.js?v=8";
 import { decodeQrImageData } from "./qr-scanner-tools.js?v=1";
 import { eventIsArchived, eventArchiveDeadline } from "./event-archive.js?v=1";
-import { createTicketPdf, createQrDataUrl } from "./ticket-tools.js?v=7";
+import { createTicketPdf, createQrDataUrl } from "./ticket-tools.js?v=8";
 import { THERMAL_PAPER_WIDTHS, buildThermalPrintHtml, normalizeThermalPaperWidth } from "./thermal-print.js?v=9";
 import { DEFAULT_TICKET_DESIGN, normalizeTicketDesign, ticketHeightForDesign } from "./ticket-layout.js?v=3";
 
@@ -48,6 +48,7 @@ const money = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL
 const $ = (id) => document.getElementById(id);
 const ROLE_LABELS = { admin: "Administrador", event_manager: "Gerente do evento", seller: "Vendedor", door: "Portaria" };
 const PAYMENT_METHOD_LABELS = { pix: "Pix", cash: "Dinheiro", credit_card: "Cartão de crédito", debit_card: "Cartão de débito", bank_transfer: "Transferência", other: "Outro", courtesy: "Cortesia" };
+const PDF_TICKET_LAYOUTS = ["default", "double", "notched", "dashed"];
 
 function rememberSelectedEvent(eventId) {
   selectedEventId = String(eventId || "");
@@ -360,6 +361,23 @@ function eventTicketDesign(event, paperWidth) {
   const source = savedForWidth || (Number(legacy?.paperWidth) === width ? legacy : { ...DEFAULT_TICKET_DESIGN, paperWidth:width });
   return normalizeTicketDesign({ ...source, paperWidth:width });
 }
+function normalizePdfTicketDesign(value = {}) {
+  const pdfLayout = PDF_TICKET_LAYOUTS.includes(value.pdfLayout) ? value.pdfLayout : "default";
+  const pdfLogoDataUrl = normalizeTicketDesign({ logoDataUrl:value.pdfLogoDataUrl || "" }).logoDataUrl;
+  return { pdfLayout, pdfLogoDataUrl };
+}
+function eventPdfTicketDesign(event) { return normalizePdfTicketDesign(event?.pdfTicketDesign); }
+function pdfTicketDesignFromConfigForm() {
+  const form = $("ticketConfigForm");
+  return normalizePdfTicketDesign({ pdfLayout:form.elements.pdfLayout.value, pdfLogoDataUrl:form.dataset.pdfLogoData || "" });
+}
+function applyPdfTicketDesignToConfigForm(designValue) {
+  const form = $("ticketConfigForm");
+  const design = normalizePdfTicketDesign(designValue);
+  form.dataset.pdfLogoData = design.pdfLogoDataUrl;
+  form.elements.pdfLayout.value = design.pdfLayout;
+  updatePdfTicketConfigPreview(design);
+}
 function ticketDesignFromConfigForm(paperWidth) {
   const form = $("ticketConfigForm");
   const width = normalizeThermalPaperWidth(paperWidth ?? form.elements.paperWidth.value);
@@ -414,6 +432,14 @@ function updateTicketConfigOutputs(design) {
   $("ticketLogoPlaceholder").hidden = Boolean(design.logoDataUrl);
   $("removeTicketLogo").disabled = !design.logoDataUrl;
 }
+function updatePdfTicketConfigPreview(designValue = pdfTicketDesignFromConfigForm()) {
+  const design = normalizePdfTicketDesign(designValue);
+  const image = $("pdfTicketLogoPreview");
+  image.hidden = !design.pdfLogoDataUrl;
+  image.src = design.pdfLogoDataUrl || "";
+  $("pdfTicketLogoPlaceholder").hidden = Boolean(design.pdfLogoDataUrl);
+  $("removePdfTicketLogo").disabled = !design.pdfLogoDataUrl;
+}
 let ticketPreviewQrPromise;
 let ticketPreviewRevision = 0;
 async function renderTicketConfigPreview() {
@@ -441,6 +467,7 @@ function populateTicketConfigPage(event) {
   form.dataset.eventId = event.id;
   form.ticketDesignDrafts = Object.fromEntries(THERMAL_PAPER_WIDTHS.map((width) => [String(width), eventTicketDesign(event, width)]));
   applyTicketDesignToConfigForm(form.ticketDesignDrafts[String(preferredWidth)]);
+  applyPdfTicketDesignToConfigForm(eventPdfTicketDesign(event));
   setTicketConfigLocked(true);
 }
 function resizeTicketLogo(file) {
@@ -466,21 +493,23 @@ async function saveTicketDesignConfig() {
   const event = state.events.find((item) => item.id === selectedEventId);
   if (!event) return toast("Selecione um evento.");
   const design = ticketDesignFromConfigForm();
+  const pdfDesign = pdfTicketDesignFromConfigForm();
   const widthKey = String(design.paperWidth);
   try {
-    if (isDemo) { event.ticketDesign = design; event.ticketDesigns = { ...(event.ticketDesigns || {}), [widthKey]:design }; persistDemo(); }
+    if (isDemo) { event.ticketDesign = design; event.ticketDesigns = { ...(event.ticketDesigns || {}), [widthKey]:design }; event.pdfTicketDesign = pdfDesign; persistDemo(); }
     else {
-      await update(ref(db, `events/${event.id}`), { ticketDesign:design, [`ticketDesigns/${widthKey}`]:design, updatedAt:Date.now() });
-      const savedDesign = await get(ref(db, `events/${event.id}/ticketDesigns/${widthKey}`));
-      if (!savedDesign.exists()) throw new Error("A configuração não foi encontrada após salvar.");
+      await update(ref(db, `events/${event.id}`), { ticketDesign:design, [`ticketDesigns/${widthKey}`]:design, pdfTicketDesign:pdfDesign, updatedAt:Date.now() });
+      const [savedDesign, savedPdfDesign] = await Promise.all([get(ref(db, `events/${event.id}/ticketDesigns/${widthKey}`)), get(ref(db, `events/${event.id}/pdfTicketDesign`))]);
+      if (!savedDesign.exists() || !savedPdfDesign.exists()) throw new Error("A configuração não foi encontrada após salvar.");
       const confirmedDesign = normalizeTicketDesign({ ...savedDesign.val(), paperWidth:design.paperWidth });
       event.ticketDesign = confirmedDesign;
       event.ticketDesigns = { ...(event.ticketDesigns || {}), [widthKey]:confirmedDesign };
+      event.pdfTicketDesign = normalizePdfTicketDesign(savedPdfDesign.val());
     }
     $("ticketConfigForm").ticketDesignDrafts[widthKey] = eventTicketDesign(event, design.paperWidth);
     setTicketConfigLocked(true);
     render();
-    toast(`Configuração de ${design.paperWidth} mm salva neste evento e confirmada no Firebase.`);
+    toast(`Configurações do ingresso de ${design.paperWidth} mm e do PDF salvas neste evento.`);
   } catch (error) { console.error(error); toast(error.message || "Não foi possível salvar a configuração."); }
 }
 function saleTypeQuantity(sale, ticketType, event) { return saleStockItems(sale, event).filter((item) => item.ticketTypeId === ticketType.id || item.ticketTypeName === ticketType.name).reduce((sum, item) => sum + Number(item.quantity || 0), 0); }
@@ -698,7 +727,7 @@ async function buildTicketPdf(saleId, generate = false) {
   const paymentStatus = sale.courtesy || sale.paymentMethod === "courtesy" ? "Cortesia" : sale.paid ? "Pago" : "Pendente";
   const paymentDetail = sale.paid && !sale.courtesy ? paymentMethodLabel(sale.paymentMethod) : sale.courtesy ? "Sem cobrança" : "Aguardando pagamento";
   const printable = tickets.map((ticket) => ({ ...ticket, admissionType: isTableReservation(sale) ? `${furnitureKindLabel(sale.furnitureKind)} / reserva` : "Ingresso individual", eventName: event?.name || "Evento", eventDate:event?.date ? eventDateTimeText(event) : "", eventPlace: event?.place || "", validationUrl: qrValidationUrl(ticket.token), shortCode: ticket.token.slice(-8).toUpperCase(), ticketValue: money.format(Number(ticket.value || 0)), paymentStatus, paymentDetail, ...ticketGenerationOrigin(sale, ticket) }));
-  const blob = await createTicketPdf(printable, eventTicketDesign(event));
+  const blob = await createTicketPdf(printable, { ...eventTicketDesign(event), ...eventPdfTicketDesign(event) });
   return { blob, filename: ticketPdfName(event, sale), sale, event, count: tickets.length };
 }
 function downloadBlob(blob, filename) { const url = URL.createObjectURL(blob); const link = document.createElement("a"); link.href = url; link.download = filename; document.body.append(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 1500); }
@@ -2471,7 +2500,7 @@ $("confirmTicketDelete").addEventListener("click", () => deleteGeneratedTicket($
 $("thermalPrintModal").addEventListener("cancel", (event) => { event.preventDefault(); $("thermalPrintModal").close(); });
 document.querySelectorAll("[data-close-thermal-print]").forEach((button) => button.addEventListener("click", () => $("thermalPrintModal").close()));
 $("confirmThermalPrint").addEventListener("click", printGeneratedTicket);
-$("ticketConfigForm").addEventListener("input", (event) => { if (event.target.name !== "paperWidth") renderTicketConfigPreview(); });
+$("ticketConfigForm").addEventListener("input", (event) => { if (event.target.name !== "paperWidth") renderTicketConfigPreview(); if (event.target.name === "pdfLayout") updatePdfTicketConfigPreview(); });
 $("ticketConfigForm").elements.paperWidth.addEventListener("change", (event) => switchTicketPaperConfig(event.currentTarget.value));
 $("ticketConfigForm").addEventListener("submit", (event) => { event.preventDefault(); saveTicketDesignConfig(); });
 $("ticketConfigLock").addEventListener("click", () => setTicketConfigLocked($("ticketConfigForm").dataset.locked === "false"));
@@ -2483,7 +2512,15 @@ $("ticketLogoInput").addEventListener("change", async (event) => {
   catch (error) { toast(error.message || "Não foi possível carregar a imagem."); }
 });
 $("removeTicketLogo").addEventListener("click", () => { $("ticketConfigForm").dataset.logoData = ""; renderTicketConfigPreview(); });
-$("resetTicketConfig").addEventListener("click", () => { const form = $("ticketConfigForm"); if (form.dataset.locked !== "false") return; const width = normalizeThermalPaperWidth(form.elements.paperWidth.value); const design = normalizeTicketDesign({ ...DEFAULT_TICKET_DESIGN, paperWidth:width }); form.ticketDesignDrafts[String(width)] = design; applyTicketDesignToConfigForm(design); setTicketConfigLocked(false); });
+$("pdfTicketLogoInput").addEventListener("change", async (event) => {
+  const [file] = event.currentTarget.files || [];
+  event.currentTarget.value = "";
+  if (!file) return;
+  try { $("ticketConfigForm").dataset.pdfLogoData = await resizeTicketLogo(file); updatePdfTicketConfigPreview(); }
+  catch (error) { toast(error.message || "Não foi possível carregar a imagem."); }
+});
+$("removePdfTicketLogo").addEventListener("click", () => { $("ticketConfigForm").dataset.pdfLogoData = ""; updatePdfTicketConfigPreview(); });
+$("resetTicketConfig").addEventListener("click", () => { const form = $("ticketConfigForm"); if (form.dataset.locked !== "false") return; const width = normalizeThermalPaperWidth(form.elements.paperWidth.value); const design = normalizeTicketDesign({ ...DEFAULT_TICKET_DESIGN, paperWidth:width }); form.ticketDesignDrafts[String(width)] = design; applyTicketDesignToConfigForm(design); applyPdfTicketDesignToConfigForm({ pdfLayout:"default", pdfLogoDataUrl:"" }); setTicketConfigLocked(false); });
 $("confirmQrCheckin").addEventListener("click", () => toggleQrTicketCheckin($("qrValidationModal").dataset.token));
 $("nextQrScan").addEventListener("click", () => { $("qrValidationModal").close(); location.hash = "portaria"; openQrScanner(); });
 $("qrValidationModal").addEventListener("cancel", (event) => { event.preventDefault(); $("qrValidationModal").close(); location.hash = "portaria"; });

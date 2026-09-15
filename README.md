@@ -1,5 +1,12 @@
 # Le Beef — painel de vendas de ingressos
 
+## Logo e modelos do ingresso PDF — versão 5.8.21
+
+- A configuração do ingresso agora permite enviar, trocar ou remover uma logo exclusiva para o PDF digital de cada evento.
+- O visual atual continua selecionado como padrão e foram adicionados os modelos Borda dupla, Ingresso recortado e Moldura tracejada.
+- A logo mantém sua proporção, aparece centralizada junto ao nome do evento e as escolhas ficam salvas no Firebase.
+- A pré-visualização da configuração responde imediatamente à troca de logo e de modelo.
+
 ## Identificação da geração em uma linha — versão 5.8.20
 
 - O nome do usuário e a data/hora de geração agora aparecem juntos em uma única linha no rodapé.
