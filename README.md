@@ -1,5 +1,11 @@
 # Le Beef — painel de vendas de ingressos
 
+## Rodapé térmico mais legível — versão 5.8.22
+
+- O ingresso impresso agora mostra apenas `Nome do usuário | data e hora`, sem o texto “Gerado por:”.
+- A informação continua em uma única linha e recebeu fonte maior e mais forte para melhorar a leitura na impressão térmica.
+- O ingresso PDF digital não foi alterado.
+
 ## Logo e modelos do ingresso PDF — versão 5.8.21
 
 - A configuração do ingresso agora permite enviar, trocar ou remover uma logo exclusiva para o PDF digital de cada evento.
