@@ -14,7 +14,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@600;700&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="styles.css?v=1" />
     <link rel="stylesheet" href="access.css" />
     <link rel="stylesheet" href="sales.css?v=16" />
     <link rel="stylesheet" href="layout.css" />
@@ -213,7 +213,7 @@
       </section>
     </main>
 
-    <footer class="site-footer">Le Beef | Versão: 5.8.15</footer>
+    <footer class="site-footer">Le Beef | Versão: 5.8.16</footer>
 
     <button class="fab" data-open="saleModal" data-roles="admin,event_manager,seller" aria-label="Registrar venda">+</button>
 
@@ -221,7 +221,7 @@
       <form id="eventForm" method="dialog">
         <div class="modal-heading"><div><p class="eyebrow">CADASTRO</p><h2 id="eventModalTitle">Novo evento</h2></div><button class="close" type="button" data-close="eventModal" aria-label="Fechar">×</button></div>
         <label>Nome do evento<input name="name" required placeholder="Ex.: Festival de Inverno" /></label>
-        <div class="two-columns"><label>Data<input name="date" type="date" required /></label><label>Local<input name="place" required placeholder="Ex.: Auditório" /></label></div>
+        <div class="event-schedule-fields"><label>Data<input name="date" type="date" required /></label><label>Horário<input name="time" type="time" required /></label><label class="event-place-field">Local<input name="place" required placeholder="Ex.: Auditório" /></label></div>
         <div class="event-mode-field"><label>Modo do evento<select id="eventMode" name="eventMode"><option value="unit">Somente vendas unitárias</option><option value="mixed">Mesas/bistrôs + vendas unitárias</option></select></label><p class="field-help">No modo com mesas, as vendas unitárias continuam disponíveis normalmente.</p></div>
         <section id="eventMapSettings" class="event-map-settings" hidden>
           <div class="map-settings-heading"><div><span class="field-label">Mapa de mesas e bistrôs</span><p class="field-help">Escolha as áreas abertas, selecione o tipo e toque nas posições predefinidas para ativá-las.</p></div><label class="chair-price-field">Valor por pessoa/cadeira<input id="chairPrice" name="chairPrice" type="number" min="0" step="0.01" placeholder="R$ 0,00" /></label></div>
@@ -396,6 +396,6 @@
     <div id="toast" role="status" aria-live="polite"></div>
     <script src="pwa.js"></script>
     <script src="excel-export.js?v=38"></script>
-    <script type="module" src="app.js?v=87"></script>
+    <script type="module" src="app.js?v=88"></script>
   </body>
 </html>

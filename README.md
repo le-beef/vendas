@@ -1,5 +1,11 @@
 # Le Beef — painel de vendas de ingressos
 
+## Data e horário do evento — versão 5.8.16
+
+- O cadastro e a edição do evento agora possuem um campo obrigatório de horário ao lado da data.
+- O horário fica salvo no evento e aparece nos resumos, cartões, relatórios, ingressos digitais, impressão térmica e eventos arquivados.
+- Eventos antigos continuam compatíveis e podem receber o horário na próxima edição.
+
 ## Página dedicada para usuários — versão 5.8.15
 
 - A área Mais possui um novo acesso para Gerenciar usuários, visível somente aos administradores.
