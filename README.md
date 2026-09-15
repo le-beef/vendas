@@ -1,5 +1,12 @@
 # Le Beef — painel de vendas de ingressos
 
+## Configurações independentes por impressora — versão 5.8.14
+
+- Os modelos térmicos de 58 mm e 80 mm agora são armazenados separadamente em cada evento.
+- Trocar a largura carrega apenas as medidas, logo, textos e opções salvas para aquela impressora.
+- A tela começa bloqueada e possui um cadeado aberto/fechado para liberar ou proteger a edição contra alterações acidentais.
+- A impressão aplica automaticamente a configuração correspondente à largura escolhida no diálogo.
+
 ## Identificação da geração dos ingressos — versão 5.8.13
 
 - Ao gerar um ingresso, o sistema grava junto ao QR Code o usuário, a data e a hora exatos da geração.

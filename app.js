@@ -353,19 +353,57 @@ function qrTicketsFor(sale, event) {
 }
 function saleCheckinCount(sale, event) { const tickets = qrTicketsFor(sale, event); return tickets.length ? tickets.filter((ticket) => ticket.checkedIn).length : sale.checkedIn ? saleQuantity(sale, event) : 0; }
 function saleFullyCheckedIn(sale, event) { const quantity = saleQuantity(sale, event); return quantity > 0 && saleCheckinCount(sale, event) >= quantity; }
-function eventTicketDesign(event) { return normalizeTicketDesign(event?.ticketDesign); }
-function ticketDesignFromConfigForm() {
+function eventTicketDesign(event, paperWidth) {
+  const legacy = event?.ticketDesign;
+  const width = normalizeThermalPaperWidth(paperWidth ?? legacy?.paperWidth);
+  const savedForWidth = event?.ticketDesigns?.[String(width)];
+  const source = savedForWidth || (Number(legacy?.paperWidth) === width ? legacy : { ...DEFAULT_TICKET_DESIGN, paperWidth:width });
+  return normalizeTicketDesign({ ...source, paperWidth:width });
+}
+function ticketDesignFromConfigForm(paperWidth) {
   const form = $("ticketConfigForm");
+  const width = normalizeThermalPaperWidth(paperWidth ?? form.elements.paperWidth.value);
   return normalizeTicketDesign({
     title: form.elements.title.value, footer: form.elements.footer.value,
     primaryColor: form.elements.primaryColor.value, accentColor: form.elements.accentColor.value,
-    logoDataUrl: form.dataset.logoData || "", paperWidth: form.elements.paperWidth.value, ticketHeight: form.elements.ticketHeight.value,
+    logoDataUrl: form.dataset.logoData || "", paperWidth:width, ticketHeight: form.elements.ticketHeight.value,
     logoSize: form.elements.logoSize.value, titleSize: form.elements.titleSize.value,
     textSize: form.elements.textSize.value, dataSize: form.elements.dataSize.value,
     spacing: form.elements.spacing.value, qrSize: form.elements.qrSize.value, qrSpacing: form.elements.qrSpacing.value, margin: form.elements.margin.value,
     showEstablishment: form.elements.showEstablishment.checked, showEventMeta: form.elements.showEventMeta.checked,
     showPayment: form.elements.showPayment.checked, showFooter: form.elements.showFooter.checked
   });
+}
+function applyTicketDesignToConfigForm(designValue) {
+  const form = $("ticketConfigForm");
+  const design = normalizeTicketDesign(designValue);
+  form.dataset.paperWidth = String(design.paperWidth);
+  form.dataset.logoData = design.logoDataUrl;
+  ["title", "footer", "primaryColor", "accentColor", "paperWidth", "ticketHeight", "logoSize", "titleSize", "textSize", "dataSize", "spacing", "qrSize", "qrSpacing", "margin"].forEach((name) => { form.elements[name].value = design[name]; });
+  ["showEstablishment", "showEventMeta", "showPayment", "showFooter"].forEach((name) => { form.elements[name].checked = design[name]; });
+  renderTicketConfigPreview();
+}
+function setTicketConfigLocked(locked = true) {
+  const form = $("ticketConfigForm");
+  const button = $("ticketConfigLock");
+  form.dataset.locked = String(locked);
+  form.classList.toggle("is-locked", locked);
+  form.querySelectorAll("input,button,select").forEach((control) => { control.disabled = locked; });
+  form.elements.paperWidth.disabled = false;
+  button.disabled = !hasRole("admin");
+  button.setAttribute("aria-pressed", String(!locked));
+  button.setAttribute("aria-label", locked ? "Destrancar edição" : "Trancar edição");
+  button.querySelector("[data-lock-icon]").textContent = locked ? "🔒" : "🔓";
+  button.querySelector("[data-lock-label]").textContent = locked ? "Edição bloqueada" : "Edição liberada";
+}
+function switchTicketPaperConfig(nextWidth) {
+  const form = $("ticketConfigForm");
+  const previousWidth = normalizeThermalPaperWidth(form.dataset.paperWidth);
+  form.ticketDesignDrafts ||= {};
+  form.ticketDesignDrafts[String(previousWidth)] = ticketDesignFromConfigForm(previousWidth);
+  const width = normalizeThermalPaperWidth(nextWidth);
+  applyTicketDesignToConfigForm(form.ticketDesignDrafts[String(width)] || { ...DEFAULT_TICKET_DESIGN, paperWidth:width });
+  setTicketConfigLocked(form.dataset.locked !== "false");
 }
 function updateTicketConfigOutputs(design) {
   const units = { ticketHeight: "mm", logoSize: "mm", titleSize: "pt", textSize: "pt", dataSize: "pt", spacing: "mm", qrSize: "mm", qrSpacing: "mm", margin: "mm" };
@@ -396,15 +434,14 @@ async function renderTicketConfigPreview() {
   frame.style.height = `${Math.round(ticketHeightForDesign(design) * 3.7795)}px`;
   frame.srcdoc = documentHtml;
 }
-function populateTicketConfigPage(event, designValue = eventTicketDesign(event)) {
+function populateTicketConfigPage(event) {
   const form = $("ticketConfigForm");
   if (!form || !event) return;
-  const design = normalizeTicketDesign(designValue);
+  const preferredWidth = normalizeThermalPaperWidth(event?.ticketDesign?.paperWidth);
   form.dataset.eventId = event.id;
-  form.dataset.logoData = design.logoDataUrl;
-  ["title", "footer", "primaryColor", "accentColor", "paperWidth", "ticketHeight", "logoSize", "titleSize", "textSize", "dataSize", "spacing", "qrSize", "qrSpacing", "margin"].forEach((name) => { form.elements[name].value = design[name]; });
-  ["showEstablishment", "showEventMeta", "showPayment", "showFooter"].forEach((name) => { form.elements[name].checked = design[name]; });
-  renderTicketConfigPreview();
+  form.ticketDesignDrafts = Object.fromEntries(THERMAL_PAPER_WIDTHS.map((width) => [String(width), eventTicketDesign(event, width)]));
+  applyTicketDesignToConfigForm(form.ticketDesignDrafts[String(preferredWidth)]);
+  setTicketConfigLocked(true);
 }
 function resizeTicketLogo(file) {
   if (!file || !["image/png", "image/jpeg"].includes(file.type)) throw new Error("Selecione uma imagem PNG ou JPG.");
@@ -429,16 +466,21 @@ async function saveTicketDesignConfig() {
   const event = state.events.find((item) => item.id === selectedEventId);
   if (!event) return toast("Selecione um evento.");
   const design = ticketDesignFromConfigForm();
+  const widthKey = String(design.paperWidth);
   try {
-    if (isDemo) { event.ticketDesign = design; persistDemo(); }
+    if (isDemo) { event.ticketDesign = design; event.ticketDesigns = { ...(event.ticketDesigns || {}), [widthKey]:design }; persistDemo(); }
     else {
-      await update(ref(db, `events/${event.id}`), { ticketDesign: design, updatedAt: Date.now() });
-      const savedDesign = await get(ref(db, `events/${event.id}/ticketDesign`));
+      await update(ref(db, `events/${event.id}`), { ticketDesign:design, [`ticketDesigns/${widthKey}`]:design, updatedAt:Date.now() });
+      const savedDesign = await get(ref(db, `events/${event.id}/ticketDesigns/${widthKey}`));
       if (!savedDesign.exists()) throw new Error("A configuração não foi encontrada após salvar.");
-      event.ticketDesign = normalizeTicketDesign(savedDesign.val());
+      const confirmedDesign = normalizeTicketDesign({ ...savedDesign.val(), paperWidth:design.paperWidth });
+      event.ticketDesign = confirmedDesign;
+      event.ticketDesigns = { ...(event.ticketDesigns || {}), [widthKey]:confirmedDesign };
     }
+    $("ticketConfigForm").ticketDesignDrafts[widthKey] = eventTicketDesign(event, design.paperWidth);
+    setTicketConfigLocked(true);
     render();
-    toast("Configuração salva neste evento e confirmada no Firebase.");
+    toast(`Configuração de ${design.paperWidth} mm salva neste evento e confirmada no Firebase.`);
   } catch (error) { console.error(error); toast(error.message || "Não foi possível salvar a configuração."); }
 }
 function saleTypeQuantity(sale, ticketType, event) { return saleStockItems(sale, event).filter((item) => item.ticketTypeId === ticketType.id || item.ticketTypeName === ticketType.name).reduce((sum, item) => sum + Number(item.quantity || 0), 0); }
@@ -721,12 +763,12 @@ function openThermalPrintSettings(saleId) {
   const event = state.events.find((item) => item.id === sale?.eventId);
   if (!sale || !sale.paid || !hasGeneratedTicket(sale, event)) return toast("Confirme o pagamento e gere o ingresso antes de imprimir.");
   const modal = $("thermalPrintModal");
-  const design = eventTicketDesign(event);
-  $("thermalPaperWidth").value = String(design.paperWidth);
+  const preferredWidth = normalizeThermalPaperWidth(localStorage.getItem("le-beef-thermal-paper-width") || event?.ticketDesign?.paperWidth);
+  $("thermalPaperWidth").value = String(preferredWidth);
   modal.dataset.saleId = saleId;
   modal.showModal();
 }
-async function thermalPrintData(sale) {
+async function thermalPrintData(sale, paperWidth) {
   const event = state.events.find((item) => item.id === sale.eventId);
   const tickets = qrTicketsFor(sale, event);
   if (!tickets.length || tickets.some((ticket) => !ticket.token)) throw new Error("Gere o ingresso antes de imprimir.");
@@ -734,7 +776,7 @@ async function thermalPrintData(sale) {
   const paymentDetail = sale.paid && !sale.courtesy ? `${paymentMethodLabel(sale.paymentMethod)}${sale.paymentDate ? ` em ${paymentDateLabel(sale.paymentDate)}` : ""}` : sale.courtesy ? "Sem cobrança" : "Aguardando pagamento";
   const printableTickets = tickets.map((ticket) => ({ ...ticket, admissionType: isTableReservation(sale) ? `${furnitureKindLabel(sale.furnitureKind)} / reserva` : "Ingresso individual", reservationLabel: isTableReservation(sale) ? sale.reservationLabel || "Mesa/bistrô" : "", ticketValue: money.format(Number(ticket.value || 0)), paymentStatus, paymentDetail, shortCode: ticket.token.slice(-8).toUpperCase(), ...ticketGenerationOrigin(sale, ticket) }));
   const qrCodes = await Promise.all(tickets.map((ticket) => createQrDataUrl(qrValidationUrl(ticket.token), { width: 480 })));
-  return { event: { ...event, dateText: event?.date ? dateText(event.date) : "" }, sale, tickets: printableTickets, qrCodes, ticketDesign: eventTicketDesign(event) };
+  return { event: { ...event, dateText: event?.date ? dateText(event.date) : "" }, sale, tickets: printableTickets, qrCodes, ticketDesign:eventTicketDesign(event, paperWidth) };
 }
 async function sendThermalPrintToBrowser(printWindow, documentHtml) {
   printWindow.document.open();
@@ -764,7 +806,7 @@ async function printGeneratedTicket() {
   button.textContent = "Preparando...";
   try {
     localStorage.setItem("le-beef-thermal-paper-width", String(paperWidth));
-    const printData = await thermalPrintData(sale);
+    const printData = await thermalPrintData(sale, paperWidth);
     const paperHeight = ticketHeightForDesign(printData.ticketDesign, paperWidth);
     const documentHtml = buildThermalPrintHtml({ ...printData, paperWidth, paperHeight });
     modal.close();
@@ -2425,8 +2467,10 @@ $("confirmTicketDelete").addEventListener("click", () => deleteGeneratedTicket($
 $("thermalPrintModal").addEventListener("cancel", (event) => { event.preventDefault(); $("thermalPrintModal").close(); });
 document.querySelectorAll("[data-close-thermal-print]").forEach((button) => button.addEventListener("click", () => $("thermalPrintModal").close()));
 $("confirmThermalPrint").addEventListener("click", printGeneratedTicket);
-$("ticketConfigForm").addEventListener("input", () => renderTicketConfigPreview());
+$("ticketConfigForm").addEventListener("input", (event) => { if (event.target.name !== "paperWidth") renderTicketConfigPreview(); });
+$("ticketConfigForm").elements.paperWidth.addEventListener("change", (event) => switchTicketPaperConfig(event.currentTarget.value));
 $("ticketConfigForm").addEventListener("submit", (event) => { event.preventDefault(); saveTicketDesignConfig(); });
+$("ticketConfigLock").addEventListener("click", () => setTicketConfigLocked($("ticketConfigForm").dataset.locked === "false"));
 $("ticketLogoInput").addEventListener("change", async (event) => {
   const [file] = event.currentTarget.files || [];
   event.currentTarget.value = "";
@@ -2435,7 +2479,7 @@ $("ticketLogoInput").addEventListener("change", async (event) => {
   catch (error) { toast(error.message || "Não foi possível carregar a imagem."); }
 });
 $("removeTicketLogo").addEventListener("click", () => { $("ticketConfigForm").dataset.logoData = ""; renderTicketConfigPreview(); });
-$("resetTicketConfig").addEventListener("click", () => { const selectedEvent = state.events.find((item) => item.id === selectedEventId); if (selectedEvent) populateTicketConfigPage(selectedEvent, DEFAULT_TICKET_DESIGN); });
+$("resetTicketConfig").addEventListener("click", () => { const form = $("ticketConfigForm"); if (form.dataset.locked !== "false") return; const width = normalizeThermalPaperWidth(form.elements.paperWidth.value); const design = normalizeTicketDesign({ ...DEFAULT_TICKET_DESIGN, paperWidth:width }); form.ticketDesignDrafts[String(width)] = design; applyTicketDesignToConfigForm(design); setTicketConfigLocked(false); });
 $("confirmQrCheckin").addEventListener("click", () => toggleQrTicketCheckin($("qrValidationModal").dataset.token));
 $("nextQrScan").addEventListener("click", () => { $("qrValidationModal").close(); location.hash = "portaria"; openQrScanner(); });
 $("qrValidationModal").addEventListener("cancel", (event) => { event.preventDefault(); $("qrValidationModal").close(); location.hash = "portaria"; });
