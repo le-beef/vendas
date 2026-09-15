@@ -1,5 +1,11 @@
 # Le Beef — painel de vendas de ingressos
 
+## Linha de corte reforçada — versão 5.8.18
+
+- A linha de corte entre ingressos térmicos ficou mais grossa, preta, tracejada e ocupa toda a largura útil.
+- O antigo caractere de tesoura foi substituído por um desenho vetorial SVG maior, próprio para impressão.
+- O espaçamento físico de 5 mm entre os ingressos foi preservado.
+
 ## Link de validação na planilha da Portaria — versão 5.8.17
 
 - A exportação completa da Portaria agora inclui a coluna `LINK DE VALIDAÇÃO`.
