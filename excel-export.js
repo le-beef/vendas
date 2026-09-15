@@ -61,6 +61,11 @@
     };
     const arrayValue = (value) => Array.isArray(value) ? value : Object.keys(value || {}).sort((a, b) => Number(a) - Number(b)).map((key) => value[key]);
     const storedQrTickets = (sale) => arrayValue(sale.qrTickets).filter(Boolean);
+    const qrValidationUrl = (token) => {
+      if (!token) return "";
+      const base = location.protocol === "file:" ? "https://le-beef.github.io/vendas/" : `${location.origin}${location.pathname}`;
+      return `${base}#validar=${encodeURIComponent(token)}`;
+    };
     const checkinDateTime = (value) => value ? new Date(Number(value)).toLocaleString("pt-BR") : "";
     const individualTicketUnits = (sale) => {
       const groups = [];
@@ -92,7 +97,7 @@
           const qr = qrTickets.find((ticket) => Number(ticket.occupantIndex) === index) || qrTickets[index] || {};
           const checked = qr.checkedIn === undefined ? Boolean(checkins[index]) : Boolean(qr.checkedIn);
           const discount = Number(pricing[index]?.discountValue || 0);
-          return [...common, (sale.mapArea || sale.reservationArea) === "mezanino" ? "MEZANINO" : "SALÃO", sale.reservationLabel || "RESERVA", name || sale.buyerName || "Participante", sale.buyerName || "", sale.buyerPhone || "", `${sale.reservationLabel || "Reserva"} - cadeira ${index + 1}`, discount ? pricing[index]?.discountType === "fixed" ? moneyText(discount) : `${discount}%` : "SEM DESCONTO", 1, Number(pricing[index]?.finalPrice ?? fallbackValue), payment, paymentMethod, paidAt, sale.createdByName || "VENDAS ANTERIORES", sale.notes || "", checked ? "SIM" : "NÃO", checked ? checkinDateTime(qr.checkedInAt) : "", qr.token ? "GERADO" : "NÃO GERADO", qr.token ? String(qr.token).slice(-8).toUpperCase() : ""];
+          return [...common, (sale.mapArea || sale.reservationArea) === "mezanino" ? "MEZANINO" : "SALÃO", sale.reservationLabel || "RESERVA", name || sale.buyerName || "Participante", sale.buyerName || "", sale.buyerPhone || "", `${sale.reservationLabel || "Reserva"} - cadeira ${index + 1}`, discount ? pricing[index]?.discountType === "fixed" ? moneyText(discount) : `${discount}%` : "SEM DESCONTO", 1, Number(pricing[index]?.finalPrice ?? fallbackValue), payment, paymentMethod, paidAt, sale.createdByName || "VENDAS ANTERIORES", sale.notes || "", checked ? "SIM" : "NÃO", checked ? checkinDateTime(qr.checkedInAt) : "", qr.token ? "GERADO" : "NÃO GERADO", qr.token ? String(qr.token).slice(-8).toUpperCase() : "", qrValidationUrl(qr.token)];
         });
       }
       const names = arrayValue(sale.participantNames).map((name) => String(name || "").trim());
@@ -101,11 +106,11 @@
         const qr = qrTickets[index] || {};
         const checked = qr.checkedIn === undefined ? Boolean(sale.checkedIn) : Boolean(qr.checkedIn);
         const participant = qr.participantName || names[index] || (index ? `${sale.buyerName || "Participante"}/Convidado-${index + 1}` : sale.buyerName) || "Participante";
-        return [...common, "", "", participant, sale.buyerName || "", sale.buyerPhone || "", qr.ticketTypeName || unit.ticketTypeName, "", 1, Number(unit.value || 0), payment, paymentMethod, paidAt, sale.createdByName || "VENDAS ANTERIORES", sale.notes || "", checked ? "SIM" : "NÃO", checked ? checkinDateTime(qr.checkedInAt) : "", qr.token ? "GERADO" : "NÃO GERADO", qr.token ? String(qr.token).slice(-8).toUpperCase() : ""];
+        return [...common, "", "", participant, sale.buyerName || "", sale.buyerPhone || "", qr.ticketTypeName || unit.ticketTypeName, "", 1, Number(unit.value || 0), payment, paymentMethod, paidAt, sale.createdByName || "VENDAS ANTERIORES", sale.notes || "", checked ? "SIM" : "NÃO", checked ? checkinDateTime(qr.checkedInAt) : "", qr.token ? "GERADO" : "NÃO GERADO", qr.token ? String(qr.token).slice(-8).toUpperCase() : "", qrValidationUrl(qr.token)];
       });
     };
     const header = mode === "checkins"
-      ? ["EVENTO", "MODALIDADE", "ÁREA", "MESA / BISTRÔ", "PARTICIPANTE", "RESPONSÁVEL", "TELEFONE", "TIPO DE INGRESSO", "DESCONTO", "QTD.", "VALOR", "PAGAMENTO", "FORMA DE PAGAMENTO", "DATA DO PAGAMENTO", "VENDEDOR", "OBSERVAÇÃO", "ENTRADA", "DATA / HORA DO CHECK-IN", "QR CODE", "CÓDIGO"]
+      ? ["EVENTO", "MODALIDADE", "ÁREA", "MESA / BISTRÔ", "PARTICIPANTE", "RESPONSÁVEL", "TELEFONE", "TIPO DE INGRESSO", "DESCONTO", "QTD.", "VALOR", "PAGAMENTO", "FORMA DE PAGAMENTO", "DATA DO PAGAMENTO", "VENDEDOR", "OBSERVAÇÃO", "ENTRADA", "DATA / HORA DO CHECK-IN", "QR CODE", "CÓDIGO", "LINK DE VALIDAÇÃO"]
       : mode === "tables"
       ? ["EVENTO", "ÁREA", "MESA / BISTRÔ", "RESPONSÁVEL", "TELEFONE", "OCUPANTES", "DESCONTOS DAS CADEIRAS", "QTD.", "VALOR", "PAGAMENTO", "FORMA DE PAGAMENTO", "DATA DO PAGAMENTO", "VENDEDOR", "OBSERVAÇÃO", "ENTRADAS"]
       : ["EVENTO", "TIPO DE INGRESSO", "PARTICIPANTE", "TELEFONE / CONTATO", "OBSERVAÇÃO", "QTD.", "VALOR", "PAGAMENTO", "FORMA DE PAGAMENTO", "DATA DO PAGAMENTO", "VENDEDOR", "ENTRADA"];
@@ -116,7 +121,7 @@
       : selectedSales.flatMap((sale) => saleItems(sale).map((item) => { const courtesy = sale.courtesy || sale.paymentMethod === "courtesy" || /^CORTESIA:/i.test(item.ticketTypeName); return [eventName(sale.eventId), item.ticketTypeName, sale.buyerName || "", sale.buyerPhone || "", sale.notes || "", item.quantity, item.subtotal, courtesy ? "CORTESIA" : sale.paid ? "PAGO" : "PENDENTE", courtesy ? "CORTESIA" : sale.paid ? paymentMethods[sale.paymentMethod] || "NÃO INFORMADA" : "", courtesy ? "" : sale.paid ? paymentDate(sale.paymentDate) : "", sale.createdByName || "VENDAS ANTERIORES", sale.checkedIn ? "SIM" : "NÃO"]; }));
     const sheetRows = [`<row r="1">${header.map((cell, i) => textCell(`${column(i)}1`, cell, 1)).join("")}</row>`];
     rows.forEach((row, index) => { const r = index + 2, style = index % 2 ? 2 : 0, moneyStyle = index % 2 ? 4 : 3, quantityIndex = mode === "checkins" ? 9 : mode === "tables" ? 7 : 5, moneyIndex = mode === "checkins" ? 10 : mode === "tables" ? 8 : 6; sheetRows.push(`<row r="${r}">${row.map((cell, i) => i === quantityIndex ? numberCell(`${column(i)}${r}`, cell, style) : i === moneyIndex ? numberCell(`${column(i)}${r}`, cell, moneyStyle) : textCell(`${column(i)}${r}`, cell, style)).join("")}</row>`); });
-    const widths = mode === "checkins" ? [25,16,14,19,28,28,20,34,18,8,15,14,22,18,25,34,12,24,13,14] : [25,49,28,21,34,9,16,15,23,21,25,14,24,34,24];
+    const widths = mode === "checkins" ? [25,16,14,19,28,28,20,34,18,8,15,14,22,18,25,34,12,24,13,14,58] : [25,49,28,21,34,9,16,15,23,21,25,14,24,34,24];
     const columns = widths.map((width, index) => `<col min="${index + 1}" max="${index + 1}" width="${width}" customWidth="1"/>`).join("");
     const sheet = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><cols>${columns}</cols><sheetData>${sheetRows.join("")}</sheetData></worksheet>`;
     const styles = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><numFmts count="1"><numFmt numFmtId="164" formatCode="R$ #,##0.00"/></numFmts><fonts count="2"><font><sz val="11"/><name val="Arial"/></font><font><b/><color rgb="FFFFFFFF"/><sz val="12"/><name val="Arial"/></font></fonts><fills count="4"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FF000000"/><bgColor indexed="64"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFB0B0B0"/><bgColor indexed="64"/></patternFill></fill></fills><borders count="2"><border><left/><right/><top/><bottom/></border><border><left style="thin"><color rgb="FF000000"/></left><right style="thin"><color rgb="FF000000"/></right><top style="thin"><color rgb="FF000000"/></top><bottom style="thin"><color rgb="FF000000"/></bottom></border></borders><cellXfs count="5"><xf numFmtId="0" fontId="0" fillId="0" borderId="1" applyBorder="1"/><xf numFmtId="0" fontId="1" fillId="2" borderId="1" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf><xf numFmtId="0" fontId="0" fillId="3" borderId="1" applyFill="1" applyBorder="1"/><xf numFmtId="164" fontId="0" fillId="0" borderId="1" applyNumberFormat="1" applyBorder="1"/><xf numFmtId="164" fontId="0" fillId="3" borderId="1" applyNumberFormat="1" applyFill="1" applyBorder="1"/></cellXfs></styleSheet>`;

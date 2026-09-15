@@ -1,5 +1,12 @@
 # Le Beef — painel de vendas de ingressos
 
+## Link de validação na planilha da Portaria — versão 5.8.17
+
+- A exportação completa da Portaria agora inclui a coluna `LINK DE VALIDAÇÃO`.
+- Cada participante com QR Code já gerado recebe seu próprio endereço `#validar=...`.
+- Ingressos ainda não gerados permanecem com a célula do link vazia.
+- Nas reservas de mesas e bistrôs, o link é associado individualmente ao ocupante correto.
+
 ## Data e horário do evento — versão 5.8.16
 
 - O cadastro e a edição do evento agora possuem um campo obrigatório de horário ao lado da data.
