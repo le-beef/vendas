@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="pt-BR">
+<html lang="pt-BR" data-theme="light">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -8,16 +8,6 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="Le Beef" />
     <title>Le Beef | Controle de ingressos</title>
-    <script>
-      try {
-        const savedTheme = localStorage.getItem("le-beef-theme");
-        document.documentElement.dataset.theme = savedTheme === "dark" || savedTheme === "light"
-          ? savedTheme
-          : (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
-      } catch (_) {
-        document.documentElement.dataset.theme = "light";
-      }
-    </script>
     <link rel="manifest" href="manifest.webmanifest" />
     <link rel="icon" href="icon-192.png?v=19" type="image/png" />
     <link rel="apple-touch-icon" href="icon-192.png?v=19" />
@@ -47,7 +37,6 @@
     <link rel="stylesheet" href="table-reservation-harmony.css?v=4" />
     <link rel="stylesheet" href="ticketing.css?v=11" />
     <link rel="stylesheet" href="ticket-config.css?v=1" />
-    <link rel="stylesheet" href="theme.css?v=11" />
     <link rel="stylesheet" href="pages.css?v=5" />
     <link rel="stylesheet" href="toast-responsive.css?v=1" />
     <style id="topbar-critical-styles">
@@ -96,7 +85,6 @@
     <header class="topbar">
       <a class="brand" href="#" aria-label="Le Beef - início"><img src="logo-le-beef-branca.png" alt="Le Beef Espaço de Eventos" /></a>
       <div class="topbar-actions">
-        <button id="themeToggleButton" class="theme-toggle-button" type="button" aria-pressed="false" aria-label="Ativar modo noturno" title="Ativar modo noturno"><span id="themeToggleIcon" aria-hidden="true">☾</span><span id="themeToggleLabel" class="theme-toggle-label">Modo noturno</span></button>
         <button id="installAppButton" class="install-app-button" type="button" hidden><span aria-hidden="true">↓</span> Instalar app</button>
         <details id="userMenu" class="user-menu" hidden>
           <summary aria-label="Abrir menu da conta"><span id="userInitials" class="user-initials">U</span><span class="user-summary-copy"><strong id="userDisplayName">Usuário</strong><small id="userRoleLabel">Perfil</small></span></summary>
@@ -210,7 +198,7 @@
       </section>
     </main>
 
-    <footer class="site-footer">Le Beef | Versão: 5.8.11</footer>
+    <footer class="site-footer">Le Beef | Versão: 5.8.12</footer>
 
     <button class="fab" data-open="saleModal" data-roles="admin,event_manager,seller" aria-label="Registrar venda">+</button>
 
@@ -407,8 +395,7 @@
 
     <div id="toast" role="status" aria-live="polite"></div>
     <script src="pwa.js"></script>
-    <script src="theme.js?v=1"></script>
     <script src="excel-export.js?v=38"></script>
-    <script type="module" src="app.js?v=83"></script>
+    <script type="module" src="app.js?v=84"></script>
   </body>
 </html>

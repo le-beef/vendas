@@ -1,5 +1,12 @@
 # Le Beef — painel de vendas de ingressos
 
+## Separação física dos ingressos e tema claro — versão 5.8.12
+
+- Impressões com dois ou mais ingressos recebem uma faixa física de 5 mm após cada ingresso.
+- A faixa possui uma linha de corte fina e tracejada com uma pequena tesoura, facilitando o corte manual.
+- O tamanho configurado do ingresso foi preservado; os 5 mm são acrescentados depois dele e não comprimem o conteúdo.
+- O modo escuro e seu botão foram removidos; o painel agora utiliza somente o tema claro.
+
 ## Permanência da página após atualizar — versão 5.8.11
 
 - Atualizar o navegador mantém o evento selecionado e a área atual, como Vendas, Mesas, Portaria ou Configuração do ingresso.
