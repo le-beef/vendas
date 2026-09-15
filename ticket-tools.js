@@ -31,18 +31,18 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
   mod
 ));
 
-// node_modules/qrcode/lib/can-promise.js
+// work/ticket-build/node_modules/qrcode/lib/can-promise.js
 var require_can_promise = __commonJS({
-  "node_modules/qrcode/lib/can-promise.js"(exports, module) {
+  "work/ticket-build/node_modules/qrcode/lib/can-promise.js"(exports, module) {
     module.exports = function() {
       return typeof Promise === "function" && Promise.prototype && Promise.prototype.then;
     };
   }
 });
 
-// node_modules/qrcode/lib/core/utils.js
+// work/ticket-build/node_modules/qrcode/lib/core/utils.js
 var require_utils = __commonJS({
-  "node_modules/qrcode/lib/core/utils.js"(exports) {
+  "work/ticket-build/node_modules/qrcode/lib/core/utils.js"(exports) {
     var toSJISFunction;
     var CODEWORDS_COUNT = [
       0,
@@ -119,9 +119,9 @@ var require_utils = __commonJS({
   }
 });
 
-// node_modules/qrcode/lib/core/error-correction-level.js
+// work/ticket-build/node_modules/qrcode/lib/core/error-correction-level.js
 var require_error_correction_level = __commonJS({
-  "node_modules/qrcode/lib/core/error-correction-level.js"(exports) {
+  "work/ticket-build/node_modules/qrcode/lib/core/error-correction-level.js"(exports) {
     exports.L = { bit: 1 };
     exports.M = { bit: 0 };
     exports.Q = { bit: 3 };
@@ -164,9 +164,9 @@ var require_error_correction_level = __commonJS({
   }
 });
 
-// node_modules/qrcode/lib/core/bit-buffer.js
+// work/ticket-build/node_modules/qrcode/lib/core/bit-buffer.js
 var require_bit_buffer = __commonJS({
-  "node_modules/qrcode/lib/core/bit-buffer.js"(exports, module) {
+  "work/ticket-build/node_modules/qrcode/lib/core/bit-buffer.js"(exports, module) {
     function BitBuffer() {
       this.buffer = [];
       this.length = 0;
@@ -199,9 +199,9 @@ var require_bit_buffer = __commonJS({
   }
 });
 
-// node_modules/qrcode/lib/core/bit-matrix.js
+// work/ticket-build/node_modules/qrcode/lib/core/bit-matrix.js
 var require_bit_matrix = __commonJS({
-  "node_modules/qrcode/lib/core/bit-matrix.js"(exports, module) {
+  "work/ticket-build/node_modules/qrcode/lib/core/bit-matrix.js"(exports, module) {
     function BitMatrix(size) {
       if (!size || size < 1) {
         throw new Error("BitMatrix size must be defined and greater than 0");
@@ -228,9 +228,9 @@ var require_bit_matrix = __commonJS({
   }
 });
 
-// node_modules/qrcode/lib/core/alignment-pattern.js
+// work/ticket-build/node_modules/qrcode/lib/core/alignment-pattern.js
 var require_alignment_pattern = __commonJS({
-  "node_modules/qrcode/lib/core/alignment-pattern.js"(exports) {
+  "work/ticket-build/node_modules/qrcode/lib/core/alignment-pattern.js"(exports) {
     var getSymbolSize = require_utils().getSymbolSize;
     exports.getRowColCoords = function getRowColCoords(version) {
       if (version === 1) return [];
@@ -263,9 +263,9 @@ var require_alignment_pattern = __commonJS({
   }
 });
 
-// node_modules/qrcode/lib/core/finder-pattern.js
+// work/ticket-build/node_modules/qrcode/lib/core/finder-pattern.js
 var require_finder_pattern = __commonJS({
-  "node_modules/qrcode/lib/core/finder-pattern.js"(exports) {
+  "work/ticket-build/node_modules/qrcode/lib/core/finder-pattern.js"(exports) {
     var getSymbolSize = require_utils().getSymbolSize;
     var FINDER_PATTERN_SIZE = 7;
     exports.getPositions = function getPositions(version) {
@@ -282,9 +282,9 @@ var require_finder_pattern = __commonJS({
   }
 });
 
-// node_modules/qrcode/lib/core/mask-pattern.js
+// work/ticket-build/node_modules/qrcode/lib/core/mask-pattern.js
 var require_mask_pattern = __commonJS({
-  "node_modules/qrcode/lib/core/mask-pattern.js"(exports) {
+  "work/ticket-build/node_modules/qrcode/lib/core/mask-pattern.js"(exports) {
     exports.Patterns = {
       PATTERN000: 0,
       PATTERN001: 1,
@@ -424,9 +424,9 @@ var require_mask_pattern = __commonJS({
   }
 });
 
-// node_modules/qrcode/lib/core/error-correction-code.js
+// work/ticket-build/node_modules/qrcode/lib/core/error-correction-code.js
 var require_error_correction_code = __commonJS({
-  "node_modules/qrcode/lib/core/error-correction-code.js"(exports) {
+  "work/ticket-build/node_modules/qrcode/lib/core/error-correction-code.js"(exports) {
     var ECLevel = require_error_correction_level();
     var EC_BLOCKS_TABLE = [
       // L  M  Q  H
@@ -785,9 +785,9 @@ var require_error_correction_code = __commonJS({
   }
 });
 
-// node_modules/qrcode/lib/core/galois-field.js
+// work/ticket-build/node_modules/qrcode/lib/core/galois-field.js
 var require_galois_field = __commonJS({
-  "node_modules/qrcode/lib/core/galois-field.js"(exports) {
+  "work/ticket-build/node_modules/qrcode/lib/core/galois-field.js"(exports) {
     var EXP_TABLE = new Uint8Array(512);
     var LOG_TABLE = new Uint8Array(256);
     (function initTables() {
@@ -818,9 +818,9 @@ var require_galois_field = __commonJS({
   }
 });
 
-// node_modules/qrcode/lib/core/polynomial.js
+// work/ticket-build/node_modules/qrcode/lib/core/polynomial.js
 var require_polynomial = __commonJS({
-  "node_modules/qrcode/lib/core/polynomial.js"(exports) {
+  "work/ticket-build/node_modules/qrcode/lib/core/polynomial.js"(exports) {
     var GF = require_galois_field();
     exports.mul = function mul(p1, p22) {
       const coeff = new Uint8Array(p1.length + p22.length - 1);
@@ -854,9 +854,9 @@ var require_polynomial = __commonJS({
   }
 });
 
-// node_modules/qrcode/lib/core/reed-solomon-encoder.js
+// work/ticket-build/node_modules/qrcode/lib/core/reed-solomon-encoder.js
 var require_reed_solomon_encoder = __commonJS({
-  "node_modules/qrcode/lib/core/reed-solomon-encoder.js"(exports, module) {
+  "work/ticket-build/node_modules/qrcode/lib/core/reed-solomon-encoder.js"(exports, module) {
     var Polynomial = require_polynomial();
     function ReedSolomonEncoder(degree) {
       this.genPoly = void 0;
@@ -886,18 +886,18 @@ var require_reed_solomon_encoder = __commonJS({
   }
 });
 
-// node_modules/qrcode/lib/core/version-check.js
+// work/ticket-build/node_modules/qrcode/lib/core/version-check.js
 var require_version_check = __commonJS({
-  "node_modules/qrcode/lib/core/version-check.js"(exports) {
+  "work/ticket-build/node_modules/qrcode/lib/core/version-check.js"(exports) {
     exports.isValid = function isValid(version) {
       return !isNaN(version) && version >= 1 && version <= 40;
     };
   }
 });
 
-// node_modules/qrcode/lib/core/regex.js
+// work/ticket-build/node_modules/qrcode/lib/core/regex.js
 var require_regex = __commonJS({
-  "node_modules/qrcode/lib/core/regex.js"(exports) {
+  "work/ticket-build/node_modules/qrcode/lib/core/regex.js"(exports) {
     var numeric = "[0-9]+";
     var alphanumeric = "[A-Z $%*+\\-./:]+";
     var kanji = "(?:[u3000-u303F]|[u3040-u309F]|[u30A0-u30FF]|[uFF00-uFFEF]|[u4E00-u9FAF]|[u2605-u2606]|[u2190-u2195]|u203B|[u2010u2015u2018u2019u2025u2026u201Cu201Du2225u2260]|[u0391-u0451]|[u00A7u00A8u00B1u00B4u00D7u00F7])+";
@@ -923,9 +923,9 @@ var require_regex = __commonJS({
   }
 });
 
-// node_modules/qrcode/lib/core/mode.js
+// work/ticket-build/node_modules/qrcode/lib/core/mode.js
 var require_mode = __commonJS({
-  "node_modules/qrcode/lib/core/mode.js"(exports) {
+  "work/ticket-build/node_modules/qrcode/lib/core/mode.js"(exports) {
     var VersionCheck = require_version_check();
     var Regex = require_regex();
     exports.NUMERIC = {
@@ -1004,9 +1004,9 @@ var require_mode = __commonJS({
   }
 });
 
-// node_modules/qrcode/lib/core/version.js
+// work/ticket-build/node_modules/qrcode/lib/core/version.js
 var require_version = __commonJS({
-  "node_modules/qrcode/lib/core/version.js"(exports) {
+  "work/ticket-build/node_modules/qrcode/lib/core/version.js"(exports) {
     var Utils = require_utils();
     var ECCode = require_error_correction_code();
     var ECLevel = require_error_correction_level();
@@ -1099,9 +1099,9 @@ var require_version = __commonJS({
   }
 });
 
-// node_modules/qrcode/lib/core/format-info.js
+// work/ticket-build/node_modules/qrcode/lib/core/format-info.js
 var require_format_info = __commonJS({
-  "node_modules/qrcode/lib/core/format-info.js"(exports) {
+  "work/ticket-build/node_modules/qrcode/lib/core/format-info.js"(exports) {
     var Utils = require_utils();
     var G15 = 1 << 10 | 1 << 8 | 1 << 5 | 1 << 4 | 1 << 2 | 1 << 1 | 1 << 0;
     var G15_MASK = 1 << 14 | 1 << 12 | 1 << 10 | 1 << 4 | 1 << 1;
@@ -1117,9 +1117,9 @@ var require_format_info = __commonJS({
   }
 });
 
-// node_modules/qrcode/lib/core/numeric-data.js
+// work/ticket-build/node_modules/qrcode/lib/core/numeric-data.js
 var require_numeric_data = __commonJS({
-  "node_modules/qrcode/lib/core/numeric-data.js"(exports, module) {
+  "work/ticket-build/node_modules/qrcode/lib/core/numeric-data.js"(exports, module) {
     var Mode = require_mode();
     function NumericData(data) {
       this.mode = Mode.NUMERIC;
@@ -1152,9 +1152,9 @@ var require_numeric_data = __commonJS({
   }
 });
 
-// node_modules/qrcode/lib/core/alphanumeric-data.js
+// work/ticket-build/node_modules/qrcode/lib/core/alphanumeric-data.js
 var require_alphanumeric_data = __commonJS({
-  "node_modules/qrcode/lib/core/alphanumeric-data.js"(exports, module) {
+  "work/ticket-build/node_modules/qrcode/lib/core/alphanumeric-data.js"(exports, module) {
     var Mode = require_mode();
     var ALPHA_NUM_CHARS = [
       "0",
@@ -1231,9 +1231,9 @@ var require_alphanumeric_data = __commonJS({
   }
 });
 
-// node_modules/qrcode/lib/core/byte-data.js
+// work/ticket-build/node_modules/qrcode/lib/core/byte-data.js
 var require_byte_data = __commonJS({
-  "node_modules/qrcode/lib/core/byte-data.js"(exports, module) {
+  "work/ticket-build/node_modules/qrcode/lib/core/byte-data.js"(exports, module) {
     var Mode = require_mode();
     function ByteData(data) {
       this.mode = Mode.BYTE;
@@ -1261,9 +1261,9 @@ var require_byte_data = __commonJS({
   }
 });
 
-// node_modules/qrcode/lib/core/kanji-data.js
+// work/ticket-build/node_modules/qrcode/lib/core/kanji-data.js
 var require_kanji_data = __commonJS({
-  "node_modules/qrcode/lib/core/kanji-data.js"(exports, module) {
+  "work/ticket-build/node_modules/qrcode/lib/core/kanji-data.js"(exports, module) {
     var Mode = require_mode();
     var Utils = require_utils();
     function KanjiData(data) {
@@ -1300,9 +1300,9 @@ var require_kanji_data = __commonJS({
   }
 });
 
-// node_modules/dijkstrajs/dijkstra.js
+// work/ticket-build/node_modules/dijkstrajs/dijkstra.js
 var require_dijkstra = __commonJS({
-  "node_modules/dijkstrajs/dijkstra.js"(exports, module) {
+  "work/ticket-build/node_modules/dijkstrajs/dijkstra.js"(exports, module) {
     "use strict";
     var dijkstra = {
       single_source_shortest_paths: function(graph, s3, d2) {
@@ -1401,9 +1401,9 @@ var require_dijkstra = __commonJS({
   }
 });
 
-// node_modules/qrcode/lib/core/segments.js
+// work/ticket-build/node_modules/qrcode/lib/core/segments.js
 var require_segments = __commonJS({
-  "node_modules/qrcode/lib/core/segments.js"(exports) {
+  "work/ticket-build/node_modules/qrcode/lib/core/segments.js"(exports) {
     var Mode = require_mode();
     var NumericData = require_numeric_data();
     var AlphanumericData = require_alphanumeric_data();
@@ -1587,9 +1587,9 @@ var require_segments = __commonJS({
   }
 });
 
-// node_modules/qrcode/lib/core/qrcode.js
+// work/ticket-build/node_modules/qrcode/lib/core/qrcode.js
 var require_qrcode = __commonJS({
-  "node_modules/qrcode/lib/core/qrcode.js"(exports) {
+  "work/ticket-build/node_modules/qrcode/lib/core/qrcode.js"(exports) {
     var Utils = require_utils();
     var ECLevel = require_error_correction_level();
     var BitBuffer = require_bit_buffer();
@@ -1848,9 +1848,9 @@ var require_qrcode = __commonJS({
   }
 });
 
-// node_modules/qrcode/lib/renderer/utils.js
+// work/ticket-build/node_modules/qrcode/lib/renderer/utils.js
 var require_utils2 = __commonJS({
-  "node_modules/qrcode/lib/renderer/utils.js"(exports) {
+  "work/ticket-build/node_modules/qrcode/lib/renderer/utils.js"(exports) {
     function hex2rgba(hex) {
       if (typeof hex === "number") {
         hex = hex.toString();
@@ -1928,9 +1928,9 @@ var require_utils2 = __commonJS({
   }
 });
 
-// node_modules/qrcode/lib/renderer/canvas.js
+// work/ticket-build/node_modules/qrcode/lib/renderer/canvas.js
 var require_canvas = __commonJS({
-  "node_modules/qrcode/lib/renderer/canvas.js"(exports) {
+  "work/ticket-build/node_modules/qrcode/lib/renderer/canvas.js"(exports) {
     var Utils = require_utils2();
     function clearCanvas(ctx, canvas, size) {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -1981,9 +1981,9 @@ var require_canvas = __commonJS({
   }
 });
 
-// node_modules/qrcode/lib/renderer/svg-tag.js
+// work/ticket-build/node_modules/qrcode/lib/renderer/svg-tag.js
 var require_svg_tag = __commonJS({
-  "node_modules/qrcode/lib/renderer/svg-tag.js"(exports) {
+  "work/ticket-build/node_modules/qrcode/lib/renderer/svg-tag.js"(exports) {
     var Utils = require_utils2();
     function getColorAttrib(color, attrib) {
       const alpha = color.a / 255;
@@ -2039,9 +2039,9 @@ var require_svg_tag = __commonJS({
   }
 });
 
-// node_modules/qrcode/lib/browser.js
+// work/ticket-build/node_modules/qrcode/lib/browser.js
 var require_browser = __commonJS({
-  "node_modules/qrcode/lib/browser.js"(exports) {
+  "work/ticket-build/node_modules/qrcode/lib/browser.js"(exports) {
     var canPromise = require_can_promise();
     var QRCode2 = require_qrcode();
     var CanvasRenderer = require_canvas();
@@ -2109,7 +2109,7 @@ var require_browser = __commonJS({
   }
 });
 
-// node_modules/@babel/runtime/helpers/esm/typeof.js
+// work/ticket-build/node_modules/@babel/runtime/helpers/esm/typeof.js
 function _typeof(o3) {
   "@babel/helpers - typeof";
   return _typeof = "function" == typeof Symbol && "symbol" == typeof Symbol.iterator ? function(o4) {
@@ -2119,13 +2119,13 @@ function _typeof(o3) {
   }, _typeof(o3);
 }
 var init_typeof = __esm({
-  "node_modules/@babel/runtime/helpers/esm/typeof.js"() {
+  "work/ticket-build/node_modules/@babel/runtime/helpers/esm/typeof.js"() {
   }
 });
 
-// node_modules/html2canvas/dist/html2canvas.js
+// work/ticket-build/node_modules/html2canvas/dist/html2canvas.js
 var require_html2canvas = __commonJS({
-  "node_modules/html2canvas/dist/html2canvas.js"(exports, module) {
+  "work/ticket-build/node_modules/html2canvas/dist/html2canvas.js"(exports, module) {
     (function(global2, factory) {
       typeof exports === "object" && typeof module !== "undefined" ? module.exports = factory() : typeof define === "function" && define.amd ? define(factory) : (global2 = typeof globalThis !== "undefined" ? globalThis : global2 || self, global2.html2canvas = factory());
     })(exports, (function() {
@@ -9908,9 +9908,9 @@ var require_html2canvas = __commonJS({
   }
 });
 
-// node_modules/dompurify/dist/purify.js
+// work/ticket-build/node_modules/dompurify/dist/purify.js
 var require_purify = __commonJS({
-  "node_modules/dompurify/dist/purify.js"(exports, module) {
+  "work/ticket-build/node_modules/dompurify/dist/purify.js"(exports, module) {
     (function(global2, factory) {
       typeof exports === "object" && typeof module !== "undefined" ? module.exports = factory() : typeof define === "function" && define.amd ? define(factory) : (global2 = typeof globalThis !== "undefined" ? globalThis : global2 || self, global2.DOMPurify = factory());
     })(exports, (function() {
@@ -10880,9 +10880,9 @@ var require_purify = __commonJS({
   }
 });
 
-// node_modules/core-js/internals/global-this.js
+// work/ticket-build/node_modules/core-js/internals/global-this.js
 var require_global_this = __commonJS({
-  "node_modules/core-js/internals/global-this.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/global-this.js"(exports, module) {
     "use strict";
     var check = function(it2) {
       return it2 && it2.Math === Math && it2;
@@ -10896,9 +10896,9 @@ var require_global_this = __commonJS({
   }
 });
 
-// node_modules/core-js/internals/fails.js
+// work/ticket-build/node_modules/core-js/internals/fails.js
 var require_fails = __commonJS({
-  "node_modules/core-js/internals/fails.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/fails.js"(exports, module) {
     "use strict";
     module.exports = function(exec) {
       try {
@@ -10910,9 +10910,9 @@ var require_fails = __commonJS({
   }
 });
 
-// node_modules/core-js/internals/descriptors.js
+// work/ticket-build/node_modules/core-js/internals/descriptors.js
 var require_descriptors = __commonJS({
-  "node_modules/core-js/internals/descriptors.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/descriptors.js"(exports, module) {
     "use strict";
     var fails = require_fails();
     module.exports = !fails(function() {
@@ -10923,9 +10923,9 @@ var require_descriptors = __commonJS({
   }
 });
 
-// node_modules/core-js/internals/function-bind-native.js
+// work/ticket-build/node_modules/core-js/internals/function-bind-native.js
 var require_function_bind_native = __commonJS({
-  "node_modules/core-js/internals/function-bind-native.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/function-bind-native.js"(exports, module) {
     "use strict";
     var fails = require_fails();
     module.exports = !fails(function() {
@@ -10936,9 +10936,9 @@ var require_function_bind_native = __commonJS({
   }
 });
 
-// node_modules/core-js/internals/function-call.js
+// work/ticket-build/node_modules/core-js/internals/function-call.js
 var require_function_call = __commonJS({
-  "node_modules/core-js/internals/function-call.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/function-call.js"(exports, module) {
     "use strict";
     var NATIVE_BIND = require_function_bind_native();
     var call = Function.prototype.call;
@@ -10948,9 +10948,9 @@ var require_function_call = __commonJS({
   }
 });
 
-// node_modules/core-js/internals/object-property-is-enumerable.js
+// work/ticket-build/node_modules/core-js/internals/object-property-is-enumerable.js
 var require_object_property_is_enumerable = __commonJS({
-  "node_modules/core-js/internals/object-property-is-enumerable.js"(exports) {
+  "work/ticket-build/node_modules/core-js/internals/object-property-is-enumerable.js"(exports) {
     "use strict";
     var $propertyIsEnumerable = {}.propertyIsEnumerable;
     var getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor;
@@ -10962,9 +10962,9 @@ var require_object_property_is_enumerable = __commonJS({
   }
 });
 
-// node_modules/core-js/internals/create-property-descriptor.js
+// work/ticket-build/node_modules/core-js/internals/create-property-descriptor.js
 var require_create_property_descriptor = __commonJS({
-  "node_modules/core-js/internals/create-property-descriptor.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/create-property-descriptor.js"(exports, module) {
     "use strict";
     module.exports = function(bitmap, value) {
       return {
@@ -10977,9 +10977,9 @@ var require_create_property_descriptor = __commonJS({
   }
 });
 
-// node_modules/core-js/internals/function-uncurry-this.js
+// work/ticket-build/node_modules/core-js/internals/function-uncurry-this.js
 var require_function_uncurry_this = __commonJS({
-  "node_modules/core-js/internals/function-uncurry-this.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/function-uncurry-this.js"(exports, module) {
     "use strict";
     var NATIVE_BIND = require_function_bind_native();
     var FunctionPrototype = Function.prototype;
@@ -10993,9 +10993,9 @@ var require_function_uncurry_this = __commonJS({
   }
 });
 
-// node_modules/core-js/internals/classof-raw.js
+// work/ticket-build/node_modules/core-js/internals/classof-raw.js
 var require_classof_raw = __commonJS({
-  "node_modules/core-js/internals/classof-raw.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/classof-raw.js"(exports, module) {
     "use strict";
     var uncurryThis = require_function_uncurry_this();
     var toString = uncurryThis({}.toString);
@@ -11006,9 +11006,9 @@ var require_classof_raw = __commonJS({
   }
 });
 
-// node_modules/core-js/internals/indexed-object.js
+// work/ticket-build/node_modules/core-js/internals/indexed-object.js
 var require_indexed_object = __commonJS({
-  "node_modules/core-js/internals/indexed-object.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/indexed-object.js"(exports, module) {
     "use strict";
     var uncurryThis = require_function_uncurry_this();
     var fails = require_fails();
@@ -11023,9 +11023,9 @@ var require_indexed_object = __commonJS({
   }
 });
 
-// node_modules/core-js/internals/is-null-or-undefined.js
+// work/ticket-build/node_modules/core-js/internals/is-null-or-undefined.js
 var require_is_null_or_undefined = __commonJS({
-  "node_modules/core-js/internals/is-null-or-undefined.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/is-null-or-undefined.js"(exports, module) {
     "use strict";
     module.exports = function(it2) {
       return it2 === null || it2 === void 0;
@@ -11033,9 +11033,9 @@ var require_is_null_or_undefined = __commonJS({
   }
 });
 
-// node_modules/core-js/internals/require-object-coercible.js
+// work/ticket-build/node_modules/core-js/internals/require-object-coercible.js
 var require_require_object_coercible = __commonJS({
-  "node_modules/core-js/internals/require-object-coercible.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/require-object-coercible.js"(exports, module) {
     "use strict";
     var isNullOrUndefined = require_is_null_or_undefined();
     var $TypeError = TypeError;
@@ -11046,9 +11046,9 @@ var require_require_object_coercible = __commonJS({
   }
 });
 
-// node_modules/core-js/internals/to-indexed-object.js
+// work/ticket-build/node_modules/core-js/internals/to-indexed-object.js
 var require_to_indexed_object = __commonJS({
-  "node_modules/core-js/internals/to-indexed-object.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/to-indexed-object.js"(exports, module) {
     "use strict";
     var IndexedObject = require_indexed_object();
     var requireObjectCoercible = require_require_object_coercible();
@@ -11058,9 +11058,9 @@ var require_to_indexed_object = __commonJS({
   }
 });
 
-// node_modules/core-js/internals/is-callable.js
+// work/ticket-build/node_modules/core-js/internals/is-callable.js
 var require_is_callable = __commonJS({
-  "node_modules/core-js/internals/is-callable.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/is-callable.js"(exports, module) {
     "use strict";
     var documentAll = typeof document == "object" && document.all;
     module.exports = typeof documentAll == "undefined" && documentAll !== void 0 ? function(argument) {
@@ -11071,9 +11071,9 @@ var require_is_callable = __commonJS({
   }
 });
 
-// node_modules/core-js/internals/is-object.js
+// work/ticket-build/node_modules/core-js/internals/is-object.js
 var require_is_object = __commonJS({
-  "node_modules/core-js/internals/is-object.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/is-object.js"(exports, module) {
     "use strict";
     var isCallable = require_is_callable();
     module.exports = function(it2) {
@@ -11082,9 +11082,9 @@ var require_is_object = __commonJS({
   }
 });
 
-// node_modules/core-js/internals/get-built-in.js
+// work/ticket-build/node_modules/core-js/internals/get-built-in.js
 var require_get_built_in = __commonJS({
-  "node_modules/core-js/internals/get-built-in.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/get-built-in.js"(exports, module) {
     "use strict";
     var globalThis2 = require_global_this();
     var isCallable = require_is_callable();
@@ -11097,18 +11097,18 @@ var require_get_built_in = __commonJS({
   }
 });
 
-// node_modules/core-js/internals/object-is-prototype-of.js
+// work/ticket-build/node_modules/core-js/internals/object-is-prototype-of.js
 var require_object_is_prototype_of = __commonJS({
-  "node_modules/core-js/internals/object-is-prototype-of.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/object-is-prototype-of.js"(exports, module) {
     "use strict";
     var uncurryThis = require_function_uncurry_this();
     module.exports = uncurryThis({}.isPrototypeOf);
   }
 });
 
-// node_modules/core-js/internals/environment-user-agent.js
+// work/ticket-build/node_modules/core-js/internals/environment-user-agent.js
 var require_environment_user_agent = __commonJS({
-  "node_modules/core-js/internals/environment-user-agent.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/environment-user-agent.js"(exports, module) {
     "use strict";
     var globalThis2 = require_global_this();
     var navigator2 = globalThis2.navigator;
@@ -11117,9 +11117,9 @@ var require_environment_user_agent = __commonJS({
   }
 });
 
-// node_modules/core-js/internals/environment-v8-version.js
+// work/ticket-build/node_modules/core-js/internals/environment-v8-version.js
 var require_environment_v8_version = __commonJS({
-  "node_modules/core-js/internals/environment-v8-version.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/environment-v8-version.js"(exports, module) {
     "use strict";
     var globalThis2 = require_global_this();
     var userAgent = require_environment_user_agent();
@@ -11144,9 +11144,9 @@ var require_environment_v8_version = __commonJS({
   }
 });
 
-// node_modules/core-js/internals/symbol-constructor-detection.js
+// work/ticket-build/node_modules/core-js/internals/symbol-constructor-detection.js
 var require_symbol_constructor_detection = __commonJS({
-  "node_modules/core-js/internals/symbol-constructor-detection.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/symbol-constructor-detection.js"(exports, module) {
     "use strict";
     var V8_VERSION = require_environment_v8_version();
     var fails = require_fails();
@@ -11160,18 +11160,18 @@ var require_symbol_constructor_detection = __commonJS({
   }
 });
 
-// node_modules/core-js/internals/use-symbol-as-uid.js
+// work/ticket-build/node_modules/core-js/internals/use-symbol-as-uid.js
 var require_use_symbol_as_uid = __commonJS({
-  "node_modules/core-js/internals/use-symbol-as-uid.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/use-symbol-as-uid.js"(exports, module) {
     "use strict";
     var NATIVE_SYMBOL = require_symbol_constructor_detection();
     module.exports = NATIVE_SYMBOL && !Symbol.sham && typeof Symbol.iterator == "symbol";
   }
 });
 
-// node_modules/core-js/internals/is-symbol.js
+// work/ticket-build/node_modules/core-js/internals/is-symbol.js
 var require_is_symbol = __commonJS({
-  "node_modules/core-js/internals/is-symbol.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/is-symbol.js"(exports, module) {
     "use strict";
     var getBuiltIn = require_get_built_in();
     var isCallable = require_is_callable();
@@ -11187,9 +11187,9 @@ var require_is_symbol = __commonJS({
   }
 });
 
-// node_modules/core-js/internals/try-to-string.js
+// work/ticket-build/node_modules/core-js/internals/try-to-string.js
 var require_try_to_string = __commonJS({
-  "node_modules/core-js/internals/try-to-string.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/try-to-string.js"(exports, module) {
     "use strict";
     var $String = String;
     module.exports = function(argument) {
@@ -11202,9 +11202,9 @@ var require_try_to_string = __commonJS({
   }
 });
 
-// node_modules/core-js/internals/a-callable.js
+// work/ticket-build/node_modules/core-js/internals/a-callable.js
 var require_a_callable = __commonJS({
-  "node_modules/core-js/internals/a-callable.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/a-callable.js"(exports, module) {
     "use strict";
     var isCallable = require_is_callable();
     var tryToString = require_try_to_string();
@@ -11216,9 +11216,9 @@ var require_a_callable = __commonJS({
   }
 });
 
-// node_modules/core-js/internals/get-method.js
+// work/ticket-build/node_modules/core-js/internals/get-method.js
 var require_get_method = __commonJS({
-  "node_modules/core-js/internals/get-method.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/get-method.js"(exports, module) {
     "use strict";
     var aCallable = require_a_callable();
     var isNullOrUndefined = require_is_null_or_undefined();
@@ -11229,9 +11229,9 @@ var require_get_method = __commonJS({
   }
 });
 
-// node_modules/core-js/internals/ordinary-to-primitive.js
+// work/ticket-build/node_modules/core-js/internals/ordinary-to-primitive.js
 var require_ordinary_to_primitive = __commonJS({
-  "node_modules/core-js/internals/ordinary-to-primitive.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/ordinary-to-primitive.js"(exports, module) {
     "use strict";
     var call = require_function_call();
     var isCallable = require_is_callable();
@@ -11247,17 +11247,17 @@ var require_ordinary_to_primitive = __commonJS({
   }
 });
 
-// node_modules/core-js/internals/is-pure.js
+// work/ticket-build/node_modules/core-js/internals/is-pure.js
 var require_is_pure = __commonJS({
-  "node_modules/core-js/internals/is-pure.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/is-pure.js"(exports, module) {
     "use strict";
     module.exports = false;
   }
 });
 
-// node_modules/core-js/internals/define-global-property.js
+// work/ticket-build/node_modules/core-js/internals/define-global-property.js
 var require_define_global_property = __commonJS({
-  "node_modules/core-js/internals/define-global-property.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/define-global-property.js"(exports, module) {
     "use strict";
     var globalThis2 = require_global_this();
     var defineProperty = Object.defineProperty;
@@ -11272,9 +11272,9 @@ var require_define_global_property = __commonJS({
   }
 });
 
-// node_modules/core-js/internals/shared-store.js
+// work/ticket-build/node_modules/core-js/internals/shared-store.js
 var require_shared_store = __commonJS({
-  "node_modules/core-js/internals/shared-store.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/shared-store.js"(exports, module) {
     "use strict";
     var IS_PURE = require_is_pure();
     var globalThis2 = require_global_this();
@@ -11291,9 +11291,9 @@ var require_shared_store = __commonJS({
   }
 });
 
-// node_modules/core-js/internals/shared.js
+// work/ticket-build/node_modules/core-js/internals/shared.js
 var require_shared = __commonJS({
-  "node_modules/core-js/internals/shared.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/shared.js"(exports, module) {
     "use strict";
     var store = require_shared_store();
     var create = Object.create || Object;
@@ -11303,9 +11303,9 @@ var require_shared = __commonJS({
   }
 });
 
-// node_modules/core-js/internals/to-object.js
+// work/ticket-build/node_modules/core-js/internals/to-object.js
 var require_to_object = __commonJS({
-  "node_modules/core-js/internals/to-object.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/to-object.js"(exports, module) {
     "use strict";
     var requireObjectCoercible = require_require_object_coercible();
     var $Object = Object;
@@ -11315,9 +11315,9 @@ var require_to_object = __commonJS({
   }
 });
 
-// node_modules/core-js/internals/has-own-property.js
+// work/ticket-build/node_modules/core-js/internals/has-own-property.js
 var require_has_own_property = __commonJS({
-  "node_modules/core-js/internals/has-own-property.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/has-own-property.js"(exports, module) {
     "use strict";
     var uncurryThis = require_function_uncurry_this();
     var toObject = require_to_object();
@@ -11328,9 +11328,9 @@ var require_has_own_property = __commonJS({
   }
 });
 
-// node_modules/core-js/internals/uid.js
+// work/ticket-build/node_modules/core-js/internals/uid.js
 var require_uid = __commonJS({
-  "node_modules/core-js/internals/uid.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/uid.js"(exports, module) {
     "use strict";
     var uncurryThis = require_function_uncurry_this();
     var id = 0;
@@ -11342,9 +11342,9 @@ var require_uid = __commonJS({
   }
 });
 
-// node_modules/core-js/internals/well-known-symbol.js
+// work/ticket-build/node_modules/core-js/internals/well-known-symbol.js
 var require_well_known_symbol = __commonJS({
-  "node_modules/core-js/internals/well-known-symbol.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/well-known-symbol.js"(exports, module) {
     "use strict";
     var globalThis2 = require_global_this();
     var shared = require_shared();
@@ -11364,9 +11364,9 @@ var require_well_known_symbol = __commonJS({
   }
 });
 
-// node_modules/core-js/internals/to-primitive.js
+// work/ticket-build/node_modules/core-js/internals/to-primitive.js
 var require_to_primitive = __commonJS({
-  "node_modules/core-js/internals/to-primitive.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/to-primitive.js"(exports, module) {
     "use strict";
     var call = require_function_call();
     var isObject = require_is_object();
@@ -11392,9 +11392,9 @@ var require_to_primitive = __commonJS({
   }
 });
 
-// node_modules/core-js/internals/to-property-key.js
+// work/ticket-build/node_modules/core-js/internals/to-property-key.js
 var require_to_property_key = __commonJS({
-  "node_modules/core-js/internals/to-property-key.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/to-property-key.js"(exports, module) {
     "use strict";
     var toPrimitive2 = require_to_primitive();
     var isSymbol = require_is_symbol();
@@ -11405,9 +11405,9 @@ var require_to_property_key = __commonJS({
   }
 });
 
-// node_modules/core-js/internals/document-create-element.js
+// work/ticket-build/node_modules/core-js/internals/document-create-element.js
 var require_document_create_element = __commonJS({
-  "node_modules/core-js/internals/document-create-element.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/document-create-element.js"(exports, module) {
     "use strict";
     var globalThis2 = require_global_this();
     var isObject = require_is_object();
@@ -11419,9 +11419,9 @@ var require_document_create_element = __commonJS({
   }
 });
 
-// node_modules/core-js/internals/ie8-dom-define.js
+// work/ticket-build/node_modules/core-js/internals/ie8-dom-define.js
 var require_ie8_dom_define = __commonJS({
-  "node_modules/core-js/internals/ie8-dom-define.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/ie8-dom-define.js"(exports, module) {
     "use strict";
     var DESCRIPTORS = require_descriptors();
     var fails = require_fails();
@@ -11436,9 +11436,9 @@ var require_ie8_dom_define = __commonJS({
   }
 });
 
-// node_modules/core-js/internals/object-get-own-property-descriptor.js
+// work/ticket-build/node_modules/core-js/internals/object-get-own-property-descriptor.js
 var require_object_get_own_property_descriptor = __commonJS({
-  "node_modules/core-js/internals/object-get-own-property-descriptor.js"(exports) {
+  "work/ticket-build/node_modules/core-js/internals/object-get-own-property-descriptor.js"(exports) {
     "use strict";
     var DESCRIPTORS = require_descriptors();
     var call = require_function_call();
@@ -11461,9 +11461,9 @@ var require_object_get_own_property_descriptor = __commonJS({
   }
 });
 
-// node_modules/core-js/internals/v8-prototype-define-bug.js
+// work/ticket-build/node_modules/core-js/internals/v8-prototype-define-bug.js
 var require_v8_prototype_define_bug = __commonJS({
-  "node_modules/core-js/internals/v8-prototype-define-bug.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/v8-prototype-define-bug.js"(exports, module) {
     "use strict";
     var DESCRIPTORS = require_descriptors();
     var fails = require_fails();
@@ -11477,9 +11477,9 @@ var require_v8_prototype_define_bug = __commonJS({
   }
 });
 
-// node_modules/core-js/internals/an-object.js
+// work/ticket-build/node_modules/core-js/internals/an-object.js
 var require_an_object = __commonJS({
-  "node_modules/core-js/internals/an-object.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/an-object.js"(exports, module) {
     "use strict";
     var isObject = require_is_object();
     var $String = String;
@@ -11491,9 +11491,9 @@ var require_an_object = __commonJS({
   }
 });
 
-// node_modules/core-js/internals/object-define-property.js
+// work/ticket-build/node_modules/core-js/internals/object-define-property.js
 var require_object_define_property = __commonJS({
-  "node_modules/core-js/internals/object-define-property.js"(exports) {
+  "work/ticket-build/node_modules/core-js/internals/object-define-property.js"(exports) {
     "use strict";
     var DESCRIPTORS = require_descriptors();
     var IE8_DOM_DEFINE = require_ie8_dom_define();
@@ -11537,9 +11537,9 @@ var require_object_define_property = __commonJS({
   }
 });
 
-// node_modules/core-js/internals/create-non-enumerable-property.js
+// work/ticket-build/node_modules/core-js/internals/create-non-enumerable-property.js
 var require_create_non_enumerable_property = __commonJS({
-  "node_modules/core-js/internals/create-non-enumerable-property.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/create-non-enumerable-property.js"(exports, module) {
     "use strict";
     var DESCRIPTORS = require_descriptors();
     var definePropertyModule = require_object_define_property();
@@ -11553,9 +11553,9 @@ var require_create_non_enumerable_property = __commonJS({
   }
 });
 
-// node_modules/core-js/internals/function-name.js
+// work/ticket-build/node_modules/core-js/internals/function-name.js
 var require_function_name = __commonJS({
-  "node_modules/core-js/internals/function-name.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/function-name.js"(exports, module) {
     "use strict";
     var DESCRIPTORS = require_descriptors();
     var hasOwn = require_has_own_property();
@@ -11573,9 +11573,9 @@ var require_function_name = __commonJS({
   }
 });
 
-// node_modules/core-js/internals/inspect-source.js
+// work/ticket-build/node_modules/core-js/internals/inspect-source.js
 var require_inspect_source = __commonJS({
-  "node_modules/core-js/internals/inspect-source.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/inspect-source.js"(exports, module) {
     "use strict";
     var uncurryThis = require_function_uncurry_this();
     var isCallable = require_is_callable();
@@ -11590,9 +11590,9 @@ var require_inspect_source = __commonJS({
   }
 });
 
-// node_modules/core-js/internals/weak-map-basic-detection.js
+// work/ticket-build/node_modules/core-js/internals/weak-map-basic-detection.js
 var require_weak_map_basic_detection = __commonJS({
-  "node_modules/core-js/internals/weak-map-basic-detection.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/weak-map-basic-detection.js"(exports, module) {
     "use strict";
     var globalThis2 = require_global_this();
     var isCallable = require_is_callable();
@@ -11601,9 +11601,9 @@ var require_weak_map_basic_detection = __commonJS({
   }
 });
 
-// node_modules/core-js/internals/shared-key.js
+// work/ticket-build/node_modules/core-js/internals/shared-key.js
 var require_shared_key = __commonJS({
-  "node_modules/core-js/internals/shared-key.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/shared-key.js"(exports, module) {
     "use strict";
     var shared = require_shared();
     var uid = require_uid();
@@ -11614,17 +11614,17 @@ var require_shared_key = __commonJS({
   }
 });
 
-// node_modules/core-js/internals/hidden-keys.js
+// work/ticket-build/node_modules/core-js/internals/hidden-keys.js
 var require_hidden_keys = __commonJS({
-  "node_modules/core-js/internals/hidden-keys.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/hidden-keys.js"(exports, module) {
     "use strict";
     module.exports = {};
   }
 });
 
-// node_modules/core-js/internals/internal-state.js
+// work/ticket-build/node_modules/core-js/internals/internal-state.js
 var require_internal_state = __commonJS({
-  "node_modules/core-js/internals/internal-state.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/internal-state.js"(exports, module) {
     "use strict";
     var NATIVE_WEAK_MAP = require_weak_map_basic_detection();
     var globalThis2 = require_global_this();
@@ -11697,9 +11697,9 @@ var require_internal_state = __commonJS({
   }
 });
 
-// node_modules/core-js/internals/make-built-in.js
+// work/ticket-build/node_modules/core-js/internals/make-built-in.js
 var require_make_built_in = __commonJS({
-  "node_modules/core-js/internals/make-built-in.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/make-built-in.js"(exports, module) {
     "use strict";
     var uncurryThis = require_function_uncurry_this();
     var fails = require_fails();
@@ -11752,9 +11752,9 @@ var require_make_built_in = __commonJS({
   }
 });
 
-// node_modules/core-js/internals/define-built-in.js
+// work/ticket-build/node_modules/core-js/internals/define-built-in.js
 var require_define_built_in = __commonJS({
-  "node_modules/core-js/internals/define-built-in.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/define-built-in.js"(exports, module) {
     "use strict";
     var isCallable = require_is_callable();
     var definePropertyModule = require_object_define_property();
@@ -11787,9 +11787,9 @@ var require_define_built_in = __commonJS({
   }
 });
 
-// node_modules/core-js/internals/math-trunc.js
+// work/ticket-build/node_modules/core-js/internals/math-trunc.js
 var require_math_trunc = __commonJS({
-  "node_modules/core-js/internals/math-trunc.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/math-trunc.js"(exports, module) {
     "use strict";
     var ceil = Math.ceil;
     var floor = Math.floor;
@@ -11800,9 +11800,9 @@ var require_math_trunc = __commonJS({
   }
 });
 
-// node_modules/core-js/internals/to-integer-or-infinity.js
+// work/ticket-build/node_modules/core-js/internals/to-integer-or-infinity.js
 var require_to_integer_or_infinity = __commonJS({
-  "node_modules/core-js/internals/to-integer-or-infinity.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/to-integer-or-infinity.js"(exports, module) {
     "use strict";
     var trunc = require_math_trunc();
     module.exports = function(argument) {
@@ -11812,9 +11812,9 @@ var require_to_integer_or_infinity = __commonJS({
   }
 });
 
-// node_modules/core-js/internals/to-absolute-index.js
+// work/ticket-build/node_modules/core-js/internals/to-absolute-index.js
 var require_to_absolute_index = __commonJS({
-  "node_modules/core-js/internals/to-absolute-index.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/to-absolute-index.js"(exports, module) {
     "use strict";
     var toIntegerOrInfinity = require_to_integer_or_infinity();
     var max2 = Math.max;
@@ -11826,9 +11826,9 @@ var require_to_absolute_index = __commonJS({
   }
 });
 
-// node_modules/core-js/internals/to-length.js
+// work/ticket-build/node_modules/core-js/internals/to-length.js
 var require_to_length = __commonJS({
-  "node_modules/core-js/internals/to-length.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/to-length.js"(exports, module) {
     "use strict";
     var toIntegerOrInfinity = require_to_integer_or_infinity();
     var min = Math.min;
@@ -11839,9 +11839,9 @@ var require_to_length = __commonJS({
   }
 });
 
-// node_modules/core-js/internals/length-of-array-like.js
+// work/ticket-build/node_modules/core-js/internals/length-of-array-like.js
 var require_length_of_array_like = __commonJS({
-  "node_modules/core-js/internals/length-of-array-like.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/length-of-array-like.js"(exports, module) {
     "use strict";
     var toLength = require_to_length();
     module.exports = function(obj) {
@@ -11850,9 +11850,9 @@ var require_length_of_array_like = __commonJS({
   }
 });
 
-// node_modules/core-js/internals/array-includes.js
+// work/ticket-build/node_modules/core-js/internals/array-includes.js
 var require_array_includes = __commonJS({
-  "node_modules/core-js/internals/array-includes.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/array-includes.js"(exports, module) {
     "use strict";
     var toIndexedObject = require_to_indexed_object();
     var toAbsoluteIndex = require_to_absolute_index();
@@ -11885,9 +11885,9 @@ var require_array_includes = __commonJS({
   }
 });
 
-// node_modules/core-js/internals/object-keys-internal.js
+// work/ticket-build/node_modules/core-js/internals/object-keys-internal.js
 var require_object_keys_internal = __commonJS({
-  "node_modules/core-js/internals/object-keys-internal.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/object-keys-internal.js"(exports, module) {
     "use strict";
     var uncurryThis = require_function_uncurry_this();
     var hasOwn = require_has_own_property();
@@ -11909,9 +11909,9 @@ var require_object_keys_internal = __commonJS({
   }
 });
 
-// node_modules/core-js/internals/enum-bug-keys.js
+// work/ticket-build/node_modules/core-js/internals/enum-bug-keys.js
 var require_enum_bug_keys = __commonJS({
-  "node_modules/core-js/internals/enum-bug-keys.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/enum-bug-keys.js"(exports, module) {
     "use strict";
     module.exports = [
       "constructor",
@@ -11925,9 +11925,9 @@ var require_enum_bug_keys = __commonJS({
   }
 });
 
-// node_modules/core-js/internals/object-get-own-property-names.js
+// work/ticket-build/node_modules/core-js/internals/object-get-own-property-names.js
 var require_object_get_own_property_names = __commonJS({
-  "node_modules/core-js/internals/object-get-own-property-names.js"(exports) {
+  "work/ticket-build/node_modules/core-js/internals/object-get-own-property-names.js"(exports) {
     "use strict";
     var internalObjectKeys = require_object_keys_internal();
     var enumBugKeys = require_enum_bug_keys();
@@ -11938,17 +11938,17 @@ var require_object_get_own_property_names = __commonJS({
   }
 });
 
-// node_modules/core-js/internals/object-get-own-property-symbols.js
+// work/ticket-build/node_modules/core-js/internals/object-get-own-property-symbols.js
 var require_object_get_own_property_symbols = __commonJS({
-  "node_modules/core-js/internals/object-get-own-property-symbols.js"(exports) {
+  "work/ticket-build/node_modules/core-js/internals/object-get-own-property-symbols.js"(exports) {
     "use strict";
     exports.f = Object.getOwnPropertySymbols;
   }
 });
 
-// node_modules/core-js/internals/own-keys.js
+// work/ticket-build/node_modules/core-js/internals/own-keys.js
 var require_own_keys = __commonJS({
-  "node_modules/core-js/internals/own-keys.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/own-keys.js"(exports, module) {
     "use strict";
     var getBuiltIn = require_get_built_in();
     var uncurryThis = require_function_uncurry_this();
@@ -11964,9 +11964,9 @@ var require_own_keys = __commonJS({
   }
 });
 
-// node_modules/core-js/internals/copy-constructor-properties.js
+// work/ticket-build/node_modules/core-js/internals/copy-constructor-properties.js
 var require_copy_constructor_properties = __commonJS({
-  "node_modules/core-js/internals/copy-constructor-properties.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/copy-constructor-properties.js"(exports, module) {
     "use strict";
     var hasOwn = require_has_own_property();
     var ownKeys2 = require_own_keys();
@@ -11986,9 +11986,9 @@ var require_copy_constructor_properties = __commonJS({
   }
 });
 
-// node_modules/core-js/internals/is-forced.js
+// work/ticket-build/node_modules/core-js/internals/is-forced.js
 var require_is_forced = __commonJS({
-  "node_modules/core-js/internals/is-forced.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/is-forced.js"(exports, module) {
     "use strict";
     var fails = require_fails();
     var isCallable = require_is_callable();
@@ -12007,9 +12007,9 @@ var require_is_forced = __commonJS({
   }
 });
 
-// node_modules/core-js/internals/export.js
+// work/ticket-build/node_modules/core-js/internals/export.js
 var require_export = __commonJS({
-  "node_modules/core-js/internals/export.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/export.js"(exports, module) {
     "use strict";
     var globalThis2 = require_global_this();
     var getOwnPropertyDescriptor = require_object_get_own_property_descriptor().f;
@@ -12050,9 +12050,9 @@ var require_export = __commonJS({
   }
 });
 
-// node_modules/core-js/internals/environment.js
+// work/ticket-build/node_modules/core-js/internals/environment.js
 var require_environment = __commonJS({
-  "node_modules/core-js/internals/environment.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/environment.js"(exports, module) {
     "use strict";
     var globalThis2 = require_global_this();
     var userAgent = require_environment_user_agent();
@@ -12074,27 +12074,27 @@ var require_environment = __commonJS({
   }
 });
 
-// node_modules/core-js/internals/environment-is-node.js
+// work/ticket-build/node_modules/core-js/internals/environment-is-node.js
 var require_environment_is_node = __commonJS({
-  "node_modules/core-js/internals/environment-is-node.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/environment-is-node.js"(exports, module) {
     "use strict";
     var ENVIRONMENT = require_environment();
     module.exports = ENVIRONMENT === "NODE";
   }
 });
 
-// node_modules/core-js/internals/path.js
+// work/ticket-build/node_modules/core-js/internals/path.js
 var require_path = __commonJS({
-  "node_modules/core-js/internals/path.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/path.js"(exports, module) {
     "use strict";
     var globalThis2 = require_global_this();
     module.exports = globalThis2;
   }
 });
 
-// node_modules/core-js/internals/function-uncurry-this-accessor.js
+// work/ticket-build/node_modules/core-js/internals/function-uncurry-this-accessor.js
 var require_function_uncurry_this_accessor = __commonJS({
-  "node_modules/core-js/internals/function-uncurry-this-accessor.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/function-uncurry-this-accessor.js"(exports, module) {
     "use strict";
     var uncurryThis = require_function_uncurry_this();
     var aCallable = require_a_callable();
@@ -12107,9 +12107,9 @@ var require_function_uncurry_this_accessor = __commonJS({
   }
 });
 
-// node_modules/core-js/internals/is-possible-prototype.js
+// work/ticket-build/node_modules/core-js/internals/is-possible-prototype.js
 var require_is_possible_prototype = __commonJS({
-  "node_modules/core-js/internals/is-possible-prototype.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/is-possible-prototype.js"(exports, module) {
     "use strict";
     var isObject = require_is_object();
     module.exports = function(argument) {
@@ -12118,9 +12118,9 @@ var require_is_possible_prototype = __commonJS({
   }
 });
 
-// node_modules/core-js/internals/a-possible-prototype.js
+// work/ticket-build/node_modules/core-js/internals/a-possible-prototype.js
 var require_a_possible_prototype = __commonJS({
-  "node_modules/core-js/internals/a-possible-prototype.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/a-possible-prototype.js"(exports, module) {
     "use strict";
     var isPossiblePrototype = require_is_possible_prototype();
     var $String = String;
@@ -12132,9 +12132,9 @@ var require_a_possible_prototype = __commonJS({
   }
 });
 
-// node_modules/core-js/internals/object-set-prototype-of.js
+// work/ticket-build/node_modules/core-js/internals/object-set-prototype-of.js
 var require_object_set_prototype_of = __commonJS({
-  "node_modules/core-js/internals/object-set-prototype-of.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/object-set-prototype-of.js"(exports, module) {
     "use strict";
     var uncurryThisAccessor = require_function_uncurry_this_accessor();
     var isObject = require_is_object();
@@ -12162,9 +12162,9 @@ var require_object_set_prototype_of = __commonJS({
   }
 });
 
-// node_modules/core-js/internals/set-to-string-tag.js
+// work/ticket-build/node_modules/core-js/internals/set-to-string-tag.js
 var require_set_to_string_tag = __commonJS({
-  "node_modules/core-js/internals/set-to-string-tag.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/set-to-string-tag.js"(exports, module) {
     "use strict";
     var defineProperty = require_object_define_property().f;
     var hasOwn = require_has_own_property();
@@ -12179,9 +12179,9 @@ var require_set_to_string_tag = __commonJS({
   }
 });
 
-// node_modules/core-js/internals/define-built-in-accessor.js
+// work/ticket-build/node_modules/core-js/internals/define-built-in-accessor.js
 var require_define_built_in_accessor = __commonJS({
-  "node_modules/core-js/internals/define-built-in-accessor.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/define-built-in-accessor.js"(exports, module) {
     "use strict";
     var makeBuiltIn = require_make_built_in();
     var defineProperty = require_object_define_property();
@@ -12193,9 +12193,9 @@ var require_define_built_in_accessor = __commonJS({
   }
 });
 
-// node_modules/core-js/internals/set-species.js
+// work/ticket-build/node_modules/core-js/internals/set-species.js
 var require_set_species = __commonJS({
-  "node_modules/core-js/internals/set-species.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/set-species.js"(exports, module) {
     "use strict";
     var getBuiltIn = require_get_built_in();
     var defineBuiltInAccessor = require_define_built_in_accessor();
@@ -12216,9 +12216,9 @@ var require_set_species = __commonJS({
   }
 });
 
-// node_modules/core-js/internals/an-instance.js
+// work/ticket-build/node_modules/core-js/internals/an-instance.js
 var require_an_instance = __commonJS({
-  "node_modules/core-js/internals/an-instance.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/an-instance.js"(exports, module) {
     "use strict";
     var isPrototypeOf = require_object_is_prototype_of();
     var $TypeError = TypeError;
@@ -12229,9 +12229,9 @@ var require_an_instance = __commonJS({
   }
 });
 
-// node_modules/core-js/internals/to-string-tag-support.js
+// work/ticket-build/node_modules/core-js/internals/to-string-tag-support.js
 var require_to_string_tag_support = __commonJS({
-  "node_modules/core-js/internals/to-string-tag-support.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/to-string-tag-support.js"(exports, module) {
     "use strict";
     var wellKnownSymbol = require_well_known_symbol();
     var TO_STRING_TAG = wellKnownSymbol("toStringTag");
@@ -12241,9 +12241,9 @@ var require_to_string_tag_support = __commonJS({
   }
 });
 
-// node_modules/core-js/internals/classof.js
+// work/ticket-build/node_modules/core-js/internals/classof.js
 var require_classof = __commonJS({
-  "node_modules/core-js/internals/classof.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/classof.js"(exports, module) {
     "use strict";
     var TO_STRING_TAG_SUPPORT = require_to_string_tag_support();
     var isCallable = require_is_callable();
@@ -12267,9 +12267,9 @@ var require_classof = __commonJS({
   }
 });
 
-// node_modules/core-js/internals/is-constructor.js
+// work/ticket-build/node_modules/core-js/internals/is-constructor.js
 var require_is_constructor = __commonJS({
-  "node_modules/core-js/internals/is-constructor.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/is-constructor.js"(exports, module) {
     "use strict";
     var uncurryThis = require_function_uncurry_this();
     var fails = require_fails();
@@ -12316,9 +12316,9 @@ var require_is_constructor = __commonJS({
   }
 });
 
-// node_modules/core-js/internals/a-constructor.js
+// work/ticket-build/node_modules/core-js/internals/a-constructor.js
 var require_a_constructor = __commonJS({
-  "node_modules/core-js/internals/a-constructor.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/a-constructor.js"(exports, module) {
     "use strict";
     var isConstructor = require_is_constructor();
     var tryToString = require_try_to_string();
@@ -12330,9 +12330,9 @@ var require_a_constructor = __commonJS({
   }
 });
 
-// node_modules/core-js/internals/species-constructor.js
+// work/ticket-build/node_modules/core-js/internals/species-constructor.js
 var require_species_constructor = __commonJS({
-  "node_modules/core-js/internals/species-constructor.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/species-constructor.js"(exports, module) {
     "use strict";
     var anObject = require_an_object();
     var aConstructor = require_a_constructor();
@@ -12347,9 +12347,9 @@ var require_species_constructor = __commonJS({
   }
 });
 
-// node_modules/core-js/internals/function-apply.js
+// work/ticket-build/node_modules/core-js/internals/function-apply.js
 var require_function_apply = __commonJS({
-  "node_modules/core-js/internals/function-apply.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/function-apply.js"(exports, module) {
     "use strict";
     var NATIVE_BIND = require_function_bind_native();
     var FunctionPrototype = Function.prototype;
@@ -12361,9 +12361,9 @@ var require_function_apply = __commonJS({
   }
 });
 
-// node_modules/core-js/internals/function-uncurry-this-clause.js
+// work/ticket-build/node_modules/core-js/internals/function-uncurry-this-clause.js
 var require_function_uncurry_this_clause = __commonJS({
-  "node_modules/core-js/internals/function-uncurry-this-clause.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/function-uncurry-this-clause.js"(exports, module) {
     "use strict";
     var classofRaw = require_classof_raw();
     var uncurryThis = require_function_uncurry_this();
@@ -12373,9 +12373,9 @@ var require_function_uncurry_this_clause = __commonJS({
   }
 });
 
-// node_modules/core-js/internals/function-bind-context.js
+// work/ticket-build/node_modules/core-js/internals/function-bind-context.js
 var require_function_bind_context = __commonJS({
-  "node_modules/core-js/internals/function-bind-context.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/function-bind-context.js"(exports, module) {
     "use strict";
     var uncurryThis = require_function_uncurry_this_clause();
     var aCallable = require_a_callable();
@@ -12390,27 +12390,27 @@ var require_function_bind_context = __commonJS({
   }
 });
 
-// node_modules/core-js/internals/html.js
+// work/ticket-build/node_modules/core-js/internals/html.js
 var require_html = __commonJS({
-  "node_modules/core-js/internals/html.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/html.js"(exports, module) {
     "use strict";
     var getBuiltIn = require_get_built_in();
     module.exports = getBuiltIn("document", "documentElement");
   }
 });
 
-// node_modules/core-js/internals/array-slice.js
+// work/ticket-build/node_modules/core-js/internals/array-slice.js
 var require_array_slice = __commonJS({
-  "node_modules/core-js/internals/array-slice.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/array-slice.js"(exports, module) {
     "use strict";
     var uncurryThis = require_function_uncurry_this();
     module.exports = uncurryThis([].slice);
   }
 });
 
-// node_modules/core-js/internals/validate-arguments-length.js
+// work/ticket-build/node_modules/core-js/internals/validate-arguments-length.js
 var require_validate_arguments_length = __commonJS({
-  "node_modules/core-js/internals/validate-arguments-length.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/validate-arguments-length.js"(exports, module) {
     "use strict";
     var $TypeError = TypeError;
     module.exports = function(passed, required) {
@@ -12420,18 +12420,18 @@ var require_validate_arguments_length = __commonJS({
   }
 });
 
-// node_modules/core-js/internals/environment-is-ios.js
+// work/ticket-build/node_modules/core-js/internals/environment-is-ios.js
 var require_environment_is_ios = __commonJS({
-  "node_modules/core-js/internals/environment-is-ios.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/environment-is-ios.js"(exports, module) {
     "use strict";
     var userAgent = require_environment_user_agent();
     module.exports = /ipad|iphone|ipod/i.test(userAgent) && /applewebkit/i.test(userAgent);
   }
 });
 
-// node_modules/core-js/internals/task.js
+// work/ticket-build/node_modules/core-js/internals/task.js
 var require_task = __commonJS({
-  "node_modules/core-js/internals/task.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/task.js"(exports, module) {
     "use strict";
     var globalThis2 = require_global_this();
     var apply = require_function_apply();
@@ -12530,9 +12530,9 @@ var require_task = __commonJS({
   }
 });
 
-// node_modules/core-js/internals/safe-get-built-in.js
+// work/ticket-build/node_modules/core-js/internals/safe-get-built-in.js
 var require_safe_get_built_in = __commonJS({
-  "node_modules/core-js/internals/safe-get-built-in.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/safe-get-built-in.js"(exports, module) {
     "use strict";
     var globalThis2 = require_global_this();
     var DESCRIPTORS = require_descriptors();
@@ -12545,9 +12545,9 @@ var require_safe_get_built_in = __commonJS({
   }
 });
 
-// node_modules/core-js/internals/queue.js
+// work/ticket-build/node_modules/core-js/internals/queue.js
 var require_queue = __commonJS({
-  "node_modules/core-js/internals/queue.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/queue.js"(exports, module) {
     "use strict";
     var Queue = function() {
       this.head = null;
@@ -12574,27 +12574,27 @@ var require_queue = __commonJS({
   }
 });
 
-// node_modules/core-js/internals/environment-is-ios-pebble.js
+// work/ticket-build/node_modules/core-js/internals/environment-is-ios-pebble.js
 var require_environment_is_ios_pebble = __commonJS({
-  "node_modules/core-js/internals/environment-is-ios-pebble.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/environment-is-ios-pebble.js"(exports, module) {
     "use strict";
     var userAgent = require_environment_user_agent();
     module.exports = /ipad|iphone|ipod/i.test(userAgent) && typeof Pebble != "undefined";
   }
 });
 
-// node_modules/core-js/internals/environment-is-webos-webkit.js
+// work/ticket-build/node_modules/core-js/internals/environment-is-webos-webkit.js
 var require_environment_is_webos_webkit = __commonJS({
-  "node_modules/core-js/internals/environment-is-webos-webkit.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/environment-is-webos-webkit.js"(exports, module) {
     "use strict";
     var userAgent = require_environment_user_agent();
     module.exports = /web0s(?!.*chrome)/i.test(userAgent);
   }
 });
 
-// node_modules/core-js/internals/microtask.js
+// work/ticket-build/node_modules/core-js/internals/microtask.js
 var require_microtask = __commonJS({
-  "node_modules/core-js/internals/microtask.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/microtask.js"(exports, module) {
     "use strict";
     var globalThis2 = require_global_this();
     var safeGetBuiltIn = require_safe_get_built_in();
@@ -12663,9 +12663,9 @@ var require_microtask = __commonJS({
   }
 });
 
-// node_modules/core-js/internals/host-report-errors.js
+// work/ticket-build/node_modules/core-js/internals/host-report-errors.js
 var require_host_report_errors = __commonJS({
-  "node_modules/core-js/internals/host-report-errors.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/host-report-errors.js"(exports, module) {
     "use strict";
     module.exports = function(a3, b2) {
       try {
@@ -12676,9 +12676,9 @@ var require_host_report_errors = __commonJS({
   }
 });
 
-// node_modules/core-js/internals/perform.js
+// work/ticket-build/node_modules/core-js/internals/perform.js
 var require_perform = __commonJS({
-  "node_modules/core-js/internals/perform.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/perform.js"(exports, module) {
     "use strict";
     module.exports = function(exec) {
       try {
@@ -12690,18 +12690,18 @@ var require_perform = __commonJS({
   }
 });
 
-// node_modules/core-js/internals/promise-native-constructor.js
+// work/ticket-build/node_modules/core-js/internals/promise-native-constructor.js
 var require_promise_native_constructor = __commonJS({
-  "node_modules/core-js/internals/promise-native-constructor.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/promise-native-constructor.js"(exports, module) {
     "use strict";
     var globalThis2 = require_global_this();
     module.exports = globalThis2.Promise;
   }
 });
 
-// node_modules/core-js/internals/promise-constructor-detection.js
+// work/ticket-build/node_modules/core-js/internals/promise-constructor-detection.js
 var require_promise_constructor_detection = __commonJS({
-  "node_modules/core-js/internals/promise-constructor-detection.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/promise-constructor-detection.js"(exports, module) {
     "use strict";
     var globalThis2 = require_global_this();
     var NativePromiseConstructor = require_promise_native_constructor();
@@ -12746,9 +12746,9 @@ var require_promise_constructor_detection = __commonJS({
   }
 });
 
-// node_modules/core-js/internals/new-promise-capability.js
+// work/ticket-build/node_modules/core-js/internals/new-promise-capability.js
 var require_new_promise_capability = __commonJS({
-  "node_modules/core-js/internals/new-promise-capability.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/new-promise-capability.js"(exports, module) {
     "use strict";
     var aCallable = require_a_callable();
     var $TypeError = TypeError;
@@ -12768,9 +12768,9 @@ var require_new_promise_capability = __commonJS({
   }
 });
 
-// node_modules/core-js/modules/es.promise.constructor.js
+// work/ticket-build/node_modules/core-js/modules/es.promise.constructor.js
 var require_es_promise_constructor = __commonJS({
-  "node_modules/core-js/modules/es.promise.constructor.js"() {
+  "work/ticket-build/node_modules/core-js/modules/es.promise.constructor.js"() {
     "use strict";
     var $2 = require_export();
     var IS_PURE = require_is_pure();
@@ -13032,17 +13032,17 @@ var require_es_promise_constructor = __commonJS({
   }
 });
 
-// node_modules/core-js/internals/iterators.js
+// work/ticket-build/node_modules/core-js/internals/iterators.js
 var require_iterators = __commonJS({
-  "node_modules/core-js/internals/iterators.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/iterators.js"(exports, module) {
     "use strict";
     module.exports = Object.create ? /* @__PURE__ */ Object.create(null) : {};
   }
 });
 
-// node_modules/core-js/internals/is-array-iterator-method.js
+// work/ticket-build/node_modules/core-js/internals/is-array-iterator-method.js
 var require_is_array_iterator_method = __commonJS({
-  "node_modules/core-js/internals/is-array-iterator-method.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/is-array-iterator-method.js"(exports, module) {
     "use strict";
     var wellKnownSymbol = require_well_known_symbol();
     var Iterators = require_iterators();
@@ -13054,9 +13054,9 @@ var require_is_array_iterator_method = __commonJS({
   }
 });
 
-// node_modules/core-js/internals/get-iterator-method-internal.js
+// work/ticket-build/node_modules/core-js/internals/get-iterator-method-internal.js
 var require_get_iterator_method_internal = __commonJS({
-  "node_modules/core-js/internals/get-iterator-method-internal.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/get-iterator-method-internal.js"(exports, module) {
     "use strict";
     var classof = require_classof_raw();
     var isNullOrUndefined = require_is_null_or_undefined();
@@ -13070,9 +13070,9 @@ var require_get_iterator_method_internal = __commonJS({
   }
 });
 
-// node_modules/core-js/internals/get-iterator-internal.js
+// work/ticket-build/node_modules/core-js/internals/get-iterator-internal.js
 var require_get_iterator_internal = __commonJS({
-  "node_modules/core-js/internals/get-iterator-internal.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/get-iterator-internal.js"(exports, module) {
     "use strict";
     var call = require_function_call();
     var isCallable = require_is_callable();
@@ -13088,9 +13088,9 @@ var require_get_iterator_internal = __commonJS({
   }
 });
 
-// node_modules/core-js/internals/iterator-close.js
+// work/ticket-build/node_modules/core-js/internals/iterator-close.js
 var require_iterator_close = __commonJS({
-  "node_modules/core-js/internals/iterator-close.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/iterator-close.js"(exports, module) {
     "use strict";
     var call = require_function_call();
     var anObject = require_an_object();
@@ -13117,9 +13117,9 @@ var require_iterator_close = __commonJS({
   }
 });
 
-// node_modules/core-js/internals/iterate.js
+// work/ticket-build/node_modules/core-js/internals/iterate.js
 var require_iterate = __commonJS({
-  "node_modules/core-js/internals/iterate.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/iterate.js"(exports, module) {
     "use strict";
     var bind = require_function_bind_context();
     var call = require_function_call();
@@ -13190,9 +13190,9 @@ var require_iterate = __commonJS({
   }
 });
 
-// node_modules/core-js/internals/check-correctness-of-iteration.js
+// work/ticket-build/node_modules/core-js/internals/check-correctness-of-iteration.js
 var require_check_correctness_of_iteration = __commonJS({
-  "node_modules/core-js/internals/check-correctness-of-iteration.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/check-correctness-of-iteration.js"(exports, module) {
     "use strict";
     var wellKnownSymbol = require_well_known_symbol();
     var ITERATOR = wellKnownSymbol("iterator");
@@ -13241,9 +13241,9 @@ var require_check_correctness_of_iteration = __commonJS({
   }
 });
 
-// node_modules/core-js/internals/promise-statics-incorrect-iteration.js
+// work/ticket-build/node_modules/core-js/internals/promise-statics-incorrect-iteration.js
 var require_promise_statics_incorrect_iteration = __commonJS({
-  "node_modules/core-js/internals/promise-statics-incorrect-iteration.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/promise-statics-incorrect-iteration.js"(exports, module) {
     "use strict";
     var NativePromiseConstructor = require_promise_native_constructor();
     var checkCorrectnessOfIteration = require_check_correctness_of_iteration();
@@ -13255,9 +13255,9 @@ var require_promise_statics_incorrect_iteration = __commonJS({
   }
 });
 
-// node_modules/core-js/modules/es.promise.all.js
+// work/ticket-build/node_modules/core-js/modules/es.promise.all.js
 var require_es_promise_all = __commonJS({
-  "node_modules/core-js/modules/es.promise.all.js"() {
+  "work/ticket-build/node_modules/core-js/modules/es.promise.all.js"() {
     "use strict";
     var $2 = require_export();
     var call = require_function_call();
@@ -13297,9 +13297,9 @@ var require_es_promise_all = __commonJS({
   }
 });
 
-// node_modules/core-js/modules/es.promise.catch.js
+// work/ticket-build/node_modules/core-js/modules/es.promise.catch.js
 var require_es_promise_catch = __commonJS({
-  "node_modules/core-js/modules/es.promise.catch.js"() {
+  "work/ticket-build/node_modules/core-js/modules/es.promise.catch.js"() {
     "use strict";
     var $2 = require_export();
     var IS_PURE = require_is_pure();
@@ -13324,9 +13324,9 @@ var require_es_promise_catch = __commonJS({
   }
 });
 
-// node_modules/core-js/modules/es.promise.race.js
+// work/ticket-build/node_modules/core-js/modules/es.promise.race.js
 var require_es_promise_race = __commonJS({
-  "node_modules/core-js/modules/es.promise.race.js"() {
+  "work/ticket-build/node_modules/core-js/modules/es.promise.race.js"() {
     "use strict";
     var $2 = require_export();
     var call = require_function_call();
@@ -13353,9 +13353,9 @@ var require_es_promise_race = __commonJS({
   }
 });
 
-// node_modules/core-js/modules/es.promise.reject.js
+// work/ticket-build/node_modules/core-js/modules/es.promise.reject.js
 var require_es_promise_reject = __commonJS({
-  "node_modules/core-js/modules/es.promise.reject.js"() {
+  "work/ticket-build/node_modules/core-js/modules/es.promise.reject.js"() {
     "use strict";
     var $2 = require_export();
     var newPromiseCapabilityModule = require_new_promise_capability();
@@ -13371,9 +13371,9 @@ var require_es_promise_reject = __commonJS({
   }
 });
 
-// node_modules/core-js/internals/promise-resolve.js
+// work/ticket-build/node_modules/core-js/internals/promise-resolve.js
 var require_promise_resolve = __commonJS({
-  "node_modules/core-js/internals/promise-resolve.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/promise-resolve.js"(exports, module) {
     "use strict";
     var anObject = require_an_object();
     var isObject = require_is_object();
@@ -13389,9 +13389,9 @@ var require_promise_resolve = __commonJS({
   }
 });
 
-// node_modules/core-js/modules/es.promise.resolve.js
+// work/ticket-build/node_modules/core-js/modules/es.promise.resolve.js
 var require_es_promise_resolve = __commonJS({
-  "node_modules/core-js/modules/es.promise.resolve.js"() {
+  "work/ticket-build/node_modules/core-js/modules/es.promise.resolve.js"() {
     "use strict";
     var $2 = require_export();
     var getBuiltIn = require_get_built_in();
@@ -13409,9 +13409,9 @@ var require_es_promise_resolve = __commonJS({
   }
 });
 
-// node_modules/core-js/modules/es.promise.js
+// work/ticket-build/node_modules/core-js/modules/es.promise.js
 var require_es_promise = __commonJS({
-  "node_modules/core-js/modules/es.promise.js"() {
+  "work/ticket-build/node_modules/core-js/modules/es.promise.js"() {
     "use strict";
     require_es_promise_constructor();
     require_es_promise_all();
@@ -13422,7 +13422,7 @@ var require_es_promise = __commonJS({
   }
 });
 
-// node_modules/@babel/runtime/helpers/esm/asyncToGenerator.js
+// work/ticket-build/node_modules/@babel/runtime/helpers/esm/asyncToGenerator.js
 function asyncGeneratorStep(n3, t3, e2, r2, o3, a3, c4) {
   try {
     var i3 = n3[a3](c4), u3 = i3.value;
@@ -13447,13 +13447,13 @@ function _asyncToGenerator(n3) {
   };
 }
 var init_asyncToGenerator = __esm({
-  "node_modules/@babel/runtime/helpers/esm/asyncToGenerator.js"() {
+  "work/ticket-build/node_modules/@babel/runtime/helpers/esm/asyncToGenerator.js"() {
   }
 });
 
-// node_modules/core-js/internals/to-string.js
+// work/ticket-build/node_modules/core-js/internals/to-string.js
 var require_to_string = __commonJS({
-  "node_modules/core-js/internals/to-string.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/to-string.js"(exports, module) {
     "use strict";
     var classof = require_classof();
     var $String = String;
@@ -13464,9 +13464,9 @@ var require_to_string = __commonJS({
   }
 });
 
-// node_modules/core-js/internals/regexp-flags.js
+// work/ticket-build/node_modules/core-js/internals/regexp-flags.js
 var require_regexp_flags = __commonJS({
-  "node_modules/core-js/internals/regexp-flags.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/regexp-flags.js"(exports, module) {
     "use strict";
     var anObject = require_an_object();
     module.exports = function() {
@@ -13485,9 +13485,9 @@ var require_regexp_flags = __commonJS({
   }
 });
 
-// node_modules/core-js/internals/regexp-sticky-helpers.js
+// work/ticket-build/node_modules/core-js/internals/regexp-sticky-helpers.js
 var require_regexp_sticky_helpers = __commonJS({
-  "node_modules/core-js/internals/regexp-sticky-helpers.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/regexp-sticky-helpers.js"(exports, module) {
     "use strict";
     var fails = require_fails();
     var globalThis2 = require_global_this();
@@ -13513,9 +13513,9 @@ var require_regexp_sticky_helpers = __commonJS({
   }
 });
 
-// node_modules/core-js/internals/object-keys.js
+// work/ticket-build/node_modules/core-js/internals/object-keys.js
 var require_object_keys = __commonJS({
-  "node_modules/core-js/internals/object-keys.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/object-keys.js"(exports, module) {
     "use strict";
     var internalObjectKeys = require_object_keys_internal();
     var enumBugKeys = require_enum_bug_keys();
@@ -13525,9 +13525,9 @@ var require_object_keys = __commonJS({
   }
 });
 
-// node_modules/core-js/internals/object-define-properties.js
+// work/ticket-build/node_modules/core-js/internals/object-define-properties.js
 var require_object_define_properties = __commonJS({
-  "node_modules/core-js/internals/object-define-properties.js"(exports) {
+  "work/ticket-build/node_modules/core-js/internals/object-define-properties.js"(exports) {
     "use strict";
     var DESCRIPTORS = require_descriptors();
     var V8_PROTOTYPE_DEFINE_BUG = require_v8_prototype_define_bug();
@@ -13548,9 +13548,9 @@ var require_object_define_properties = __commonJS({
   }
 });
 
-// node_modules/core-js/internals/object-create.js
+// work/ticket-build/node_modules/core-js/internals/object-create.js
 var require_object_create = __commonJS({
-  "node_modules/core-js/internals/object-create.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/object-create.js"(exports, module) {
     "use strict";
     var anObject = require_an_object();
     var definePropertiesModule = require_object_define_properties();
@@ -13614,9 +13614,9 @@ var require_object_create = __commonJS({
   }
 });
 
-// node_modules/core-js/internals/regexp-unsupported-dot-all.js
+// work/ticket-build/node_modules/core-js/internals/regexp-unsupported-dot-all.js
 var require_regexp_unsupported_dot_all = __commonJS({
-  "node_modules/core-js/internals/regexp-unsupported-dot-all.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/regexp-unsupported-dot-all.js"(exports, module) {
     "use strict";
     var fails = require_fails();
     var globalThis2 = require_global_this();
@@ -13628,9 +13628,9 @@ var require_regexp_unsupported_dot_all = __commonJS({
   }
 });
 
-// node_modules/core-js/internals/regexp-unsupported-ncg.js
+// work/ticket-build/node_modules/core-js/internals/regexp-unsupported-ncg.js
 var require_regexp_unsupported_ncg = __commonJS({
-  "node_modules/core-js/internals/regexp-unsupported-ncg.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/regexp-unsupported-ncg.js"(exports, module) {
     "use strict";
     var fails = require_fails();
     var globalThis2 = require_global_this();
@@ -13642,9 +13642,9 @@ var require_regexp_unsupported_ncg = __commonJS({
   }
 });
 
-// node_modules/core-js/internals/regexp-exec.js
+// work/ticket-build/node_modules/core-js/internals/regexp-exec.js
 var require_regexp_exec = __commonJS({
-  "node_modules/core-js/internals/regexp-exec.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/regexp-exec.js"(exports, module) {
     "use strict";
     var call = require_function_call();
     var uncurryThis = require_function_uncurry_this();
@@ -13744,9 +13744,9 @@ var require_regexp_exec = __commonJS({
   }
 });
 
-// node_modules/core-js/modules/es.regexp.exec.js
+// work/ticket-build/node_modules/core-js/modules/es.regexp.exec.js
 var require_es_regexp_exec = __commonJS({
-  "node_modules/core-js/modules/es.regexp.exec.js"() {
+  "work/ticket-build/node_modules/core-js/modules/es.regexp.exec.js"() {
     "use strict";
     var $2 = require_export();
     var exec = require_regexp_exec();
@@ -13756,9 +13756,9 @@ var require_es_regexp_exec = __commonJS({
   }
 });
 
-// node_modules/core-js/internals/fix-regexp-well-known-symbol-logic.js
+// work/ticket-build/node_modules/core-js/internals/fix-regexp-well-known-symbol-logic.js
 var require_fix_regexp_well_known_symbol_logic = __commonJS({
-  "node_modules/core-js/internals/fix-regexp-well-known-symbol-logic.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/fix-regexp-well-known-symbol-logic.js"(exports, module) {
     "use strict";
     require_es_regexp_exec();
     var call = require_function_call();
@@ -13816,9 +13816,9 @@ var require_fix_regexp_well_known_symbol_logic = __commonJS({
   }
 });
 
-// node_modules/core-js/internals/string-multibyte.js
+// work/ticket-build/node_modules/core-js/internals/string-multibyte.js
 var require_string_multibyte = __commonJS({
-  "node_modules/core-js/internals/string-multibyte.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/string-multibyte.js"(exports, module) {
     "use strict";
     var uncurryThis = require_function_uncurry_this();
     var toIntegerOrInfinity = require_to_integer_or_infinity();
@@ -13849,9 +13849,9 @@ var require_string_multibyte = __commonJS({
   }
 });
 
-// node_modules/core-js/internals/advance-string-index.js
+// work/ticket-build/node_modules/core-js/internals/advance-string-index.js
 var require_advance_string_index = __commonJS({
-  "node_modules/core-js/internals/advance-string-index.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/advance-string-index.js"(exports, module) {
     "use strict";
     var charAt = require_string_multibyte().charAt;
     module.exports = function(S2, index2, unicode) {
@@ -13860,9 +13860,9 @@ var require_advance_string_index = __commonJS({
   }
 });
 
-// node_modules/core-js/internals/regexp-flags-detection.js
+// work/ticket-build/node_modules/core-js/internals/regexp-flags-detection.js
 var require_regexp_flags_detection = __commonJS({
-  "node_modules/core-js/internals/regexp-flags-detection.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/regexp-flags-detection.js"(exports, module) {
     "use strict";
     var globalThis2 = require_global_this();
     var fails = require_fails();
@@ -13899,9 +13899,9 @@ var require_regexp_flags_detection = __commonJS({
   }
 });
 
-// node_modules/core-js/internals/regexp-get-flags.js
+// work/ticket-build/node_modules/core-js/internals/regexp-get-flags.js
 var require_regexp_get_flags = __commonJS({
-  "node_modules/core-js/internals/regexp-get-flags.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/regexp-get-flags.js"(exports, module) {
     "use strict";
     var call = require_function_call();
     var hasOwn = require_has_own_property();
@@ -13917,9 +13917,9 @@ var require_regexp_get_flags = __commonJS({
   }
 });
 
-// node_modules/core-js/internals/regexp-exec-abstract.js
+// work/ticket-build/node_modules/core-js/internals/regexp-exec-abstract.js
 var require_regexp_exec_abstract = __commonJS({
-  "node_modules/core-js/internals/regexp-exec-abstract.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/regexp-exec-abstract.js"(exports, module) {
     "use strict";
     var call = require_function_call();
     var anObject = require_an_object();
@@ -13940,9 +13940,9 @@ var require_regexp_exec_abstract = __commonJS({
   }
 });
 
-// node_modules/core-js/modules/es.string.match.js
+// work/ticket-build/node_modules/core-js/modules/es.string.match.js
 var require_es_string_match = __commonJS({
-  "node_modules/core-js/modules/es.string.match.js"() {
+  "work/ticket-build/node_modules/core-js/modules/es.string.match.js"() {
     "use strict";
     var call = require_function_call();
     var uncurryThis = require_function_uncurry_this();
@@ -13995,9 +13995,9 @@ var require_es_string_match = __commonJS({
   }
 });
 
-// node_modules/core-js/internals/get-substitution.js
+// work/ticket-build/node_modules/core-js/internals/get-substitution.js
 var require_get_substitution = __commonJS({
-  "node_modules/core-js/internals/get-substitution.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/get-substitution.js"(exports, module) {
     "use strict";
     var uncurryThis = require_function_uncurry_this();
     var toObject = require_to_object();
@@ -14046,9 +14046,9 @@ var require_get_substitution = __commonJS({
   }
 });
 
-// node_modules/core-js/modules/es.string.replace.js
+// work/ticket-build/node_modules/core-js/modules/es.string.replace.js
 var require_es_string_replace = __commonJS({
-  "node_modules/core-js/modules/es.string.replace.js"() {
+  "work/ticket-build/node_modules/core-js/modules/es.string.replace.js"() {
     "use strict";
     var apply = require_function_apply();
     var call = require_function_call();
@@ -14163,9 +14163,9 @@ var require_es_string_replace = __commonJS({
   }
 });
 
-// node_modules/core-js/internals/is-regexp.js
+// work/ticket-build/node_modules/core-js/internals/is-regexp.js
 var require_is_regexp = __commonJS({
-  "node_modules/core-js/internals/is-regexp.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/is-regexp.js"(exports, module) {
     "use strict";
     var isObject = require_is_object();
     var classof = require_classof_raw();
@@ -14178,9 +14178,9 @@ var require_is_regexp = __commonJS({
   }
 });
 
-// node_modules/core-js/internals/not-a-regexp.js
+// work/ticket-build/node_modules/core-js/internals/not-a-regexp.js
 var require_not_a_regexp = __commonJS({
-  "node_modules/core-js/internals/not-a-regexp.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/not-a-regexp.js"(exports, module) {
     "use strict";
     var isRegExp = require_is_regexp();
     var $TypeError = TypeError;
@@ -14193,9 +14193,9 @@ var require_not_a_regexp = __commonJS({
   }
 });
 
-// node_modules/core-js/internals/correct-is-regexp-logic.js
+// work/ticket-build/node_modules/core-js/internals/correct-is-regexp-logic.js
 var require_correct_is_regexp_logic = __commonJS({
-  "node_modules/core-js/internals/correct-is-regexp-logic.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/correct-is-regexp-logic.js"(exports, module) {
     "use strict";
     var wellKnownSymbol = require_well_known_symbol();
     var MATCH = wellKnownSymbol("match");
@@ -14215,9 +14215,9 @@ var require_correct_is_regexp_logic = __commonJS({
   }
 });
 
-// node_modules/core-js/modules/es.string.starts-with.js
+// work/ticket-build/node_modules/core-js/modules/es.string.starts-with.js
 var require_es_string_starts_with = __commonJS({
-  "node_modules/core-js/modules/es.string.starts-with.js"() {
+  "work/ticket-build/node_modules/core-js/modules/es.string.starts-with.js"() {
     "use strict";
     var $2 = require_export();
     var uncurryThis = require_function_uncurry_this_clause();
@@ -14247,9 +14247,9 @@ var require_es_string_starts_with = __commonJS({
   }
 });
 
-// node_modules/core-js/internals/add-to-unscopables.js
+// work/ticket-build/node_modules/core-js/internals/add-to-unscopables.js
 var require_add_to_unscopables = __commonJS({
-  "node_modules/core-js/internals/add-to-unscopables.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/add-to-unscopables.js"(exports, module) {
     "use strict";
     var wellKnownSymbol = require_well_known_symbol();
     var create = require_object_create();
@@ -14268,9 +14268,9 @@ var require_add_to_unscopables = __commonJS({
   }
 });
 
-// node_modules/core-js/internals/correct-prototype-getter.js
+// work/ticket-build/node_modules/core-js/internals/correct-prototype-getter.js
 var require_correct_prototype_getter = __commonJS({
-  "node_modules/core-js/internals/correct-prototype-getter.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/correct-prototype-getter.js"(exports, module) {
     "use strict";
     var fails = require_fails();
     module.exports = !fails(function() {
@@ -14282,9 +14282,9 @@ var require_correct_prototype_getter = __commonJS({
   }
 });
 
-// node_modules/core-js/internals/object-get-prototype-of.js
+// work/ticket-build/node_modules/core-js/internals/object-get-prototype-of.js
 var require_object_get_prototype_of = __commonJS({
-  "node_modules/core-js/internals/object-get-prototype-of.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/object-get-prototype-of.js"(exports, module) {
     "use strict";
     var hasOwn = require_has_own_property();
     var isCallable = require_is_callable();
@@ -14306,9 +14306,9 @@ var require_object_get_prototype_of = __commonJS({
   }
 });
 
-// node_modules/core-js/internals/iterators-core.js
+// work/ticket-build/node_modules/core-js/internals/iterators-core.js
 var require_iterators_core = __commonJS({
-  "node_modules/core-js/internals/iterators-core.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/iterators-core.js"(exports, module) {
     "use strict";
     var fails = require_fails();
     var isCallable = require_is_callable();
@@ -14349,9 +14349,9 @@ var require_iterators_core = __commonJS({
   }
 });
 
-// node_modules/core-js/internals/iterator-create-constructor.js
+// work/ticket-build/node_modules/core-js/internals/iterator-create-constructor.js
 var require_iterator_create_constructor = __commonJS({
-  "node_modules/core-js/internals/iterator-create-constructor.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/iterator-create-constructor.js"(exports, module) {
     "use strict";
     var IteratorPrototype = require_iterators_core().IteratorPrototype;
     var create = require_object_create();
@@ -14371,9 +14371,9 @@ var require_iterator_create_constructor = __commonJS({
   }
 });
 
-// node_modules/core-js/internals/iterator-define.js
+// work/ticket-build/node_modules/core-js/internals/iterator-define.js
 var require_iterator_define = __commonJS({
-  "node_modules/core-js/internals/iterator-define.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/iterator-define.js"(exports, module) {
     "use strict";
     var $2 = require_export();
     var call = require_function_call();
@@ -14476,9 +14476,9 @@ var require_iterator_define = __commonJS({
   }
 });
 
-// node_modules/core-js/internals/create-iter-result-object.js
+// work/ticket-build/node_modules/core-js/internals/create-iter-result-object.js
 var require_create_iter_result_object = __commonJS({
-  "node_modules/core-js/internals/create-iter-result-object.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/create-iter-result-object.js"(exports, module) {
     "use strict";
     module.exports = function(value, done) {
       return { value, done };
@@ -14486,9 +14486,9 @@ var require_create_iter_result_object = __commonJS({
   }
 });
 
-// node_modules/core-js/modules/es.array.iterator.js
+// work/ticket-build/node_modules/core-js/modules/es.array.iterator.js
 var require_es_array_iterator = __commonJS({
-  "node_modules/core-js/modules/es.array.iterator.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/modules/es.array.iterator.js"(exports, module) {
     "use strict";
     var toIndexedObject = require_to_indexed_object();
     var addToUnscopables = require_add_to_unscopables();
@@ -14539,9 +14539,9 @@ var require_es_array_iterator = __commonJS({
   }
 });
 
-// node_modules/core-js/internals/dom-iterables.js
+// work/ticket-build/node_modules/core-js/internals/dom-iterables.js
 var require_dom_iterables = __commonJS({
-  "node_modules/core-js/internals/dom-iterables.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/dom-iterables.js"(exports, module) {
     "use strict";
     module.exports = {
       CSSRuleList: 0,
@@ -14579,9 +14579,9 @@ var require_dom_iterables = __commonJS({
   }
 });
 
-// node_modules/core-js/internals/dom-token-list-prototype.js
+// work/ticket-build/node_modules/core-js/internals/dom-token-list-prototype.js
 var require_dom_token_list_prototype = __commonJS({
-  "node_modules/core-js/internals/dom-token-list-prototype.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/dom-token-list-prototype.js"(exports, module) {
     "use strict";
     var documentCreateElement = require_document_create_element();
     var classList = documentCreateElement("span").classList;
@@ -14590,9 +14590,9 @@ var require_dom_token_list_prototype = __commonJS({
   }
 });
 
-// node_modules/core-js/modules/web.dom-collections.iterator.js
+// work/ticket-build/node_modules/core-js/modules/web.dom-collections.iterator.js
 var require_web_dom_collections_iterator = __commonJS({
-  "node_modules/core-js/modules/web.dom-collections.iterator.js"() {
+  "work/ticket-build/node_modules/core-js/modules/web.dom-collections.iterator.js"() {
     "use strict";
     var globalThis2 = require_global_this();
     var DOMIterables = require_dom_iterables();
@@ -14628,7 +14628,7 @@ var require_web_dom_collections_iterator = __commonJS({
   }
 });
 
-// node_modules/@babel/runtime/helpers/esm/toPrimitive.js
+// work/ticket-build/node_modules/@babel/runtime/helpers/esm/toPrimitive.js
 function toPrimitive(t3, r2) {
   if ("object" != _typeof(t3) || !t3) return t3;
   var e2 = t3[Symbol.toPrimitive];
@@ -14640,24 +14640,24 @@ function toPrimitive(t3, r2) {
   return ("string" === r2 ? String : Number)(t3);
 }
 var init_toPrimitive = __esm({
-  "node_modules/@babel/runtime/helpers/esm/toPrimitive.js"() {
+  "work/ticket-build/node_modules/@babel/runtime/helpers/esm/toPrimitive.js"() {
     init_typeof();
   }
 });
 
-// node_modules/@babel/runtime/helpers/esm/toPropertyKey.js
+// work/ticket-build/node_modules/@babel/runtime/helpers/esm/toPropertyKey.js
 function toPropertyKey(t3) {
   var i3 = toPrimitive(t3, "string");
   return "symbol" == _typeof(i3) ? i3 : i3 + "";
 }
 var init_toPropertyKey = __esm({
-  "node_modules/@babel/runtime/helpers/esm/toPropertyKey.js"() {
+  "work/ticket-build/node_modules/@babel/runtime/helpers/esm/toPropertyKey.js"() {
     init_typeof();
     init_toPrimitive();
   }
 });
 
-// node_modules/@babel/runtime/helpers/esm/defineProperty.js
+// work/ticket-build/node_modules/@babel/runtime/helpers/esm/defineProperty.js
 function _defineProperty(e2, r2, t3) {
   return (r2 = toPropertyKey(r2)) in e2 ? Object.defineProperty(e2, r2, {
     value: t3,
@@ -14667,14 +14667,14 @@ function _defineProperty(e2, r2, t3) {
   }) : e2[r2] = t3, e2;
 }
 var init_defineProperty = __esm({
-  "node_modules/@babel/runtime/helpers/esm/defineProperty.js"() {
+  "work/ticket-build/node_modules/@babel/runtime/helpers/esm/defineProperty.js"() {
     init_toPropertyKey();
   }
 });
 
-// node_modules/core-js/internals/array-reduce.js
+// work/ticket-build/node_modules/core-js/internals/array-reduce.js
 var require_array_reduce = __commonJS({
-  "node_modules/core-js/internals/array-reduce.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/array-reduce.js"(exports, module) {
     "use strict";
     var aCallable = require_a_callable();
     var toObject = require_to_object();
@@ -14719,9 +14719,9 @@ var require_array_reduce = __commonJS({
   }
 });
 
-// node_modules/core-js/internals/array-method-is-strict.js
+// work/ticket-build/node_modules/core-js/internals/array-method-is-strict.js
 var require_array_method_is_strict = __commonJS({
-  "node_modules/core-js/internals/array-method-is-strict.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/array-method-is-strict.js"(exports, module) {
     "use strict";
     var fails = require_fails();
     module.exports = function(METHOD_NAME, argument) {
@@ -14735,9 +14735,9 @@ var require_array_method_is_strict = __commonJS({
   }
 });
 
-// node_modules/core-js/modules/es.array.reduce.js
+// work/ticket-build/node_modules/core-js/modules/es.array.reduce.js
 var require_es_array_reduce = __commonJS({
-  "node_modules/core-js/modules/es.array.reduce.js"() {
+  "work/ticket-build/node_modules/core-js/modules/es.array.reduce.js"() {
     "use strict";
     var $2 = require_export();
     var $reduce = require_array_reduce().left;
@@ -14755,9 +14755,9 @@ var require_es_array_reduce = __commonJS({
   }
 });
 
-// node_modules/core-js/modules/es.string.ends-with.js
+// work/ticket-build/node_modules/core-js/modules/es.string.ends-with.js
 var require_es_string_ends_with = __commonJS({
-  "node_modules/core-js/modules/es.string.ends-with.js"() {
+  "work/ticket-build/node_modules/core-js/modules/es.string.ends-with.js"() {
     "use strict";
     var $2 = require_export();
     var uncurryThis = require_function_uncurry_this_clause();
@@ -14789,9 +14789,9 @@ var require_es_string_ends_with = __commonJS({
   }
 });
 
-// node_modules/core-js/modules/es.string.split.js
+// work/ticket-build/node_modules/core-js/modules/es.string.split.js
 var require_es_string_split = __commonJS({
-  "node_modules/core-js/modules/es.string.split.js"() {
+  "work/ticket-build/node_modules/core-js/modules/es.string.split.js"() {
     "use strict";
     var call = require_function_call();
     var uncurryThis = require_function_uncurry_this();
@@ -14887,9 +14887,9 @@ var require_es_string_split = __commonJS({
   }
 });
 
-// node_modules/performance-now/lib/performance-now.js
+// work/ticket-build/node_modules/performance-now/lib/performance-now.js
 var require_performance_now = __commonJS({
-  "node_modules/performance-now/lib/performance-now.js"(exports, module) {
+  "work/ticket-build/node_modules/performance-now/lib/performance-now.js"(exports, module) {
     (function() {
       var getNanoSeconds, hrtime, loadTime, moduleLoadTime, nodeLoadTime, upTime;
       if (typeof performance !== "undefined" && performance !== null && performance.now) {
@@ -14924,9 +14924,9 @@ var require_performance_now = __commonJS({
   }
 });
 
-// node_modules/raf/index.js
+// work/ticket-build/node_modules/raf/index.js
 var require_raf = __commonJS({
-  "node_modules/raf/index.js"(exports, module) {
+  "work/ticket-build/node_modules/raf/index.js"(exports, module) {
     var now = require_performance_now();
     var root = typeof window === "undefined" ? global : window;
     var vendors = ["moz", "webkit"];
@@ -14995,17 +14995,17 @@ var require_raf = __commonJS({
   }
 });
 
-// node_modules/core-js/internals/whitespaces.js
+// work/ticket-build/node_modules/core-js/internals/whitespaces.js
 var require_whitespaces = __commonJS({
-  "node_modules/core-js/internals/whitespaces.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/whitespaces.js"(exports, module) {
     "use strict";
     module.exports = "	\n\v\f\r \xA0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A\u202F\u205F\u3000\u2028\u2029\uFEFF";
   }
 });
 
-// node_modules/core-js/internals/string-trim.js
+// work/ticket-build/node_modules/core-js/internals/string-trim.js
 var require_string_trim = __commonJS({
-  "node_modules/core-js/internals/string-trim.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/string-trim.js"(exports, module) {
     "use strict";
     var uncurryThis = require_function_uncurry_this();
     var requireObjectCoercible = require_require_object_coercible();
@@ -15036,9 +15036,9 @@ var require_string_trim = __commonJS({
   }
 });
 
-// node_modules/core-js/internals/string-trim-forced.js
+// work/ticket-build/node_modules/core-js/internals/string-trim-forced.js
 var require_string_trim_forced = __commonJS({
-  "node_modules/core-js/internals/string-trim-forced.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/string-trim-forced.js"(exports, module) {
     "use strict";
     var PROPER_FUNCTION_NAME = require_function_name().PROPER;
     var fails = require_fails();
@@ -15052,9 +15052,9 @@ var require_string_trim_forced = __commonJS({
   }
 });
 
-// node_modules/core-js/modules/es.string.trim.js
+// work/ticket-build/node_modules/core-js/modules/es.string.trim.js
 var require_es_string_trim = __commonJS({
-  "node_modules/core-js/modules/es.string.trim.js"() {
+  "work/ticket-build/node_modules/core-js/modules/es.string.trim.js"() {
     "use strict";
     var $2 = require_export();
     var $trim = require_string_trim().trim;
@@ -15067,9 +15067,9 @@ var require_es_string_trim = __commonJS({
   }
 });
 
-// node_modules/rgbcolor/index.js
+// work/ticket-build/node_modules/rgbcolor/index.js
 var require_rgbcolor = __commonJS({
-  "node_modules/rgbcolor/index.js"(exports, module) {
+  "work/ticket-build/node_modules/rgbcolor/index.js"(exports, module) {
     module.exports = function(color_string) {
       this.ok = false;
       this.alpha = 1;
@@ -15341,9 +15341,9 @@ var require_rgbcolor = __commonJS({
   }
 });
 
-// node_modules/core-js/modules/es.array.index-of.js
+// work/ticket-build/node_modules/core-js/modules/es.array.index-of.js
 var require_es_array_index_of = __commonJS({
-  "node_modules/core-js/modules/es.array.index-of.js"() {
+  "work/ticket-build/node_modules/core-js/modules/es.array.index-of.js"() {
     "use strict";
     var $2 = require_export();
     var uncurryThis = require_function_uncurry_this_clause();
@@ -15361,9 +15361,9 @@ var require_es_array_index_of = __commonJS({
   }
 });
 
-// node_modules/core-js/modules/es.string.includes.js
+// work/ticket-build/node_modules/core-js/modules/es.string.includes.js
 var require_es_string_includes = __commonJS({
-  "node_modules/core-js/modules/es.string.includes.js"() {
+  "work/ticket-build/node_modules/core-js/modules/es.string.includes.js"() {
     "use strict";
     var $2 = require_export();
     var uncurryThis = require_function_uncurry_this();
@@ -15384,9 +15384,9 @@ var require_es_string_includes = __commonJS({
   }
 });
 
-// node_modules/core-js/internals/is-array.js
+// work/ticket-build/node_modules/core-js/internals/is-array.js
 var require_is_array = __commonJS({
-  "node_modules/core-js/internals/is-array.js"(exports, module) {
+  "work/ticket-build/node_modules/core-js/internals/is-array.js"(exports, module) {
     "use strict";
     var classof = require_classof_raw();
     module.exports = Array.isArray || function isArray(argument) {
@@ -15395,9 +15395,9 @@ var require_is_array = __commonJS({
   }
 });
 
-// node_modules/core-js/modules/es.array.reverse.js
+// work/ticket-build/node_modules/core-js/modules/es.array.reverse.js
 var require_es_array_reverse = __commonJS({
-  "node_modules/core-js/modules/es.array.reverse.js"() {
+  "work/ticket-build/node_modules/core-js/modules/es.array.reverse.js"() {
     "use strict";
     var $2 = require_export();
     var uncurryThis = require_function_uncurry_this();
@@ -15413,7 +15413,7 @@ var require_es_array_reverse = __commonJS({
   }
 });
 
-// node_modules/svg-pathdata/lib/SVGPathData.module.js
+// work/ticket-build/node_modules/svg-pathdata/lib/SVGPathData.module.js
 function r(r2, e2) {
   if ("function" != typeof e2 && null !== e2) throw new TypeError("Class extends value " + String(e2) + " is not a constructor or null");
   function i3() {
@@ -15491,7 +15491,7 @@ function m(t3, r2, e2, i3, a3) {
 }
 var t, n, u, h, O, l, T, v, f, _, N;
 var init_SVGPathData_module = __esm({
-  "node_modules/svg-pathdata/lib/SVGPathData.module.js"() {
+  "work/ticket-build/node_modules/svg-pathdata/lib/SVGPathData.module.js"() {
     t = function(r2, e2) {
       return (t = Object.setPrototypeOf || { __proto__: [] } instanceof Array && function(t3, r3) {
         t3.__proto__ = r3;
@@ -15796,9 +15796,9 @@ var init_SVGPathData_module = __esm({
   }
 });
 
-// node_modules/core-js/modules/es.regexp.to-string.js
+// work/ticket-build/node_modules/core-js/modules/es.regexp.to-string.js
 var require_es_regexp_to_string = __commonJS({
-  "node_modules/core-js/modules/es.regexp.to-string.js"() {
+  "work/ticket-build/node_modules/core-js/modules/es.regexp.to-string.js"() {
     "use strict";
     var PROPER_FUNCTION_NAME = require_function_name().PROPER;
     var defineBuiltIn = require_define_built_in();
@@ -15824,7 +15824,7 @@ var require_es_regexp_to_string = __commonJS({
   }
 });
 
-// node_modules/stackblur-canvas/dist/stackblur-es.js
+// work/ticket-build/node_modules/stackblur-canvas/dist/stackblur-es.js
 function _typeof2(obj) {
   "@babel/helpers - typeof";
   if (typeof Symbol === "function" && typeof Symbol.iterator === "symbol") {
@@ -16030,7 +16030,7 @@ function processImageDataRGBA(imageData, topX, topY, width, height, radius) {
 }
 var mulTable, shgTable, BlurStack;
 var init_stackblur_es = __esm({
-  "node_modules/stackblur-canvas/dist/stackblur-es.js"() {
+  "work/ticket-build/node_modules/stackblur-canvas/dist/stackblur-es.js"() {
     mulTable = [512, 512, 456, 512, 328, 456, 335, 512, 405, 328, 271, 456, 388, 335, 292, 512, 454, 405, 364, 328, 298, 271, 496, 456, 420, 388, 360, 335, 312, 292, 273, 512, 482, 454, 428, 405, 383, 364, 345, 328, 312, 298, 284, 271, 259, 496, 475, 456, 437, 420, 404, 388, 374, 360, 347, 335, 323, 312, 302, 292, 282, 273, 265, 512, 497, 482, 468, 454, 441, 428, 417, 405, 394, 383, 373, 364, 354, 345, 337, 328, 320, 312, 305, 298, 291, 284, 278, 271, 265, 259, 507, 496, 485, 475, 465, 456, 446, 437, 428, 420, 412, 404, 396, 388, 381, 374, 367, 360, 354, 347, 341, 335, 329, 323, 318, 312, 307, 302, 297, 292, 287, 282, 278, 273, 269, 265, 261, 512, 505, 497, 489, 482, 475, 468, 461, 454, 447, 441, 435, 428, 422, 417, 411, 405, 399, 394, 389, 383, 378, 373, 368, 364, 359, 354, 350, 345, 341, 337, 332, 328, 324, 320, 316, 312, 309, 305, 301, 298, 294, 291, 287, 284, 281, 278, 274, 271, 268, 265, 262, 259, 257, 507, 501, 496, 491, 485, 480, 475, 470, 465, 460, 456, 451, 446, 442, 437, 433, 428, 424, 420, 416, 412, 408, 404, 400, 396, 392, 388, 385, 381, 377, 374, 370, 367, 363, 360, 357, 354, 350, 347, 344, 341, 338, 335, 332, 329, 326, 323, 320, 318, 315, 312, 310, 307, 304, 302, 299, 297, 294, 292, 289, 287, 285, 282, 280, 278, 275, 273, 271, 269, 267, 265, 263, 261, 259];
     shgTable = [9, 11, 12, 13, 13, 14, 14, 15, 15, 15, 15, 16, 16, 16, 16, 17, 17, 17, 17, 17, 17, 17, 18, 18, 18, 18, 18, 18, 18, 18, 18, 19, 19, 19, 19, 19, 19, 19, 19, 19, 19, 19, 19, 19, 19, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 21, 21, 21, 21, 21, 21, 21, 21, 21, 21, 21, 21, 21, 21, 21, 21, 21, 21, 21, 21, 21, 21, 21, 21, 21, 21, 21, 22, 22, 22, 22, 22, 22, 22, 22, 22, 22, 22, 22, 22, 22, 22, 22, 22, 22, 22, 22, 22, 22, 22, 22, 22, 22, 22, 22, 22, 22, 22, 22, 22, 22, 22, 22, 22, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24];
     BlurStack = /**
@@ -16047,7 +16047,7 @@ var init_stackblur_es = __esm({
   }
 });
 
-// node_modules/canvg/lib/index.es.js
+// work/ticket-build/node_modules/canvg/lib/index.es.js
 var index_es_exports = {};
 __export(index_es_exports, {
   AElement: () => AElement,
@@ -16456,7 +16456,7 @@ function _objectSpread(target) {
 }
 var import_es_promise, import_es_string_match, import_es_string_replace, import_es_string_starts_with, import_es_array_iterator, import_web_dom_collections_iterator, import_es_array_reduce, import_es_string_ends_with, import_es_string_split, import_raf, import_es_string_trim, import_rgbcolor, import_es_array_index_of, import_es_string_includes, import_es_array_reverse, import_es_regexp_to_string, index, allUppercase, attributeRegex, idRegex, classRegex, pseudoElementRegex, pseudoClassWithBracketsRegex, pseudoClassRegex, elementRegex, PSEUDO_ZERO, Property, ViewPort, Point, Mouse, defaultWindow, defaultFetch$1, Screen, defaultFetch, DefaultDOMParser, Parser, Translate, Rotate, Scale, Matrix, Skew, SkewX, SkewY, Transform, Element, UnknownElement, Font, BoundingBox, PathParser, RenderedElement, PathElement, GlyphElement, TextElement, TSpanElement, TextNode, SVGElement, RectElement, CircleElement, EllipseElement, LineElement, PolylineElement, PolygonElement, PatternElement, MarkerElement, DefsElement, GElement, GradientElement, LinearGradientElement, RadialGradientElement, StopElement, AnimateElement, AnimateColorElement, AnimateTransformElement, FontElement, FontFaceElement, MissingGlyphElement, TRefElement, AElement, TextPathElement, dataUriRegex, ImageElement, SymbolElement, SVGFontLoader, StyleElement, UseElement, FeColorMatrixElement, MaskElement, noop, ClipPathElement, FilterElement, FeDropShadowElement, FeMorphologyElement, FeCompositeElement, FeGaussianBlurElement, TitleElement, DescElement, elements, Document, Canvg;
 var init_index_es = __esm({
-  "node_modules/canvg/lib/index.es.js"() {
+  "work/ticket-build/node_modules/canvg/lib/index.es.js"() {
     import_es_promise = __toESM(require_es_promise(), 1);
     init_asyncToGenerator();
     import_es_string_match = __toESM(require_es_string_match(), 1);
@@ -21397,13 +21397,13 @@ var init_index_es = __esm({
   }
 });
 
-// ticket-tools-source.js
+// work/ticket-build/ticket-tools-source.js
 var import_qrcode = __toESM(require_browser(), 1);
 
-// node_modules/jspdf/dist/jspdf.es.min.js
+// work/ticket-build/node_modules/jspdf/dist/jspdf.es.min.js
 init_typeof();
 
-// node_modules/fflate/esm/browser.js
+// work/ticket-build/node_modules/fflate/esm/browser.js
 var u8 = Uint8Array;
 var u16 = Uint16Array;
 var i32 = Int32Array;
@@ -22134,7 +22134,7 @@ try {
 } catch (e2) {
 }
 
-// node_modules/jspdf/dist/jspdf.es.min.js
+// work/ticket-build/node_modules/jspdf/dist/jspdf.es.min.js
 var n2 = /* @__PURE__ */ (function() {
   return "undefined" != typeof window ? window : "undefined" != typeof global ? global : "undefined" != typeof self ? self : this;
 })();
@@ -29593,64 +29593,89 @@ E.API.PDFObject = (function() {
   }, e2;
 })();
 
-// ticket-tools-source.js
+// work/ticket-build/ticket-tools-source.js
 var clean = (value, fallback = "") => String(value ?? fallback).trim();
 var safeColor = (value, fallback) => /^#[0-9a-f]{6}$/i.test(String(value || "")) ? value : fallback;
 var PDF_LAYOUTS = ["default", "double", "notched", "dashed"];
 function splitText(pdf, text, width, limit = 2) {
   return pdf.splitTextToSize(clean(text), width).slice(0, limit);
 }
+function clippedTicket(pdf, x2, y3, width, height, cut, style = "F") {
+  pdf.lines([[width - cut * 2, 0], [cut, cut], [0, height - cut * 2], [-cut, cut], [-width + cut * 2, 0], [-cut, -cut], [0, -height + cut * 2], [cut, -cut]], x2 + cut, y3, [1, 1], style, true);
+}
 function drawPdfFrame(pdf, layout, primary, accent) {
-  pdf.setFillColor("#f4f7fb");
+  const pageBackground = "#f4f7fb";
+  pdf.setFillColor(pageBackground);
   pdf.rect(0, 0, 90, 160, "F");
   pdf.setLineDashPattern([], 0);
   if (layout === "double") {
+    pdf.setFillColor(primary);
+    pdf.roundedRect(5, 5, 80, 150, 4, 4, "F");
+    pdf.setFillColor(accent);
+    pdf.roundedRect(7, 7, 76, 31, 3.5, 3.5, "F");
+    pdf.rect(7, 32, 76, 6, "F");
+    pdf.setFillColor("#ffffff");
+    pdf.setDrawColor("#d9e1ea");
+    pdf.setLineWidth(0.35);
+    pdf.roundedRect(8, 41, 74, 113.2, 3.5, 3.5, "FD");
+    pdf.setFillColor(pageBackground);
+    pdf.circle(5, 80, 3.5, "F");
+    pdf.circle(85, 80, 3.5, "F");
+    return { footerColor: primary, titleColor: "#ffffff", eventColor: "#ffffff", eventY: 32, logoBackground: accent, bodyShift: 3 };
+  }
+  if (layout === "notched") {
     pdf.setFillColor("#ffffff");
     pdf.setDrawColor(primary);
-    pdf.setLineWidth(1.1);
+    pdf.setLineWidth(1);
     pdf.roundedRect(5, 5, 80, 150, 4, 4, "FD");
-    pdf.setDrawColor(accent);
-    pdf.setLineWidth(0.45);
-    pdf.roundedRect(7, 7, 76, 146, 3, 3, "S");
-    pdf.setFillColor(primary);
-    pdf.roundedRect(7, 7, 76, 25, 3, 3, "F");
-    pdf.rect(7, 26, 76, 6, "F");
-    return { footerColor: primary };
+    pdf.setFillColor(accent);
+    pdf.roundedRect(5.5, 30, 79, 12, 2, 2, "F");
+    pdf.rect(5.5, 35, 79, 7, "F");
+    pdf.setDrawColor(primary);
+    pdf.setLineWidth(0.55);
+    pdf.setLineDashPattern([2, 1.4], 0);
+    pdf.line(8, 42, 82, 42);
+    pdf.setLineDashPattern([], 0);
+    pdf.setFillColor(pageBackground);
+    pdf.circle(5, 42, 3.3, "F");
+    pdf.circle(85, 42, 3.3, "F");
+    return { footerColor: primary, titleColor: primary, eventColor: "#ffffff", eventY: 38.5, logoBackground: "#ffffff", logoForeground: primary, bodyShift: 4 };
   }
   if (layout === "dashed") {
-    pdf.setFillColor("#ffffff");
-    pdf.setDrawColor(primary);
-    pdf.setLineWidth(0.8);
-    pdf.setLineDashPattern([2.2, 1.2], 0);
-    pdf.roundedRect(5, 5, 80, 150, 4, 4, "FD");
-    pdf.setLineDashPattern([], 0);
     pdf.setFillColor(primary);
-    pdf.roundedRect(7, 7, 76, 25, 3, 3, "F");
-    pdf.rect(7, 26, 76, 6, "F");
-    return { footerColor: primary };
+    clippedTicket(pdf, 5, 5, 80, 150, 3.5, "F");
+    pdf.setFillColor("#ffffff");
+    clippedTicket(pdf, 7, 42, 76, 112.2, 2.5, "F");
+    pdf.setFillColor("#ffffff");
+    clippedTicket(pdf, 7, 31, 76, 12, 2, "F");
+    pdf.setFillColor(accent);
+    pdf.rect(7, 31, 76, 0.8, "F");
+    return { footerColor: primary, titleColor: "#ffffff", eventColor: primary, eventY: 39.5, logoBackground: primary, bodyShift: 4 };
   }
   pdf.setFillColor(primary);
   pdf.roundedRect(5, 5, 80, 150, 4, 4, "F");
   pdf.setFillColor(accent);
-  pdf.roundedRect(5, 5, 80, 27, 4, 4, "F");
-  pdf.rect(5, 26, 80, 6, "F");
-  return { footerColor: "#ffffff", notched: layout === "notched" };
+  pdf.roundedRect(5, 5, 80, 33, 4, 4, "F");
+  pdf.rect(5, 32, 80, 6, "F");
+  pdf.setFillColor("#ffffff");
+  pdf.roundedRect(9, 41, 72, 106, 3, 3, "F");
+  return { footerColor: "#ffffff", titleColor: "#ffffff", eventColor: "#ffffff", eventY: 32, logoBackground: accent, resetGraphics: true, bodyShift: 3 };
 }
-function addPdfLogo(pdf, logoDataUrl) {
+function addPdfLogo(pdf, logoDataUrl, y3 = 6) {
   if (!logoDataUrl) return false;
   try {
     const properties = pdf.getImageProperties(logoDataUrl);
-    const scale = Math.min(20 / properties.width, 5.5 / properties.height);
+    const scale = Math.min(60 / properties.width, 16.2 / properties.height);
     const width = properties.width * scale, height = properties.height * scale;
     const format = /^data:image\/jpeg/i.test(logoDataUrl) ? "JPEG" : "PNG";
-    pdf.addImage(logoDataUrl, format, 45 - width / 2, 6.2, width, height, void 0, "FAST");
+    pdf.addImage(logoDataUrl, format, 45 - width / 2, y3, width, height, void 0, "FAST");
     return true;
   } catch (error) {
     console.warn("N\xE3o foi poss\xEDvel adicionar a logo ao PDF.", error);
     return false;
   }
 }
-async function flattenPdfLogo(logoDataUrl, backgroundColor) {
+async function flattenPdfLogo(logoDataUrl, backgroundColor, foregroundColor = "") {
   if (!logoDataUrl || /^data:image\/jpeg/i.test(logoDataUrl) || typeof Image === "undefined" || typeof document === "undefined") return logoDataUrl;
   return new Promise((resolve) => {
     const image = new Image();
@@ -29659,9 +29684,16 @@ async function flattenPdfLogo(logoDataUrl, backgroundColor) {
       canvas.width = Math.max(1, image.naturalWidth);
       canvas.height = Math.max(1, image.naturalHeight);
       const context = canvas.getContext("2d");
+      context.clearRect(0, 0, canvas.width, canvas.height);
+      context.drawImage(image, 0, 0);
+      if (foregroundColor) {
+        context.globalCompositeOperation = "source-in";
+        context.fillStyle = foregroundColor;
+        context.fillRect(0, 0, canvas.width, canvas.height);
+      }
+      context.globalCompositeOperation = "destination-over";
       context.fillStyle = backgroundColor;
       context.fillRect(0, 0, canvas.width, canvas.height);
-      context.drawImage(image, 0, 0);
       resolve(canvas.toDataURL("image/jpeg", 0.94));
     };
     image.onerror = () => resolve("");
@@ -29676,7 +29708,8 @@ async function createTicketPdf(tickets, design = {}) {
   const footer = clean(design.footer, "Apresente este QR Code na entrada.").slice(0, 120);
   const layout = PDF_LAYOUTS.includes(design.pdfLayout) ? design.pdfLayout : "default";
   const rawPdfLogoDataUrl = /^data:image\/(?:png|jpeg);base64,/i.test(clean(design.pdfLogoDataUrl)) ? clean(design.pdfLogoDataUrl) : "";
-  const pdfLogoDataUrl = await flattenPdfLogo(rawPdfLogoDataUrl, layout === "default" || layout === "notched" ? accent : primary);
+  const logoPresentation = layout === "notched" ? { background: "#ffffff", foreground: primary } : { background: layout === "dashed" ? primary : accent, foreground: "" };
+  const pdfLogoDataUrl = await flattenPdfLogo(rawPdfLogoDataUrl, logoPresentation.background, logoPresentation.foreground);
   const pdf = new E({ orientation: "portrait", unit: "mm", format: [90, 160], compress: true });
   for (let index2 = 0; index2 < tickets.length; index2 += 1) {
     if (index2) pdf.addPage([90, 160], "portrait");
@@ -29684,72 +29717,95 @@ async function createTicketPdf(tickets, design = {}) {
     const qr = ticket.qrDataUrl || await import_qrcode.default.toDataURL(ticket.validationUrl, { width: 560, margin: 1, errorCorrectionLevel: "M", color: { dark: primary, light: "#ffffff" } });
     const frame = drawPdfFrame(pdf, layout, primary, accent);
     const hasLogo = Boolean(pdfLogoDataUrl);
-    pdf.setTextColor("#ffffff");
+    pdf.setTextColor(frame.titleColor);
     pdf.setFont("helvetica", "bold");
-    pdf.setFontSize(8);
-    pdf.text(title.toUpperCase(), 45, hasLogo ? 16 : 14, { align: "center" });
-    pdf.setFontSize(15);
-    splitText(pdf, ticket.eventName, 69, 2).forEach((line, lineIndex) => pdf.text(line, 45, (hasLogo ? 23 : 21) + lineIndex * 6, { align: "center" }));
-    pdf.setFillColor("#ffffff");
-    pdf.setDrawColor(layout === "double" || layout === "dashed" ? primary : "#ffffff");
-    if (layout === "dashed") pdf.setLineDashPattern([1.6, 1], 0);
-    pdf.roundedRect(9, 36, 72, 111, 3, 3, layout === "double" || layout === "dashed" ? "FD" : "F");
-    pdf.setLineDashPattern([], 0);
-    if (frame.notched) {
-      pdf.setFillColor("#f4f7fb");
-      pdf.circle(5, 80, 3.5, "F");
-      pdf.circle(85, 80, 3.5, "F");
-    } else if (layout === "default") {
+    pdf.setFontSize(8.5);
+    pdf.text(title.toUpperCase(), 45, hasLogo ? 25 : 15, { align: "center" });
+    const eventLines = splitText(pdf, ticket.eventName, 72, 2);
+    const eventHasTwoLines = eventLines.length > 1;
+    pdf.setTextColor(frame.eventColor);
+    pdf.setFontSize(eventHasTwoLines ? 11.5 : 17);
+    eventLines.forEach((line, lineIndex) => pdf.text(line, 45, frame.eventY - (eventHasTwoLines ? 1.5 : 0) + lineIndex * 4.2, { align: "center" }));
+    if (frame.resetGraphics) {
       pdf.setFillColor("#f4f7fb");
       pdf.circle(-5, -5, 1, "F");
     }
     pdf.setFillColor("#f4f7fb");
+    const bodyShift = frame.bodyShift || 0;
+    const approvedLayout = layout !== "default";
+    if (approvedLayout) {
+      pdf.setDrawColor("#d9e1ea");
+      pdf.setLineWidth(0.3);
+      pdf.line(14, 58.5 + bodyShift, 76, 58.5 + bodyShift);
+      pdf.line(14, 77.5 + bodyShift, 76, 77.5 + bodyShift);
+      pdf.line(45, 80.5 + bodyShift, 45, 93 + bodyShift);
+      pdf.line(14, 149.2, 76, 149.2);
+    }
     pdf.setTextColor(primary);
-    pdf.setFontSize(7);
-    pdf.text("PARTICIPANTE", 45, 45, { align: "center" });
-    pdf.setFontSize(12);
-    splitText(pdf, ticket.participantName || "Participante", 62, 2).forEach((line, lineIndex) => pdf.text(line, 45, 51 + lineIndex * 5, { align: "center" }));
+    pdf.setFontSize(approvedLayout ? 8 : 7);
+    pdf.text("PARTICIPANTE", 45, 45 + bodyShift, { align: "center" });
+    pdf.setFontSize(approvedLayout ? 14 : 12);
+    splitText(pdf, ticket.participantName || "Participante", 62, 2).forEach((line, lineIndex) => pdf.text(line, 45, 51 + bodyShift + lineIndex * 5, { align: "center" }));
     pdf.setTextColor("#526173");
     pdf.setFont("helvetica", "normal");
-    pdf.setFontSize(7);
-    pdf.text(clean(ticket.admissionType, "INGRESSO INDIVIDUAL").toUpperCase(), 45, 63, { align: "center" });
+    pdf.setFontSize(approvedLayout ? 8 : 7);
+    pdf.text(clean(ticket.admissionType, "INGRESSO INDIVIDUAL").toUpperCase(), 45, 63 + bodyShift, { align: "center" });
     pdf.setTextColor(primary);
     pdf.setFont("helvetica", "bold");
-    pdf.setFontSize(9);
-    pdf.text(splitText(pdf, ticket.ticketTypeName || "Ingresso", 62, 1), 45, 68, { align: "center" });
+    pdf.setFontSize(approvedLayout ? 10.5 : 9);
+    pdf.text(splitText(pdf, ticket.ticketTypeName || "Ingresso", 62, 1), 45, 68 + bodyShift, { align: "center" });
     pdf.setTextColor("#526173");
     pdf.setFont("helvetica", "normal");
-    pdf.setFontSize(7);
-    pdf.text(`${clean(ticket.eventDate)}  |  ${clean(ticket.eventPlace)}`.slice(0, 58), 45, 74, { align: "center" });
-    pdf.setFontSize(6);
-    pdf.text("VALOR", 27, 81, { align: "center" });
-    pdf.text("PAGAMENTO", 63, 81, { align: "center" });
+    pdf.setFontSize(approvedLayout ? 7.5 : 7);
+    pdf.text(`${clean(ticket.eventDate)}  |  ${clean(ticket.eventPlace)}`.slice(0, 58), 45, 74 + bodyShift, { align: "center" });
+    pdf.setFontSize(approvedLayout ? 7 : 6);
+    pdf.text("VALOR", 27, 81 + bodyShift, { align: "center" });
+    pdf.text("PAGAMENTO", 63, 81 + bodyShift, { align: "center" });
     pdf.setFont("helvetica", "bold");
-    pdf.setFontSize(8.5);
+    pdf.setFontSize(approvedLayout ? 10.5 : 8.5);
     pdf.setTextColor(primary);
-    pdf.text(clean(ticket.ticketValue, "R$ 0,00"), 27, 86, { align: "center" });
-    pdf.text(clean(ticket.paymentStatus, "Pendente").toUpperCase(), 63, 86, { align: "center" });
+    pdf.text(clean(ticket.ticketValue, "R$ 0,00"), 27, 86 + bodyShift, { align: "center" });
+    pdf.text(clean(ticket.paymentStatus, "Pendente").toUpperCase(), 63, 86 + bodyShift, { align: "center" });
     pdf.setFont("helvetica", "normal");
     pdf.setTextColor("#526173");
-    pdf.setFontSize(5.5);
-    pdf.text(clean(ticket.paymentDetail).slice(0, 28), 63, 90, { align: "center" });
+    pdf.setFontSize(approvedLayout ? 6.5 : 5.5);
+    pdf.text(clean(ticket.paymentDetail).slice(0, 28), 63, 90 + bodyShift, { align: "center" });
+    const qrBoxSize = approvedLayout ? 44 : 42;
+    const qrSize = approvedLayout ? 39 : 36;
+    const qrBoxX = (90 - qrBoxSize) / 2;
+    const qrBoxY = approvedLayout ? 96 + Math.max(0, bodyShift - 3) : 93 + bodyShift;
+    const qrInset = (qrBoxSize - qrSize) / 2;
     pdf.setFillColor("#ffffff");
     pdf.setDrawColor("#d9e1ea");
-    pdf.roundedRect(24, 93, 42, 42, 2, 2, "FD");
-    pdf.addImage(qr, "PNG", 27, 96, 36, 36, void 0, "FAST");
+    pdf.setLineWidth(approvedLayout ? 0.55 : 0.2);
+    pdf.roundedRect(qrBoxX, qrBoxY, qrBoxSize, qrBoxSize, 2, 2, "FD");
+    pdf.addImage(qr, "PNG", qrBoxX + qrInset, qrBoxY + qrInset, qrSize, qrSize, void 0, "FAST");
+    if (layout === "dashed") {
+      pdf.setDrawColor(accent);
+      pdf.setLineWidth(0.8);
+      const corner = 4.5, x2 = qrBoxX, y3 = qrBoxY, endX = x2 + qrBoxSize, endY = y3 + qrBoxSize;
+      pdf.line(x2, y3 + corner, x2, y3);
+      pdf.line(x2, y3, x2 + corner, y3);
+      pdf.line(endX - corner, y3, endX, y3);
+      pdf.line(endX, y3, endX, y3 + corner);
+      pdf.line(x2, endY - corner, x2, endY);
+      pdf.line(x2, endY, x2 + corner, endY);
+      pdf.line(endX - corner, endY, endX, endY);
+      pdf.line(endX, endY, endX, endY - corner);
+    }
     pdf.setTextColor(primary);
     pdf.setFont("courier", "bold");
-    pdf.setFontSize(7);
-    pdf.text(clean(ticket.shortCode), 45, 139, { align: "center" });
+    pdf.setFontSize(approvedLayout ? 7.5 : 7);
+    pdf.text(clean(ticket.shortCode), 45, approvedLayout ? 143.5 : 139 + bodyShift, { align: "center" });
     pdf.setFont("helvetica", "normal");
     pdf.setTextColor("#526173");
-    pdf.setFontSize(6.5);
-    splitText(pdf, footer, 61, 2).forEach((line, lineIndex) => pdf.text(line, 45, 144 + lineIndex * 3.2, { align: "center" }));
+    pdf.setFontSize(approvedLayout ? 7.2 : 6.5);
+    splitText(pdf, footer, 66, approvedLayout ? 1 : 2).forEach((line, lineIndex) => pdf.text(line, 45, (approvedLayout ? 146.8 : 144 + bodyShift) + lineIndex * 3.2, { align: "center" }));
     pdf.setTextColor(frame.footerColor);
-    pdf.setFontSize(5);
-    pdf.text(splitText(pdf, `Gerado por: ${clean(ticket.generatedByName, "Usu\xE1rio n\xE3o identificado")} | ${clean(ticket.generatedAtText, "Data e hora n\xE3o registradas")}`, 73, 1), 45, 151, { align: "center" });
-    pdf.setFontSize(4.8);
-    pdf.text(splitText(pdf, `LE BEEF | Ingresso ${index2 + 1}/${tickets.length}`, 73, 1), 45, 153.5, { align: "center" });
+    pdf.setFontSize(approvedLayout ? 5.2 : 5);
+    pdf.text(splitText(pdf, `Gerado por: ${clean(ticket.generatedByName, "Usu\xE1rio n\xE3o identificado")} | ${clean(ticket.generatedAtText, "Data e hora n\xE3o registradas")}`, 73, 1), 45, approvedLayout ? 151.2 : 151, { align: "center" });
+    pdf.setFontSize(approvedLayout ? 4.8 : 4.8);
+    pdf.text(splitText(pdf, `LE BEEF | Ingresso ${index2 + 1}/${tickets.length}`, 73, 1), 45, approvedLayout ? 153.2 : 153.5, { align: "center" });
     pdf.setTextColor(primary);
     if (hasLogo) addPdfLogo(pdf, pdfLogoDataUrl);
   }
