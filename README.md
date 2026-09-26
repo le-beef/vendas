@@ -1,5 +1,11 @@
 # Le Beef — painel de vendas de ingressos
 
+## Versão 6.0.15 — ocupar mesa sem venda
+
+- O botão **Ocupar sem venda** fica na primeira etapa da reserva, sem exigir nome ou outros dados do responsável.
+- O botão aparece somente para administrador e gerente do evento e fica indisponível em uma mesa já reservada.
+- As etapas de pessoas, pagamento e a venda normal permanecem inalteradas.
+
 ## Versão 6.0.14 — descontos na reserva de mesa
 
 - O desconto da cadeira do responsável aparece na etapa **Responsável**, junto aos dados dele.

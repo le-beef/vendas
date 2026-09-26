@@ -2069,7 +2069,7 @@ function openTableReservation(furnitureId) {
   $("tableReservationTitle").textContent = `${furnitureKindLabel(furniture.kind)} ${String(furniture.number).padStart(2, "0")}`;
   $("tableReservationArea").textContent = `${mapAreaLabel(furniture.area)} · ${money.format(Number(event.chairPrice || 0))} por pessoa`;
   $("deleteTableReservation").hidden = !reservation;
-  $("occupyTableWithoutSale").hidden = Boolean(reservation);
+  $("occupyTableWithoutSale").hidden = Boolean(reservation) || !hasRole("admin", "event_manager");
   syncTableReservationPaymentFields(!reservation);
   updateTableReservationTotal();
   setWizardStep(form, 1);
@@ -2077,8 +2077,9 @@ function openTableReservation(furnitureId) {
 }
 
 async function occupyTableWithoutSale() {
-  if (!requireRole(["admin", "event_manager", "seller"], "Seu perfil não permite ocupar mesas.")) return;
+  if (!requireRole(["admin", "event_manager"], "Somente administradores e gerentes do evento podem ocupar mesas sem venda.")) return;
   const form = $("tableReservationForm");
+  if (form.elements.saleId.value) return toast("Esta mesa já possui uma reserva.");
   const event = state.events.find((item) => item.id === form.elements.eventId.value);
   const furniture = normalizeTableMap(event?.tableMap).furniture.find((item) => item.id === form.elements.furnitureId.value);
   if (!event || !furniture) return toast("Mesa ou bistrô não encontrado.");

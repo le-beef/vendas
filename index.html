@@ -35,7 +35,7 @@
     <link rel="stylesheet" href="audit-log.css?v=27" />
     <link rel="stylesheet" href="payment-closing.css?v=28" />
     <link rel="stylesheet" href="event-access.css?v=18" />
-    <link rel="stylesheet" href="table-map.css?v=11" />
+    <link rel="stylesheet" href="table-map.css?v=12" />
     <link rel="stylesheet" href="table-reservation-override.css?v=2" />
     <link rel="stylesheet" href="table-reservation-details.css?v=2" />
     <link rel="stylesheet" href="table-reservation-final.css?v=2" />
@@ -270,7 +270,7 @@
       </section>
     </main>
 
-    <footer class="site-footer">Le Beef | Versão: 6.0.14</footer>
+    <footer class="site-footer">Le Beef | Versão: 6.0.15</footer>
 
     <button class="fab" data-open="saleModal" data-roles="admin,event_manager,seller" aria-label="Registrar venda">+</button>
 
@@ -375,7 +375,7 @@
         <section class="sale-wizard-step" data-wizard-step="1">
           <div class="sale-wizard-step-heading"><span>Etapa 1 de 3</span><strong>Responsável pela mesa</strong><p>Informe os dados da pessoa responsável pela reserva.</p></div>
           <div class="reservation-responsible"><label>Nome completo<input name="buyerName" required placeholder="Nome do responsável" /></label><div class="two-columns"><label>Telefone (opcional)<input name="buyerPhone" type="tel" placeholder="(00) 00000-0000" /></label><label>E-mail (opcional)<input name="buyerEmail" type="email" placeholder="nome@exemplo.com" /></label></div><p class="phone-recommendation">Importante: informe o telefone sempre que possível para conseguir enviar os ingressos pelo WhatsApp.</p><div class="chair-discount-line" data-manager-discount hidden><span>Desconto da cadeira do responsável</span><div id="responsibleChairDiscount" class="chair-discount-control" data-chair-discount data-discount-type="percent"><button class="chair-discount-toggle" type="button" data-toggle-chair-discount aria-expanded="false" title="Adicionar desconto">%</button><label hidden><span class="chair-discount-prefix">%</span><input class="chair-discount-value" type="number" min="0" max="100" step="0.01" value="0" inputmode="decimal" aria-label="Desconto da cadeira do responsável" /></label></div></div></div>
-          <div class="sale-wizard-navigation is-first"><button class="button primary" type="button" data-wizard-next>Continuar</button></div>
+          <div class="sale-wizard-navigation is-first"><button id="occupyTableWithoutSale" class="button secondary" type="button" hidden>Ocupar sem venda</button><button class="button primary" type="button" data-wizard-next>Continuar</button></div>
         </section>
         <section class="sale-wizard-step" data-wizard-step="2" hidden>
           <div class="sale-wizard-step-heading"><span>Etapa 2 de 3</span><strong>Pessoas da mesa</strong><p>O responsável já é a primeira pessoa. Adicione somente os demais participantes.</p></div>
@@ -390,7 +390,7 @@
           <label class="payment-date-field">Data do pagamento<input name="paymentDate" type="date" /></label>
           <label>Observações (opcional)<textarea name="notes" rows="3" placeholder="Informações sobre a reserva"></textarea></label>
           <div id="tableWizardReview" class="sale-wizard-review" aria-live="polite"></div>
-          <div class="reservation-form-actions sale-wizard-navigation"><button id="deleteTableReservation" class="button danger" type="button" hidden>Excluir venda</button><button class="button secondary" type="button" data-wizard-back>Voltar</button><button id="occupyTableWithoutSale" class="button secondary" type="button">Ocupar sem venda</button><button class="button primary" type="submit">Salvar reserva</button></div>
+          <div class="reservation-form-actions sale-wizard-navigation"><button id="deleteTableReservation" class="button danger" type="button" hidden>Excluir venda</button><button class="button secondary" type="button" data-wizard-back>Voltar</button><button class="button primary" type="submit">Salvar reserva</button></div>
         </section>
       </form>
     </dialog>
@@ -513,6 +513,6 @@
     <div id="toast" role="status" aria-live="polite"></div>
     <script src="pwa.js"></script>
     <script src="excel-export.js?v=40"></script>
-    <script type="module" src="app.js?v=114"></script>
+    <script type="module" src="app.js?v=115"></script>
   </body>
 </html>
