@@ -1,5 +1,16 @@
 # Le Beef — painel de vendas de ingressos
 
+## Versão 6.0.19 — botão para adicionar pessoas
+
+- Na etapa Pessoas da reserva, **+ Adicionar pessoa** virou um botão azul compacto e mais visível, sem alterar o fluxo nem ampliar o bloco desnecessariamente.
+
+## Versão 6.0.18 — ajustes do PDF digital
+
+- Data e hora permanecem em uma linha; o local aparece completo logo abaixo, com quebra de linha quando necessário.
+- Mais espaço antes da divisão de Valor e Pagamento, acompanhando o padrão visual das reservas.
+- Os quatro cantos da borda azul externa agora são retos. Os cantos internos permanecem arredondados.
+- A prévia acompanha o layout do PDF gerado. A impressão térmica não foi alterada.
+
 ## Versão 6.0.17 — primeira etapa da reserva no celular
 
 - No celular, **Ocupar sem venda** aparece menor à esquerda e **Continuar** maior à direita, na mesma linha. Para perfis sem acesso à ocupação sem venda, **Continuar** ocupa a largura disponível.

@@ -5,7 +5,7 @@ import { firebaseConfig } from "./firebase-config.js";
 import { createEventPages } from "./pages.js?v=12";
 import { decodeQrImageData } from "./qr-scanner-tools.js?v=1";
 import { eventIsArchived, eventArchiveDeadline } from "./event-archive.js?v=1";
-import { createTicketPdf, createQrDataUrl } from "./ticket-tools.js?v=14";
+import { createTicketPdf, createQrDataUrl } from "./ticket-tools.js?v=15";
 import { THERMAL_PAPER_WIDTHS, buildThermalPrintHtml, normalizeThermalPaperWidth } from "./thermal-print.js?v=10";
 import { DEFAULT_TICKET_DESIGN, normalizeTicketDesign, ticketHeightForDesign } from "./ticket-layout.js?v=3";
 import { PLATFORM_COMMISSION_SCOPES, eventFinancialRules, normalizeCommissionScope, normalizePercentage, promoterFinancialSnapshot, saleFinancialSnapshot } from "./financial-core.js?v=2";
@@ -653,12 +653,18 @@ function buildPdfTicketPreviewHtml({ design, event, type, qrCode }) {
   const percentX = (mm) => `${mm / 90 * 100}%`;
   const cqwMm = (mm) => `${mm / 90 * 100}cqw`;
   const margin = design.pdfMargin;
-  const qrTop = Math.min(99 + design.pdfQrSpacing + (pageHeight - 160) * 0.82, pageHeight - 20 - design.pdfQrSize);
+  const qrTop = Math.min(100 + design.pdfQrSpacing + (pageHeight - 160) * 0.82, pageHeight - 20 - design.pdfQrSize);
   const bodyScale = (94 - headerHeight) / 51;
   const bodyY = (mm) => headerHeight + (mm - 43) * bodyScale;
   const logo = design.pdfLogoDataUrl ? `<img src="${escapeHtml(design.pdfLogoDataUrl)}" alt="Logo do PDF">` : "";
   const eventName = escapeHtml(event.name || "ENCONTRO DE GERAÇÕES");
-  const eventMeta = escapeHtml(event.date ? `${eventDateTimeText(event)} | ${event.place || "Le Beef"}` : "11 de out. de 2026 às 20:00 | Le Beef - Salão de Eventos");
+  const eventDate = escapeHtml(event.date ? eventDateTimeText(event) : "11 de out. de 2026 às 20:00");
+  const eventPlace = escapeHtml(event.place || "Le Beef - Salão de Eventos");
+  const placeHasExtraLine = eventPlace.length > 55;
+  const upperShift = placeHasExtraLine ? -2 : 0;
+  const lowerShift = placeHasExtraLine ? 1 : 0;
+  const availableShift = Math.max(0, (qrTop - 2.5 - bodyY(95 + lowerShift)) / bodyScale);
+  const layoutShift = Math.min(design.pdfInfoSpacing, availableShift);
   const title = escapeHtml(design.pdfTitle);
   const footer = escapeHtml(design.pdfFooter);
   const eventFont = Math.min(design.pdfEventSize * 0.38, eventName.length > 34 ? 5.6 : 7.2);
@@ -672,7 +678,7 @@ function buildPdfTicketPreviewHtml({ design, event, type, qrCode }) {
   const eventStart = Math.min(titleY + design.pdfTitleEventSpacing + eventHeight, latestEventStart);
   return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>
     *{box-sizing:border-box}html,body{width:100%;height:100%;margin:0;overflow:hidden;background:#fff;font-family:Arial,Helvetica,sans-serif}
-    .ticket{position:relative;width:100%;height:100%;overflow:hidden;border-radius:10cqw;background:${design.pdfPrimaryColor};color:${design.pdfPrimaryColor};container-type:inline-size;text-align:center}
+    .ticket{position:relative;width:100%;height:100%;overflow:hidden;border-radius:0;background:${design.pdfPrimaryColor};color:${design.pdfPrimaryColor};container-type:inline-size;text-align:center}
     .head{position:absolute;top:${percentY(margin)};left:${percentX(margin)};right:${percentX(margin)};height:${percentY(headerHeight-margin)};overflow:hidden;border-radius:4cqw 4cqw 0 0;background:${design.pdfAccentColor};color:#fff}
     .head img{position:absolute;top:${cqwMm(logoTop-margin)};left:50%;display:block;max-width:80%;max-height:${cqwMm(visibleLogoSize)};height:auto;width:auto;transform:translateX(-50%);object-fit:contain}
     .digital{position:absolute;top:${cqwMm(titleY-margin-titleHeight)};left:0;right:0;display:block;font-size:${design.pdfTitleSize * .38}cqw;line-height:1}
@@ -681,12 +687,12 @@ function buildPdfTicketPreviewHtml({ design, event, type, qrCode }) {
     .dash{position:absolute;top:${percentY(headerHeight)};left:${percentX(margin)};right:${percentX(margin)};border-top:2px dashed ${design.pdfPrimaryColor}}
     .item{position:absolute;left:9%;width:82%;margin:0}.label{font-size:${design.pdfTextSize * .34}cqw;font-weight:700;text-transform:uppercase}.name{font-size:${design.pdfDataSize * .42}cqw;font-weight:700}.muted{color:#526173}.rule{position:absolute;left:${percentX(margin+6)};right:${percentX(margin+6)};border-top:1px solid #d9e1ea}
     .participant-label{top:${percentY(bodyY(46))}}.participant-name{top:${percentY(bodyY(50))}}.first-rule{top:${percentY(bodyY(61.5))}}
-    .admission{top:${percentY(bodyY(66+design.pdfInfoSpacing))}}.type{top:${percentY(bodyY(70+design.pdfInfoSpacing))}}.meta{top:${percentY(bodyY(76+design.pdfInfoSpacing))};font-size:${Math.max(2.1,design.pdfTextSize*.3)}cqw}.second-rule{top:${percentY(bodyY(81.5+design.pdfInfoSpacing))}}
-    .values{position:absolute;top:${percentY(bodyY(84+design.pdfInfoSpacing))};left:15%;right:15%;display:grid;grid-template-columns:1fr 1fr}.values>div+div{border-left:1px solid #d9e1ea}.values strong{display:block;margin-top:2%;font-size:${design.pdfDataSize*.35}cqw}.values small{display:block;margin-top:2%;font-size:${design.pdfTextSize*.27}cqw}
+    .admission{top:${percentY(bodyY(65+layoutShift+upperShift))}}.type{top:${percentY(bodyY(69.5+layoutShift+upperShift))};font-size:${Math.max(8,design.pdfDataSize*.64)*.38}cqw}.meta-date,.meta-place{font-size:${Math.max(2.1,design.pdfTextSize*.34)}cqw;line-height:${cqwMm(3.5)}}.meta-date{top:${percentY(bodyY(74+layoutShift+upperShift))}}.meta-place{top:${percentY(bodyY(78+layoutShift+upperShift))}}.second-rule{top:${percentY(bodyY(83.5+layoutShift+lowerShift))}}
+    .values{position:absolute;top:${percentY(bodyY(87+layoutShift+lowerShift))};left:15%;right:15%;display:grid;grid-template-columns:1fr 1fr}.values>div+div{border-left:1px solid #d9e1ea}.values strong{display:block;margin-top:2%;font-size:${design.pdfDataSize*.35}cqw}.values small{display:block;margin-top:2%;font-size:${design.pdfTextSize*.27}cqw}
     .qr{position:absolute;top:${percentY(qrTop)};left:50%;width:${percentX(design.pdfQrSize)};aspect-ratio:1;transform:translateX(-50%);padding:2%;border:1px solid #d9e1ea;border-radius:3cqw;background:#fff;object-fit:contain}
     .code{top:${percentY(qrTop+design.pdfQrSize+2.5)};font:700 ${design.pdfTextSize*.35}cqw monospace}.message{top:${percentY(qrTop+design.pdfQrSize+5.5)};font-size:${design.pdfTextSize*.3}cqw}.last-rule{top:${percentY(pageHeight-12)}}
     .origin{position:absolute;left:5%;right:5%;bottom:${percentY(2)};color:#fff;font-size:${design.pdfFooterSize*.38}cqw;line-height:1.25}
-  </style></head><body><article class="ticket"><header class="head">${logo}<strong class="digital">${title}</strong><h1>${eventName}</h1></header><main class="body"></main><div class="dash"></div><span class="item label participant-label">Participante</span><strong class="item name participant-name">Alanda Silva</strong><div class="rule first-rule"></div><span class="item label muted admission">Ingresso individual</span><strong class="item name type">${escapeHtml(type.name || "Ingresso Pista")}</strong><span class="item muted meta">${eventMeta}</span><div class="rule second-rule"></div><div class="values"><div><span class="label">Valor</span><strong>${escapeHtml(money.format(Number(type.price || 30)))}</strong></div><div><span class="label">Pagamento</span><strong>PAGO</strong><small>Pix</small></div></div><img class="qr" src="${qrCode}" alt="QR Code"><strong class="item code">2C4E26E9</strong><p class="item muted message">${footer}</p><div class="rule last-rule"></div><div class="origin">Gerado por: Administrador | 14/09/2026 às 12:04<br>LE BEEF | Ingresso 1/1</div></article></body></html>`;
+  </style></head><body><article class="ticket"><header class="head">${logo}<strong class="digital">${title}</strong><h1>${eventName}</h1></header><main class="body"></main><div class="dash"></div><span class="item label participant-label">Participante</span><strong class="item name participant-name">Alanda Silva</strong><div class="rule first-rule"></div><span class="item label muted admission">Ingresso individual</span><strong class="item name type">${escapeHtml(type.name || "Ingresso Pista")}</strong><span class="item muted meta-date">${eventDate}</span><span class="item muted meta-place">${eventPlace}</span><div class="rule second-rule"></div><div class="values"><div><span class="label">Valor</span><strong>${escapeHtml(money.format(Number(type.price || 30)))}</strong></div><div><span class="label">Pagamento</span><strong>PAGO</strong><small>Pix</small></div></div><img class="qr" src="${qrCode}" alt="QR Code"><strong class="item code">2C4E26E9</strong><p class="item muted message">${footer}</p><div class="rule last-rule"></div><div class="origin">Gerado por: Administrador | 14/09/2026 às 12:04<br>LE BEEF | Ingresso 1/1</div></article></body></html>`;
 }
 async function renderPdfTicketConfigPreview(designValue = pdfTicketDesignFromConfigForm()) {
   const form = $("ticketConfigForm");

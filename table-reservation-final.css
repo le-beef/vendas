@@ -6,3 +6,11 @@
   #saleModal,#tableReservationModal{max-height:calc(100vh - 24px);max-height:calc(100dvh - 24px);overflow:hidden}
   #saleForm,#tableReservationForm{max-height:calc(100vh - 24px);max-height:calc(100dvh - 24px);overflow-x:hidden;overflow-y:auto;padding-bottom:max(26px,calc(env(safe-area-inset-bottom) + 18px))}
 }
+
+/* Ação compacta e visível na etapa de pessoas da reserva. */
+.reservation-occupants-field>.field-label{gap:8px}
+.reservation-occupants-field>.field-label>span{min-width:0}
+#addTableOccupant.text-button{flex:none;display:inline-flex;align-items:center;justify-content:center;min-height:30px;padding:6px 10px;border:1px solid #2563eb;border-radius:7px;background:#2563eb;color:#fff;font:700 11px "DM Sans",sans-serif;line-height:1.1;white-space:nowrap;box-shadow:0 2px 5px #2563eb24}
+#addTableOccupant.text-button:hover{background:#1d4ed8;border-color:#1d4ed8}
+#addTableOccupant.text-button:focus-visible{outline:2px solid #1d4ed8;outline-offset:2px}
+@media(max-width:360px){.reservation-occupants-field>.field-label>span{font-size:11px}#addTableOccupant.text-button{padding-inline:7px;font-size:10px}}
