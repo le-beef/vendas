@@ -1977,6 +1977,7 @@ function openTableReservation(furnitureId) {
   $("occupyTableWithoutSale").hidden = Boolean(reservation);
   syncTableReservationPaymentFields(!reservation);
   updateTableReservationTotal();
+  setWizardStep(form, 1);
   $("tableReservationModal").showModal();
 }
 
@@ -2737,6 +2738,56 @@ function setPasswordVisibility(button, visible) {
   button.title = visible ? "Ocultar senha" : "Mostrar senha";
 }
 function hidePasswords(container = document) { container.querySelectorAll("[data-toggle-password]").forEach((button) => setPasswordVisibility(button, false)); }
+function wizardStep(form) { return Math.min(3, Math.max(1, Number(form.dataset.wizardStep || 1))); }
+function updateWizardReview(form) {
+  if (form.id === "saleForm") {
+    const event = state.events.find((item) => item.id === form.elements.eventId.value);
+    const options = saleOptionsFor(event, form.dataset.editId || "");
+    const itemNames = [...form.querySelectorAll(".sale-ticket-item-row")].map((row) => {
+      const option = options.find((item) => item.key === row.querySelector(".sale-item-type").value);
+      const quantity = Number(row.querySelector(".sale-item-quantity").value || 0);
+      return option ? `${quantity}× ${option.item.name}` : "";
+    }).filter(Boolean).join(" · ");
+    $("saleWizardReview").innerHTML = `<span><small>Comprador</small><strong>${escapeHtml(form.elements.buyerName.value || "—")}</strong></span><span><small>Pagamento</small><strong>${form.elements.paymentStatus.value === "paid" ? "Pago" : "Pendente"}</strong></span><span class="is-wide"><small>Ingressos</small><strong>${escapeHtml(itemNames || "Nenhum ingresso selecionado")}</strong></span><span><small>Quantidade</small><strong>${escapeHtml($("saleItemsQuantity").textContent)}</strong></span><span><small>Total</small><strong>${escapeHtml($("saleItemsTotal").textContent)}</strong></span>`;
+    return;
+  }
+  if (form.id === "tableReservationForm") {
+    $("tableWizardReview").innerHTML = `<span><small>Responsável</small><strong>${escapeHtml(form.elements.buyerName.value || "—")}</strong></span><span><small>Pagamento</small><strong>${form.elements.paymentStatus.value === "paid" ? "Pago" : "Pendente"}</strong></span><span><small>Pessoas</small><strong>${escapeHtml($("tableReservationPeople").textContent)}</strong></span><span><small>Total</small><strong>${escapeHtml($("tableReservationTotal").textContent)}</strong></span>`;
+  }
+}
+function setWizardStep(form, nextStep) {
+  const step = Math.min(3, Math.max(1, Number(nextStep || 1)));
+  form.dataset.wizardStep = String(step);
+  form.querySelectorAll("[data-wizard-step]").forEach((section) => { section.hidden = Number(section.dataset.wizardStep) !== step; });
+  form.querySelectorAll("[data-wizard-indicator]").forEach((indicator) => {
+    const indicatorStep = Number(indicator.dataset.wizardIndicator);
+    indicator.classList.toggle("is-active", indicatorStep === step);
+    indicator.classList.toggle("is-complete", indicatorStep < step);
+  });
+  form.querySelectorAll("[data-wizard-progress] > i").forEach((line, index) => line.classList.toggle("is-complete", step > index + 1));
+  if (step === 3) updateWizardReview(form);
+  form.scrollTop = 0;
+}
+function validateWizardStep(form) {
+  const step = wizardStep(form);
+  const section = form.querySelector(`[data-wizard-step="${step}"]`);
+  if (!section) return true;
+  for (const control of section.querySelectorAll("input, select, textarea")) {
+    if (!control.disabled && control.type !== "hidden" && !control.checkValidity()) { control.reportValidity(); return false; }
+  }
+  try {
+    if (form.id === "saleForm" && step === 2) getSaleTicketItems();
+  } catch(error) { toast(error.message); return false; }
+  return true;
+}
+function handleWizardNavigation(event) {
+  const button = event.target.closest("[data-wizard-next], [data-wizard-back]");
+  if (!button) return;
+  const form = event.currentTarget;
+  const current = wizardStep(form);
+  if (button.hasAttribute("data-wizard-next") && !validateWizardStep(form)) return;
+  setWizardStep(form, current + (button.hasAttribute("data-wizard-next") ? 1 : -1));
+}
 function syncSalePaymentFields(useToday = false) {
   const form = $("saleForm");
   const courtesy = form.classList.contains("sale-is-courtesy");
@@ -2752,8 +2803,8 @@ function syncSalePaymentFields(useToday = false) {
 
 function openNewEvent() { if (!requireRole(["admin"], "Somente administradores podem criar eventos.")) return; const form = $("eventForm"); form.reset(); form.dataset.editId = ""; form.elements.eventMode.value = "unit"; form.elements.chairPrice.value = ""; syncEventFinancialSettings(); syncEventManualFeeSettings(); resetEventMapDraft(); syncEventMapSettings(); $("eventModalTitle").textContent = "Novo evento"; $("eventSubmitButton").textContent = "Criar evento"; resetPackages(); resetTicketTypes(); $("eventModal").showModal(); }
 function openEditEvent(id) { if (!requireRole(["admin", "event_manager"], "Somente administradores e gerentes podem editar eventos.")) return; if (!canAdministerEvent(id)) return toast("Você não administra este evento."); const item = state.events.find((event) => event.id === id); if (!item) return; const form = $("eventForm"); form.reset(); form.dataset.editId = id; form.elements.name.value = item.name || ""; form.elements.date.value = item.date || ""; form.elements.time.value = eventTimeText(item); form.elements.place.value = item.place || ""; form.elements.eventMode.value = item.eventMode === "mixed" ? "mixed" : "unit"; form.elements.chairPrice.value = Number(item.chairPrice || 0); syncEventFinancialSettings(item); syncEventManualFeeSettings(item); resetEventMapDraft(item); syncEventMapSettings(); resetPackages(); $("ticketTypesList").innerHTML = ""; ticketTypesFor(item).forEach((type) => addTicketTypeRow(type.name, type.price, type.capacity, type.id)); packagesFor(item).forEach((packageItem) => addPackageRow(packageItem)); renderPackagesEmptyState(); $("eventModalTitle").textContent = "Editar evento"; $("eventSubmitButton").textContent = "Salvar alterações"; $("eventModal").showModal(); }
-function openNewSale(eventId = "") { if (!requireRole(["admin", "event_manager", "seller"])) return; if (!state.events.length) return toast("Cadastre um evento antes de registrar uma venda."); const form = $("saleForm"); form.reset(); form.dataset.editId = ""; $("saleGuestNamesList").innerHTML = ""; $("saleModalTitle").textContent = "Registrar ingressos"; $("saleSubmitButton").textContent = "Confirmar venda"; $("saleEvent").value = eventId; const event = state.events.find((item) => item.id === eventId); form.elements.applyBuyerFee.checked = Boolean(event?.manualBuyerFeeDefault); setSaleTicketItems(eventId); syncSalePaymentFields(true); $("saleModal").showModal(); }
-function openEditSale(id) { if (!requireRole(["admin", "event_manager", "seller"])) return; const sale = state.sales.find((item) => item.id === id); if (!sale) return; if (sale.channel === "online") return toast("Os dados financeiros da venda online são protegidos e não podem ser editados manualmente."); if ($("allSalesModal").open) $("allSalesModal").close(); const form = $("saleForm"); form.reset(); form.dataset.editId = id; $("saleGuestNamesList").innerHTML = ""; $("saleEvent").value = sale.eventId; form.elements.buyerName.value = sale.buyerName || ""; form.elements.applyBuyerFee.checked = Boolean(sale.applyBuyerFee); setSaleTicketItems(sale.eventId, saleItems(sale)); syncSaleGuestNames(Array.isArray(sale.participantNames) ? sale.participantNames : null); form.elements.buyerPhone.value = sale.buyerPhone || ""; form.elements.buyerEmail.value = sale.buyerEmail || ""; form.elements.paymentStatus.value = sale.paid ? "paid" : "pending"; form.elements.paymentMethod.value = sale.paymentMethod || ""; form.elements.paymentDate.value = sale.paymentDate || ""; form.elements.notes.value = sale.notes || ""; syncSalePaymentFields(false); $("saleModalTitle").textContent = "Editar participante e ingressos"; $("saleSubmitButton").textContent = "Salvar alterações"; $("saleModal").showModal(); }
+function openNewSale(eventId = "") { if (!requireRole(["admin", "event_manager", "seller"])) return; if (!state.events.length) return toast("Cadastre um evento antes de registrar uma venda."); const form = $("saleForm"); form.reset(); form.dataset.editId = ""; $("saleGuestNamesList").innerHTML = ""; $("saleModalTitle").textContent = "Registrar ingressos"; $("saleSubmitButton").textContent = "Confirmar venda"; $("saleEvent").value = eventId; const event = state.events.find((item) => item.id === eventId); form.elements.applyBuyerFee.checked = Boolean(event?.manualBuyerFeeDefault); setSaleTicketItems(eventId); syncSalePaymentFields(true); setWizardStep(form, 1); $("saleModal").showModal(); }
+function openEditSale(id) { if (!requireRole(["admin", "event_manager", "seller"])) return; const sale = state.sales.find((item) => item.id === id); if (!sale) return; if (sale.channel === "online") return toast("Os dados financeiros da venda online são protegidos e não podem ser editados manualmente."); if ($("allSalesModal").open) $("allSalesModal").close(); const form = $("saleForm"); form.reset(); form.dataset.editId = id; $("saleGuestNamesList").innerHTML = ""; $("saleEvent").value = sale.eventId; form.elements.buyerName.value = sale.buyerName || ""; form.elements.applyBuyerFee.checked = Boolean(sale.applyBuyerFee); setSaleTicketItems(sale.eventId, saleItems(sale)); syncSaleGuestNames(Array.isArray(sale.participantNames) ? sale.participantNames : null); form.elements.buyerPhone.value = sale.buyerPhone || ""; form.elements.buyerEmail.value = sale.buyerEmail || ""; form.elements.paymentStatus.value = sale.paid ? "paid" : "pending"; form.elements.paymentMethod.value = sale.paymentMethod || ""; form.elements.paymentDate.value = sale.paymentDate || ""; form.elements.notes.value = sale.notes || ""; syncSalePaymentFields(false); $("saleModalTitle").textContent = "Editar participante e ingressos"; $("saleSubmitButton").textContent = "Salvar alterações"; setWizardStep(form, 1); $("saleModal").showModal(); }
 
 async function toggleEventArchive(id) {
   if (!canAdministerEvent(id)) return toast("Somente administradores e gerentes do evento podem arquivar ou restaurar.");
@@ -2800,6 +2851,9 @@ $("saleForm").elements.buyerName.addEventListener("input", () => {
 $("saleGuestNamesList").addEventListener("input", (event) => { if (event.target.matches(".sale-guest-name")) event.target.dataset.automatic = "false"; });
 $("saleForm").elements.paymentStatus.addEventListener("change", () => syncSalePaymentFields(true));
 $("saleForm").elements.buyerPhone.addEventListener("blur", (event) => { event.currentTarget.value = formatPhoneDisplay(event.currentTarget.value); });
+$("saleForm").addEventListener("click", handleWizardNavigation);
+$("saleForm").addEventListener("input", () => { if (wizardStep($("saleForm")) === 3) updateWizardReview($("saleForm")); });
+$("saleForm").addEventListener("change", () => { if (wizardStep($("saleForm")) === 3) updateWizardReview($("saleForm")); });
 $("applyParticipantFilters").addEventListener("click", () => { selectedTicketTypeFilter = $("ticketTypeFilter").value; selectedPaymentFilter = $("paymentStatusFilter").value; selectedEntryFilter = $("entryStatusFilter").value; document.querySelector(".ticket-filter").open = false; render(); });
 $("openFinancialReport").addEventListener("click", () => { if (!requireRole(["admin", "event_manager"], "O relatório financeiro é exclusivo para administradores e gerentes do evento.")) return; if (!selectedEventId) return toast("Selecione um evento para abrir o relatório financeiro."); location.hash = "relatorio-financeiro"; });
 $("backToDashboard").addEventListener("click", () => { location.hash = "resumo"; });
@@ -2906,6 +2960,9 @@ $("tableReservationForm").addEventListener("click", (event) => {
 $("tableReservationForm").addEventListener("input", (event) => { if (event.target.matches(".chair-discount-value") || event.target.name === "applyBuyerFee") updateTableReservationTotal(); });
 $("tableReservationForm").elements.paymentStatus.addEventListener("change", () => syncTableReservationPaymentFields(true));
 $("tableReservationForm").elements.buyerPhone.addEventListener("blur", (event) => { event.currentTarget.value = formatPhoneDisplay(event.currentTarget.value); });
+$("tableReservationForm").addEventListener("click", handleWizardNavigation);
+$("tableReservationForm").addEventListener("input", () => { if (wizardStep($("tableReservationForm")) === 3) updateWizardReview($("tableReservationForm")); });
+$("tableReservationForm").addEventListener("change", () => { if (wizardStep($("tableReservationForm")) === 3) updateWizardReview($("tableReservationForm")); });
 $("deleteTableReservation").addEventListener("click", async () => { const id = $("tableReservationForm").elements.saleId.value; if (!id) return; if (await deleteSale(id)) $("tableReservationModal").close(); });
 $("occupyTableWithoutSale").addEventListener("click", occupyTableWithoutSale);
 $("releaseTableOccupancy").addEventListener("click", releaseTableOccupancy);
