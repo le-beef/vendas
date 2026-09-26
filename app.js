@@ -1925,6 +1925,8 @@ function renderTableReservationsList(event, eventSales) {
   $("allTableReservationsList").innerHTML = allReservations.length ? allReservations.map((sale) => { const occupants = reservationOccupants(sale); const peopleCount = occupants.length || sale.quantity || 1; return `<tr class="sales-row table-reservation-all-row"><td data-label="Responsável"><strong>${escapeHtml(sale.buyerName || "Sem responsável")}</strong><small>${peopleCount} pessoas · ${reservationCheckinCount(sale)}/${peopleCount} check-ins</small></td><td data-label="Mesa / bistrô"><strong>${escapeHtml(sale.reservationLabel || "Reserva")}</strong><small>${escapeHtml(mapAreaLabel(sale.reservationArea || ""))}</small></td><td class="sale-note" data-label="Contato / ocupantes"><span class="phone-line"><strong>${escapeHtml(formatPhoneDisplay(sale.buyerPhone) || "Não informado")}</strong>${whatsappButtonHtml(sale, event.name)}</span><small>${escapeHtml(occupants.join(", "))}</small><div class="table-reservation-all-checkins"><small>Entradas (${reservationCheckinCount(sale)}/${peopleCount})</small>${tableReservationCheckinsHtml(sale)}</div></td><td data-label="Evento">${escapeHtml(event.name)}</td><td class="financial-column" data-label="Valor">${money.format(saleTotal(sale, event))}</td><td class="financial-column" data-label="Pagamento">${paymentForTableReservation(sale)}</td><td data-label="Ações"><div class="table-all-actions"><button class="edit-button" type="button" data-open-table-reservation="${sale.furnitureId}">Editar venda</button>${canManage ? `<button class="delete-button" data-delete-sale="${sale.id}">Excluir venda</button>` : ""}</div>${ticketFileActionsHtml(sale)}</td></tr>`; }).join("") : `<tr><td colspan="7" class="empty">Nenhuma reserva neste evento.</td></tr>`;
 }
 
+function canEditChairDiscount() { return hasRole("admin", "event_manager"); }
+
 function chairDiscountControlHtml(pricing = {}, label = "Desconto desta cadeira") {
   const type = pricing.discountType === "fixed" ? "fixed" : "percent";
   const value = Math.max(0, Number(pricing.discountValue || 0));
@@ -1959,8 +1961,8 @@ function addTableOccupantRow(name = null, pricing = {}) {
   const automatic = name == null;
   const resolvedName = automatic ? guestDefaultName($("tableReservationForm").elements.buyerName.value, position) : name;
   const row = document.createElement("div");
-  row.className = "table-occupant-row";
-  row.innerHTML = `<input class="table-occupant-name" data-automatic="${automatic}" data-position="${position}" required placeholder="Nome do participante" value="${escapeHtml(resolvedName)}" />${chairDiscountControlHtml(pricing, "Desconto da cadeira deste participante")}<button class="close" type="button" data-remove-table-occupant aria-label="Remover participante">×</button>`;
+  row.className = `table-occupant-row${canEditChairDiscount() ? "" : " no-discount"}`;
+  row.innerHTML = `<input class="table-occupant-name" data-automatic="${automatic}" data-position="${position}" required placeholder="Nome do participante" value="${escapeHtml(resolvedName)}" />${canEditChairDiscount() ? chairDiscountControlHtml(pricing, "Desconto da cadeira deste participante") : ""}<button class="close" type="button" data-remove-table-occupant aria-label="Remover participante">×</button>`;
   $("tableOccupantsList").append(row);
   updateTableReservationTotal();
 }
@@ -1979,6 +1981,20 @@ function tableReservationNames() {
 }
 
 function tableReservationPricing(chairPrice) {
+  if (!canEditChairDiscount()) {
+    const form = $("tableReservationForm");
+    const current = state.sales.find((sale) => sale.id === form.elements.saleId.value);
+    const savedNames = reservationOccupants(current);
+    const savedPricing = reservationOccupantPricing(current);
+    const names = [String(form.elements.buyerName.value || "").trim(), ...[...document.querySelectorAll("#tableOccupantsList .table-occupant-name")].map((input) => input.value.trim())];
+    return names.map((name, index) => {
+      const saved = name && savedNames[index] === name ? savedPricing[index] : null;
+      const discountType = saved?.discountType === "fixed" ? "fixed" : "percent";
+      const discountValue = Math.max(0, Number(saved?.discountValue || 0));
+      const discountAmount = discountType === "fixed" ? Math.min(chairPrice, discountValue) : chairPrice * Math.min(100, discountValue) / 100;
+      return { discountType, discountValue, regularPrice:chairPrice, discountAmount:Math.round(discountAmount * 100) / 100, finalPrice:Math.round(Math.max(0, chairPrice - discountAmount) * 100) / 100 };
+    });
+  }
   return [...document.querySelectorAll("#tableReservationForm [data-chair-discount]")].map((control) => {
     const discountType = control.dataset.discountType === "fixed" ? "fixed" : "percent";
     const rawValue = control.classList.contains("is-active") ? Math.max(0, Number(control.querySelector(".chair-discount-value")?.value || 0)) : 0;
@@ -2034,6 +2050,7 @@ function openTableReservation(furnitureId) {
   const reservation = tableReservationsFor(event.id).find((sale) => sale.furnitureId === furnitureId);
   const form = $("tableReservationForm");
   form.reset();
+  form.querySelector("[data-manager-discount]").hidden = !canEditChairDiscount();
   form.elements.eventId.value = event.id;
   form.elements.furnitureId.value = furniture.id;
   form.elements.saleId.value = reservation?.id || "";
@@ -3032,12 +3049,14 @@ $("exportParticipants").addEventListener("click", () => { if (requireRole(["admi
 $("addTableOccupant").addEventListener("click", () => addTableOccupantRow());
 $("tableReservationForm").elements.buyerName.addEventListener("input", () => {
   $("tableOccupantsList").querySelectorAll('.table-occupant-name[data-automatic="true"]').forEach((input) => { input.value = guestDefaultName($("tableReservationForm").elements.buyerName.value, Number(input.dataset.position)); });
+  if (!canEditChairDiscount()) updateTableReservationTotal();
 });
-$("tableOccupantsList").addEventListener("input", (event) => { if (event.target.matches(".table-occupant-name")) event.target.dataset.automatic = "false"; });
+$("tableOccupantsList").addEventListener("input", (event) => { if (event.target.matches(".table-occupant-name")) { event.target.dataset.automatic = "false"; if (!canEditChairDiscount()) updateTableReservationTotal(); } });
 $("tableOccupantsList").addEventListener("click", (event) => { const remove = event.target.closest("[data-remove-table-occupant]"); if (!remove) return; remove.closest(".table-occupant-row").remove(); syncTableGuestPositions(); updateTableReservationTotal(); });
 $("tableReservationForm").addEventListener("click", (event) => {
   const button = event.target.closest("[data-toggle-chair-discount]");
   if (!button) return;
+  if (!canEditChairDiscount()) return;
   const control = button.closest("[data-chair-discount]");
   const input = control.querySelector(".chair-discount-value");
   const label = control.querySelector("label");

@@ -1,5 +1,11 @@
 # Le Beef — painel de vendas de ingressos
 
+## Versão 6.0.14 — descontos na reserva de mesa
+
+- O desconto da cadeira do responsável aparece na etapa **Responsável**, junto aos dados dele.
+- Somente administrador e gerente do evento veem e editam os descontos das cadeiras, incluindo participantes adicionais. Demais perfis não podem criar descontos; em reservas existentes, os valores salvos são preservados para participantes sem alteração.
+- As etapas de pessoas e pagamento não foram reorganizadas.
+
 ## Versão 6.0.13 — cabeçalho do PDF digital
 
 - Em **Tamanho e margens** do PDF, o controle **Altura do cabeçalho** ajusta a faixa colorida até a linha tracejada entre 43 e 58 mm (padrão: 48 mm).
