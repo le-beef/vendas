@@ -3,7 +3,7 @@
 .map-zoom-canvas{display:block;overflow:auto;padding:0;overscroll-behavior:contain;touch-action:pinch-zoom pan-x pan-y}
 .table-map-zoom-viewer{width:100%;max-width:100%;max-height:none;margin:0;border-radius:0;touch-action:pinch-zoom pan-x pan-y}
 .table-map-zoom-viewer .map-furniture{touch-action:pinch-zoom pan-x pan-y}
-.table-reservations-panel{overflow:visible;border-color:#1e3a5f;background:linear-gradient(125deg,#14213d,#1e3a5f)}
+.table-reservations-panel{overflow:visible;border-color:var(--line);background:linear-gradient(125deg,#14213d,#1e3a5f)}
 .table-reservations-panel .table-reservations-heading{color:#fff}.table-reservations-panel .table-reservations-heading .eyebrow{color:#93c5fd}.table-reservations-panel .table-reservations-heading p{color:#cbd5e1}
 .table-reservations-panel .ticket-filter>summary,.table-reservations-panel .view-all-button{border-color:#ffffff55;background:#ffffff12;color:#fff}.table-reservations-panel .ticket-filter[open]>summary,.table-reservations-panel .ticket-filter>summary:hover,.table-reservations-panel .view-all-button:hover{border-color:#93c5fd;background:#ffffff20}.table-reservations-panel .filter-count{background:#ffffff15;color:#dbeafe}.table-reservations-panel .filter-menu{color:#14213d}
 .table-reservations-panel .participant-search-row{padding-bottom:12px}.table-reservations-panel .participant-search{max-width:none}.table-reservation-export{display:flex;justify-content:flex-end;padding:0 24px 14px}.table-reservation-export .button{background:#ffffff12;border-color:#ffffff55;color:#fff}.table-reservation-export .button:hover{background:#ffffff20;border-color:#93c5fd}

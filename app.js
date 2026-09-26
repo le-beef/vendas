@@ -1724,12 +1724,9 @@ function renderMapEditor() {
   }).join("");
 }
 
-function inactiveMapPositionsHtml(tableMap, area) {
-  const activeSlots = new Set(tableMap.furniture.filter((item) => item.area === area).map((item) => item.slotId || item.id));
-  return presetSlotsFor(area).filter((slot) => !activeSlots.has(slot.id)).map((slot) => {
-    const style = `left:${slot.x}%;top:${slot.y}%;width:${slot.width}%;height:${slot.height}%`;
-    return `<span class="map-inactive-position-mask" style="${style}" aria-hidden="true"></span>`;
-  }).join("");
+function cleanMapBackgroundHtml(area) {
+  const regions = area === "salao" ? ["salao-top", "salao-center", "salao-bottom"] : ["mezanino-side", "mezanino-bottom"];
+  return regions.map((region) => `<span class="map-position-background ${region}" aria-hidden="true"></span>`).join("");
 }
 
 function syncEventMapSettings() {
@@ -1788,7 +1785,7 @@ function renderTableMapPanel(event, eventSales) {
   const stage = $("tableMapViewer");
   stage.dataset.area = activeMapViewerArea;
   const furniture = tableMap.furniture.filter((item) => item.area === activeMapViewerArea);
-  stage.innerHTML = `${inactiveMapPositionsHtml(tableMap, activeMapViewerArea)}${furniture.map((item) => mapFurnitureHtml(item, false, reservations.find((sale) => sale.furnitureId === item.id))).join("")}` || `<div class="map-empty-hint">Nenhuma mesa ou bistrô configurado nesta área.</div>`;
+  stage.innerHTML = `${cleanMapBackgroundHtml(activeMapViewerArea)}${furniture.map((item) => mapFurnitureHtml(item, false, reservations.find((sale) => sale.furnitureId === item.id))).join("")}` || `<div class="map-empty-hint">Nenhuma mesa ou bistrô configurado nesta área.</div>`;
   const occupied = furniture.filter((item) => reservations.some((sale) => sale.furnitureId === item.id)).length;
   const paid = furniture.filter((item) => reservations.some((sale) => sale.furnitureId === item.id && isTableReservation(sale) && sale.paid)).length;
   const blocked = furniture.filter((item) => reservations.some((sale) => sale.furnitureId === item.id && isTableBlock(sale))).length;
@@ -1807,7 +1804,7 @@ function renderMapZoom(event, eventSales) {
   const stage = $("tableMapZoomViewer");
   stage.dataset.area = activeMapViewerArea;
   const furniture = tableMap.furniture.filter((item) => item.area === activeMapViewerArea);
-  stage.innerHTML = `${inactiveMapPositionsHtml(tableMap, activeMapViewerArea)}${furniture.map((item) => mapFurnitureHtml(item, false, reservations.find((sale) => sale.furnitureId === item.id))).join("")}` || `<div class="map-empty-hint">Nenhuma mesa ou bistrô configurado nesta área.</div>`;
+  stage.innerHTML = `${cleanMapBackgroundHtml(activeMapViewerArea)}${furniture.map((item) => mapFurnitureHtml(item, false, reservations.find((sale) => sale.furnitureId === item.id))).join("")}` || `<div class="map-empty-hint">Nenhuma mesa ou bistrô configurado nesta área.</div>`;
 }
 
 function renderTableReservationsList(event, eventSales) {
