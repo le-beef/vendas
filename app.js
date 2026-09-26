@@ -5,7 +5,7 @@ import { firebaseConfig } from "./firebase-config.js";
 import { createEventPages } from "./pages.js?v=11";
 import { decodeQrImageData } from "./qr-scanner-tools.js?v=1";
 import { eventIsArchived, eventArchiveDeadline } from "./event-archive.js?v=1";
-import { createTicketPdf, createQrDataUrl } from "./ticket-tools.js?v=10";
+import { createTicketPdf, createQrDataUrl } from "./ticket-tools.js?v=11";
 import { THERMAL_PAPER_WIDTHS, buildThermalPrintHtml, normalizeThermalPaperWidth } from "./thermal-print.js?v=10";
 import { DEFAULT_TICKET_DESIGN, normalizeTicketDesign, ticketHeightForDesign } from "./ticket-layout.js?v=3";
 import { PLATFORM_COMMISSION_SCOPES, eventFinancialRules, normalizeCommissionScope, normalizePercentage, promoterFinancialSnapshot, saleFinancialSnapshot } from "./financial-core.js?v=2";
@@ -506,14 +506,20 @@ function eventTicketDesign(event, paperWidth) {
 function normalizePdfTicketDesign(value = {}) {
   const pdfLayout = PDF_TICKET_LAYOUTS.includes(value.pdfLayout) ? value.pdfLayout : "default";
   const pdfLogoDataUrl = normalizeTicketDesign({ logoDataUrl:value.pdfLogoDataUrl || "" }).logoDataUrl;
-  const bounded = (input, fallback, min, max) => Math.min(max, Math.max(min, Number(input) || fallback));
+  const bounded = (input, fallback, min, max) => Math.min(max, Math.max(min, input === undefined || input === "" ? fallback : Number(input)));
   return {
     pdfLayout, pdfLogoDataUrl,
+    pdfTitle:String(value.pdfTitle || "INGRESSO DIGITAL").slice(0, 36),
+    pdfFooter:String(value.pdfFooter || "Apresente este QR Code na entrada.").slice(0, 120),
+    pdfPrimaryColor:/^#[0-9a-f]{6}$/i.test(String(value.pdfPrimaryColor || "")) ? value.pdfPrimaryColor : "#17375f",
+    pdfAccentColor:/^#[0-9a-f]{6}$/i.test(String(value.pdfAccentColor || "")) ? value.pdfAccentColor : "#14b886",
     pdfLogoSize:bounded(value.pdfLogoSize, 16.2, 8, 20),
     pdfTitleSize:bounded(value.pdfTitleSize, 8.5, 7, 12),
     pdfEventSize:bounded(value.pdfEventSize, 17, 12, 20),
     pdfTextSize:bounded(value.pdfTextSize, 8, 6, 9),
-    pdfDataSize:bounded(value.pdfDataSize, 14, 10, 16)
+    pdfDataSize:bounded(value.pdfDataSize, 14, 10, 16),
+    pdfHeaderSpacing:bounded(value.pdfHeaderSpacing, 0, 0, 2),
+    pdfInfoSpacing:bounded(value.pdfInfoSpacing, 0, 0, 2)
   };
 }
 function eventPdfTicketDesign(event) { return normalizePdfTicketDesign(event?.pdfTicketDesign); }
@@ -522,11 +528,17 @@ function pdfTicketDesignFromConfigForm() {
   return normalizePdfTicketDesign({
     pdfLayout:form.elements.pdfLayout.value,
     pdfLogoDataUrl:form.dataset.pdfLogoData || "",
+    pdfTitle:form.elements.pdfTitle.value,
+    pdfFooter:form.elements.pdfFooter.value,
+    pdfPrimaryColor:form.elements.pdfPrimaryColor.value,
+    pdfAccentColor:form.elements.pdfAccentColor.value,
     pdfLogoSize:form.elements.pdfLogoSize.value,
     pdfTitleSize:form.elements.pdfTitleSize.value,
     pdfEventSize:form.elements.pdfEventSize.value,
     pdfTextSize:form.elements.pdfTextSize.value,
-    pdfDataSize:form.elements.pdfDataSize.value
+    pdfDataSize:form.elements.pdfDataSize.value,
+    pdfHeaderSpacing:form.elements.pdfHeaderSpacing.value,
+    pdfInfoSpacing:form.elements.pdfInfoSpacing.value
   });
 }
 function applyPdfTicketDesignToConfigForm(designValue) {
@@ -534,7 +546,7 @@ function applyPdfTicketDesignToConfigForm(designValue) {
   const design = normalizePdfTicketDesign(designValue);
   form.dataset.pdfLogoData = design.pdfLogoDataUrl;
   form.elements.pdfLayout.value = design.pdfLayout;
-  ["pdfLogoSize", "pdfTitleSize", "pdfEventSize", "pdfTextSize", "pdfDataSize"].forEach((name) => { form.elements[name].value = design[name]; });
+  ["pdfTitle", "pdfFooter", "pdfPrimaryColor", "pdfAccentColor", "pdfLogoSize", "pdfTitleSize", "pdfEventSize", "pdfTextSize", "pdfDataSize", "pdfHeaderSpacing", "pdfInfoSpacing"].forEach((name) => { form.elements[name].value = design[name]; });
   updatePdfTicketConfigPreview(design);
 }
 function ticketDesignFromConfigForm(paperWidth) {
@@ -598,7 +610,7 @@ function updatePdfTicketConfigPreview(designValue = pdfTicketDesignFromConfigFor
   image.src = design.pdfLogoDataUrl || "";
   $("pdfTicketLogoPlaceholder").hidden = Boolean(design.pdfLogoDataUrl);
   $("removePdfTicketLogo").disabled = !design.pdfLogoDataUrl;
-  const units = { pdfLogoSize:"mm", pdfTitleSize:"pt", pdfEventSize:"pt", pdfTextSize:"pt", pdfDataSize:"pt" };
+  const units = { pdfLogoSize:"mm", pdfTitleSize:"pt", pdfEventSize:"pt", pdfTextSize:"pt", pdfDataSize:"pt", pdfHeaderSpacing:"mm", pdfInfoSpacing:"mm" };
   Object.entries(units).forEach(([name, unit]) => {
     const output = document.querySelector(`[data-pdf-ticket-output="${name}"]`);
     if (output) output.textContent = `${design[name]} ${unit}`;
@@ -614,12 +626,13 @@ function schedulePdfTicketConfigPreview(design) {
   pdfTicketPreviewTimer = setTimeout(() => renderPdfTicketConfigPreview(design), 120);
 }
 function buildPdfTicketPreviewHtml({ design, event, type, qrCode }) {
+  design = { ...design, primaryColor:design.pdfPrimaryColor, accentColor:design.pdfAccentColor };
   const layout = PDF_TICKET_LAYOUTS.includes(design.pdfLayout) ? design.pdfLayout : "default";
   const logo = design.pdfLogoDataUrl ? `<img src="${escapeHtml(design.pdfLogoDataUrl)}" alt="Logo do PDF">` : "";
   const eventName = escapeHtml(event.name || "Nome do evento");
   const eventMeta = escapeHtml(event.date ? `${eventDateTimeText(event)} | ${event.place || "Le Beef"}` : "30/09/2026 às 20:00 | Le Beef");
-  const title = escapeHtml($("ticketConfigForm").elements.title.value || "INGRESSO DIGITAL");
-  const footer = escapeHtml($("ticketConfigForm").elements.footer.value || "Apresente este QR Code na entrada.");
+  const title = escapeHtml(design.pdfTitle);
+  const footer = escapeHtml(design.pdfFooter);
   return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>
     *{box-sizing:border-box}html,body{width:100%;height:100%;margin:0;overflow:hidden;background:#f4f7fb;font-family:Arial,Helvetica,sans-serif;color:${design.primaryColor}}
     .ticket{--primary:${design.primaryColor};--accent:${design.accentColor};position:relative;width:100%;height:100%;overflow:hidden;background:var(--primary);container-type:inline-size}
@@ -631,6 +644,8 @@ function buildPdfTicketPreviewHtml({ design, event, type, qrCode }) {
     .body{position:absolute;right:7%;bottom:4.5%;left:7%;top:27%;display:flex;align-items:center;flex-direction:column;padding:7% 5% 3%;text-align:center;background:#fff;border-radius:4cqw}.default .body{top:27%;bottom:8%}.double .body{border:1px solid #d9e1ea}.notched .body{top:30%;right:2%;bottom:2%;left:2%;border-radius:0}.dashed .body{top:27%;right:5%;bottom:2%;left:5%;border-radius:0;clip-path:polygon(3% 0,97% 0,100% 2%,100% 98%,97% 100%,3% 100%,0 98%,0 2%)}
     .notched::before,.notched::after{position:absolute;z-index:3;top:27%;width:6cqw;height:6cqw;border-radius:50%;background:#f4f7fb;content:""}.notched::before{left:-3cqw}.notched::after{right:-3cqw}
     .label{display:block;font-size:${design.pdfTextSize * 1.22}px;font-weight:700;text-transform:uppercase}.participant{margin:1.5% 0 6%;font-size:${design.pdfDataSize * 1.3}px}.rule{width:88%;margin:0 0 5%;border-top:1px solid #d9e1ea}.type{margin:1.5% 0 2%;font-size:${Math.max(10, design.pdfDataSize * .95)}px}.meta{font-size:${Math.max(9, design.pdfTextSize * 1.12)}px;color:#526173}.values{width:88%;display:grid;grid-template-columns:1fr 1fr;gap:3%;margin:5% 0 3%;padding-top:4%;border-top:1px solid #d9e1ea}.values strong{display:block;margin-top:2%;font-size:${Math.max(11, design.pdfDataSize * 1.05)}px}.values small{font-size:${Math.max(8, design.pdfTextSize)}px}.qr{width:48%;aspect-ratio:1;margin:auto 0 1%;padding:2.5%;border:1px solid #d9e1ea;border-radius:3cqw;object-fit:contain}.dashed .qr{border:3px solid var(--accent)}.code{font:700 ${Math.max(10, design.pdfTextSize * 1.05)}px "Courier New",monospace}.message{margin:1% 0 2%;font-size:${Math.max(8, design.pdfTextSize)}px;color:#526173}.origin{width:88%;margin-top:auto;padding-top:2%;border-top:1px solid #d9e1ea;font-size:7px;line-height:1.3}
+    .head h1{min-width:0;max-width:100%;overflow-wrap:anywhere;font-size:${Math.min(design.pdfEventSize * 1.3, eventName.length > 20 ? 18 : 26)}px;margin-top:calc(2% + ${design.pdfHeaderSpacing * 3}px)}
+    .participant{margin-bottom:calc(6% + ${design.pdfInfoSpacing * 2}px)}
   </style></head><body><article class="ticket ${layout}"><header class="head">${logo}<strong class="digital">${title}</strong><h1>${eventName}</h1></header><main class="body"><span class="label">Participante</span><strong class="participant">Alanda Silva</strong><div class="rule"></div><span class="label">Ingresso individual</span><strong class="type">${escapeHtml(type.name || "Ingresso")}</strong><span class="meta">${eventMeta}</span><div class="values"><div><span class="label">Valor</span><strong>${escapeHtml(money.format(Number(type.price || 29.9)))}</strong></div><div><span class="label">Pagamento</span><strong>PAGO</strong><small>Pix</small></div></div><img class="qr" src="${qrCode}" alt="QR Code"><strong class="code">2C4E26E9</strong><p class="message">${footer}</p><div class="origin">Gerado por: Administrador | 14/09/2026 às 12:04<br>LE BEEF | Ingresso 1/1</div></main></article></body></html>`;
 }
 async function renderPdfTicketConfigPreview(designValue = pdfTicketDesignFromConfigForm()) {
@@ -676,7 +691,17 @@ function populateTicketConfigPage(event) {
   form.ticketDesignDrafts = Object.fromEntries(THERMAL_PAPER_WIDTHS.map((width) => [String(width), eventTicketDesign(event, width)]));
   applyTicketDesignToConfigForm(form.ticketDesignDrafts[String(preferredWidth)]);
   applyPdfTicketDesignToConfigForm(eventPdfTicketDesign(event));
+  selectTicketConfigSector($("pageTicketConfig").dataset.activeTicketSector);
   setTicketConfigLocked(true);
+}
+function selectTicketConfigSector(sector) {
+  const selected = sector === "pdf" ? "pdf" : "thermal";
+  $("pageTicketConfig").dataset.activeTicketSector = selected;
+  document.querySelectorAll("[data-select-ticket-sector]").forEach((tab) => {
+    const active = tab.dataset.selectTicketSector === selected;
+    tab.classList.toggle("is-active", active);
+    tab.setAttribute("aria-selected", String(active));
+  });
 }
 function resizeTicketLogo(file) {
   if (!file || !["image/png", "image/jpeg"].includes(file.type)) throw new Error("Selecione uma imagem PNG ou JPG.");
@@ -700,24 +725,38 @@ async function saveTicketDesignConfig() {
   if (!hasRole("admin")) return toast("Somente administradores podem alterar o ingresso.");
   const event = state.events.find((item) => item.id === selectedEventId);
   if (!event) return toast("Selecione um evento.");
+  if ($("pageTicketConfig").dataset.activeTicketSector === "pdf") {
+    const pdfDesign = pdfTicketDesignFromConfigForm();
+    try {
+      if (isDemo) { event.pdfTicketDesign = pdfDesign; persistDemo(); }
+      else {
+        await update(ref(db, `events/${event.id}`), { pdfTicketDesign:pdfDesign, updatedAt:Date.now() });
+        const saved = await get(ref(db, `events/${event.id}/pdfTicketDesign`));
+        if (!saved.exists()) throw new Error("A configuração do PDF não foi encontrada após salvar.");
+        event.pdfTicketDesign = normalizePdfTicketDesign(saved.val());
+      }
+      setTicketConfigLocked(true);
+      render();
+      toast("Configuração do PDF salva neste evento.");
+    } catch (error) { console.error(error); toast(error.message || "Não foi possível salvar o PDF."); }
+    return;
+  }
   const design = ticketDesignFromConfigForm();
-  const pdfDesign = pdfTicketDesignFromConfigForm();
   const widthKey = String(design.paperWidth);
   try {
-    if (isDemo) { event.ticketDesign = design; event.ticketDesigns = { ...(event.ticketDesigns || {}), [widthKey]:design }; event.pdfTicketDesign = pdfDesign; persistDemo(); }
+    if (isDemo) { event.ticketDesign = design; event.ticketDesigns = { ...(event.ticketDesigns || {}), [widthKey]:design }; persistDemo(); }
     else {
-      await update(ref(db, `events/${event.id}`), { ticketDesign:design, [`ticketDesigns/${widthKey}`]:design, pdfTicketDesign:pdfDesign, updatedAt:Date.now() });
-      const [savedDesign, savedPdfDesign] = await Promise.all([get(ref(db, `events/${event.id}/ticketDesigns/${widthKey}`)), get(ref(db, `events/${event.id}/pdfTicketDesign`))]);
-      if (!savedDesign.exists() || !savedPdfDesign.exists()) throw new Error("A configuração não foi encontrada após salvar.");
+      await update(ref(db, `events/${event.id}`), { ticketDesign:design, [`ticketDesigns/${widthKey}`]:design, updatedAt:Date.now() });
+      const savedDesign = await get(ref(db, `events/${event.id}/ticketDesigns/${widthKey}`));
+      if (!savedDesign.exists()) throw new Error("A configuração não foi encontrada após salvar.");
       const confirmedDesign = normalizeTicketDesign({ ...savedDesign.val(), paperWidth:design.paperWidth });
       event.ticketDesign = confirmedDesign;
       event.ticketDesigns = { ...(event.ticketDesigns || {}), [widthKey]:confirmedDesign };
-      event.pdfTicketDesign = normalizePdfTicketDesign(savedPdfDesign.val());
     }
     $("ticketConfigForm").ticketDesignDrafts[widthKey] = eventTicketDesign(event, design.paperWidth);
     setTicketConfigLocked(true);
     render();
-    toast(`Configurações do ingresso de ${design.paperWidth} mm e do PDF salvas neste evento.`);
+    toast(`Configuração do ingresso de ${design.paperWidth} mm salva neste evento.`);
   } catch (error) { console.error(error); toast(error.message || "Não foi possível salvar a configuração."); }
 }
 function saleTypeQuantity(sale, ticketType, event) { return saleStockItems(sale, event).filter((item) => item.ticketTypeId === ticketType.id || item.ticketTypeName === ticketType.name).reduce((sum, item) => sum + Number(item.quantity || 0), 0); }
@@ -3001,7 +3040,8 @@ $("confirmTicketDelete").addEventListener("click", () => deleteGeneratedTicket($
 $("thermalPrintModal").addEventListener("cancel", (event) => { event.preventDefault(); $("thermalPrintModal").close(); });
 document.querySelectorAll("[data-close-thermal-print]").forEach((button) => button.addEventListener("click", () => $("thermalPrintModal").close()));
 $("confirmThermalPrint").addEventListener("click", printGeneratedTicket);
-$("ticketConfigForm").addEventListener("input", (event) => { if (event.target.name !== "paperWidth") renderTicketConfigPreview(); if (event.target.name === "pdfLayout" || event.target.name?.startsWith("pdf") || ["title", "footer", "primaryColor", "accentColor"].includes(event.target.name)) updatePdfTicketConfigPreview(); });
+document.querySelectorAll("[data-select-ticket-sector]").forEach((tab) => tab.addEventListener("click", () => selectTicketConfigSector(tab.dataset.selectTicketSector)));
+$("ticketConfigForm").addEventListener("input", (event) => { if (event.target.name?.startsWith("pdf")) updatePdfTicketConfigPreview(); else if (event.target.name !== "paperWidth") renderTicketConfigPreview(); });
 $("ticketConfigForm").elements.paperWidth.addEventListener("change", (event) => switchTicketPaperConfig(event.currentTarget.value));
 $("ticketConfigForm").addEventListener("submit", (event) => { event.preventDefault(); saveTicketDesignConfig(); });
 $("ticketConfigLock").addEventListener("click", () => setTicketConfigLocked($("ticketConfigForm").dataset.locked === "false"));
@@ -3021,7 +3061,8 @@ $("pdfTicketLogoInput").addEventListener("change", async (event) => {
   catch (error) { toast(error.message || "Não foi possível carregar a imagem."); }
 });
 $("removePdfTicketLogo").addEventListener("click", () => { $("ticketConfigForm").dataset.pdfLogoData = ""; updatePdfTicketConfigPreview(); });
-$("resetTicketConfig").addEventListener("click", () => { const form = $("ticketConfigForm"); if (form.dataset.locked !== "false") return; const width = normalizeThermalPaperWidth(form.elements.paperWidth.value); const design = normalizeTicketDesign({ ...DEFAULT_TICKET_DESIGN, paperWidth:width }); form.ticketDesignDrafts[String(width)] = design; applyTicketDesignToConfigForm(design); applyPdfTicketDesignToConfigForm({ pdfLayout:"default", pdfLogoDataUrl:"", pdfLogoSize:16.2, pdfTitleSize:8.5, pdfEventSize:17, pdfTextSize:8, pdfDataSize:14 }); setTicketConfigLocked(false); });
+$("resetTicketConfig").addEventListener("click", () => { const form = $("ticketConfigForm"); if (form.dataset.locked !== "false") return; const width = normalizeThermalPaperWidth(form.elements.paperWidth.value); const design = normalizeTicketDesign({ ...DEFAULT_TICKET_DESIGN, paperWidth:width }); form.ticketDesignDrafts[String(width)] = design; applyTicketDesignToConfigForm(design); setTicketConfigLocked(false); });
+$("resetPdfTicketConfig").addEventListener("click", () => { if ($("ticketConfigForm").dataset.locked !== "false") return; applyPdfTicketDesignToConfigForm({ pdfLayout:"default", pdfLogoDataUrl:"" }); setTicketConfigLocked(false); });
 $("confirmQrCheckin").addEventListener("click", () => toggleQrTicketCheckin($("qrValidationModal").dataset.token));
 $("nextQrScan").addEventListener("click", () => { $("qrValidationModal").close(); location.hash = "portaria"; openQrScanner(); });
 $("qrValidationModal").addEventListener("cancel", (event) => { event.preventDefault(); $("qrValidationModal").close(); location.hash = "portaria"; });

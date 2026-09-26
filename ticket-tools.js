@@ -29601,6 +29601,16 @@ var PDF_LAYOUTS = ["default", "double", "notched", "dashed"];
 function splitText(pdf, text, width, limit = 2) {
   return pdf.splitTextToSize(clean(text), width).slice(0, limit);
 }
+function fitPdfEventTitle(pdf, value, preferredSize) {
+  const title = clean(value, "Evento").toUpperCase();
+  for (let size = preferredSize; size >= 7; size -= 0.5) {
+    pdf.setFontSize(size);
+    const lines = pdf.splitTextToSize(title, 70);
+    if (lines.length <= 2 && lines.every((line) => pdf.getTextWidth(line) <= 70)) return { lines, size };
+  }
+  pdf.setFontSize(7);
+  return { lines:pdf.splitTextToSize(title, 70), size:7 };
+}
 function clippedTicket(pdf, x2, y3, width, height, cut, style = "F") {
   pdf.lines([[width - cut * 2, 0], [cut, cut], [0, height - cut * 2], [-cut, cut], [-width + cut * 2, 0], [-cut, -cut], [0, -height + cut * 2], [cut, -cut]], x2 + cut, y3, [1, 1], style, true);
 }
@@ -29654,12 +29664,12 @@ function drawPdfFrame(pdf, layout, primary, accent) {
     return { footerColor: primary, titleColor: "#ffffff", eventColor: primary, eventY: 39.5, logoBackground: primary, bodyShift: 4 };
   }
   pdf.setFillColor(primary);
-  pdf.roundedRect(5, 5, 80, 150, 4, 4, "F");
+  pdf.roundedRect(5, 5, 80, 150, 6, 6, "F");
   pdf.setFillColor(accent);
-  pdf.roundedRect(5, 5, 80, 33, 4, 4, "F");
+  pdf.roundedRect(5, 5, 80, 33, 6, 6, "F");
   pdf.rect(5, 32, 80, 6, "F");
   pdf.setFillColor("#ffffff");
-  pdf.roundedRect(9, 41, 72, 106, 3, 3, "F");
+  pdf.roundedRect(9, 41, 72, 108, 4, 4, "F");
   return { footerColor: "#ffffff", titleColor: "#ffffff", eventColor: "#ffffff", eventY: 32, logoBackground: accent, resetGraphics: true, bodyShift: 3 };
 }
 function addPdfLogo(pdf, logoDataUrl, logoSize = 16.2, y3 = 6) {
@@ -29705,16 +29715,18 @@ async function flattenPdfLogo(logoDataUrl, backgroundColor, foregroundColor = ""
 }
 async function createTicketPdf(tickets, design = {}) {
   if (!Array.isArray(tickets) || !tickets.length) throw new Error("Nenhum ingresso dispon\xEDvel para gerar o PDF.");
-  const primary = safeColor(design.primaryColor, "#17375f");
-  const accent = safeColor(design.accentColor, "#14b886");
-  const title = clean(design.title, "INGRESSO DIGITAL").slice(0, 36);
-  const footer = clean(design.footer, "Apresente este QR Code na entrada.").slice(0, 120);
+  const primary = safeColor(design.pdfPrimaryColor || design.primaryColor, "#17375f");
+  const accent = safeColor(design.pdfAccentColor || design.accentColor, "#14b886");
+  const title = clean(design.pdfTitle || design.title, "INGRESSO DIGITAL").slice(0, 36);
+  const footer = clean(design.pdfFooter || design.footer, "Apresente este QR Code na entrada.").slice(0, 120);
   const layout = PDF_LAYOUTS.includes(design.pdfLayout) ? design.pdfLayout : "default";
   const pdfLogoSize = boundedNumber(design.pdfLogoSize, 16.2, 8, 20);
   const pdfTitleSize = boundedNumber(design.pdfTitleSize, 8.5, 7, 12);
   const pdfEventSize = boundedNumber(design.pdfEventSize, 17, 12, 20);
   const pdfTextSize = boundedNumber(design.pdfTextSize, 8, 6, 9);
   const pdfDataSize = boundedNumber(design.pdfDataSize, 14, 10, 16);
+  const pdfHeaderSpacing = Math.min(2, Math.max(0, Number(design.pdfHeaderSpacing) || 0));
+  const pdfInfoSpacing = Math.min(2, Math.max(0, Number(design.pdfInfoSpacing) || 0));
   const rawPdfLogoDataUrl = /^data:image\/(?:png|jpeg);base64,/i.test(clean(design.pdfLogoDataUrl)) ? clean(design.pdfLogoDataUrl) : "";
   const logoPresentation = layout === "notched" ? { background: "#ffffff", foreground: primary } : { background: layout === "dashed" ? primary : accent, foreground: "" };
   const pdfLogoDataUrl = await flattenPdfLogo(rawPdfLogoDataUrl, logoPresentation.background, logoPresentation.foreground);
@@ -29732,18 +29744,29 @@ async function createTicketPdf(tickets, design = {}) {
     pdf.setFont("helvetica", "bold");
     pdf.setFontSize(pdfTitleSize);
     pdf.text(title.toUpperCase(), 45, titleY, { align: "center" });
-    const eventLines = splitText(pdf, ticket.eventName, 72, 2);
+    const fittedEvent = fitPdfEventTitle(pdf, ticket.eventName, pdfEventSize);
+    const eventLines = fittedEvent.lines;
     const eventHasTwoLines = eventLines.length > 1;
     pdf.setTextColor(frame.eventColor);
-    pdf.setFontSize(eventHasTwoLines ? Math.max(9, pdfEventSize * 0.68) : pdfEventSize);
-    eventLines.forEach((line, lineIndex) => pdf.text(line, 45, eventY - (eventHasTwoLines ? 1.5 : 0) + lineIndex * 4.2, { align: "center" }));
+    pdf.setFontSize(fittedEvent.size);
+    const eventStartY = eventHasTwoLines ? Math.min(eventY + pdfHeaderSpacing, 33) - (eventLines.length > 2 ? 3.5 : 1.5) : eventY + pdfHeaderSpacing;
+    eventLines.forEach((line, lineIndex) => pdf.text(line, 45, eventStartY + lineIndex * (eventLines.length > 2 ? 3.5 : 4.2), { align: "center" }));
     if (frame.resetGraphics) {
       pdf.setFillColor("#f4f7fb");
       pdf.circle(-5, -5, 1, "F");
     }
     pdf.setFillColor("#f4f7fb");
     const bodyShift = frame.bodyShift || 0;
+    const infoShift = pdfInfoSpacing;
     const approvedLayout = layout !== "default";
+    if (!approvedLayout) {
+      pdf.setDrawColor("#d9e1ea");
+      pdf.setLineWidth(0.25);
+      pdf.line(14, 58.5 + bodyShift, 76, 58.5 + bodyShift);
+      pdf.line(14, 78.5 + bodyShift + infoShift, 76, 78.5 + bodyShift + infoShift);
+      pdf.line(45, 81 + bodyShift + infoShift, 45, 91 + bodyShift + infoShift);
+      pdf.line(14, 148, 76, 148);
+    }
     if (approvedLayout) {
       pdf.setDrawColor("#d9e1ea");
       pdf.setLineWidth(0.3);
@@ -29760,27 +29783,27 @@ async function createTicketPdf(tickets, design = {}) {
     pdf.setTextColor("#526173");
     pdf.setFont("helvetica", "normal");
     pdf.setFontSize(approvedLayout ? pdfTextSize : Math.max(6, pdfTextSize - 1));
-    pdf.text(clean(ticket.admissionType, "INGRESSO INDIVIDUAL").toUpperCase(), 45, 63 + bodyShift, { align: "center" });
+    pdf.text(clean(ticket.admissionType, "INGRESSO INDIVIDUAL").toUpperCase(), 45, 63 + bodyShift + infoShift, { align: "center" });
     pdf.setTextColor(primary);
     pdf.setFont("helvetica", "bold");
     pdf.setFontSize(approvedLayout ? Math.max(8, pdfDataSize * 0.75) : Math.max(8, pdfDataSize * 0.64));
-    pdf.text(splitText(pdf, ticket.ticketTypeName || "Ingresso", 62, 1), 45, 68 + bodyShift, { align: "center" });
+    pdf.text(splitText(pdf, ticket.ticketTypeName || "Ingresso", 62, 1), 45, 68 + bodyShift + infoShift, { align: "center" });
     pdf.setTextColor("#526173");
     pdf.setFont("helvetica", "normal");
     pdf.setFontSize(approvedLayout ? Math.max(6.5, pdfTextSize - 0.5) : Math.max(6, pdfTextSize - 1));
-    pdf.text(`${clean(ticket.eventDate)}  |  ${clean(ticket.eventPlace)}`.slice(0, 58), 45, 74 + bodyShift, { align: "center" });
+    pdf.text(`${clean(ticket.eventDate)}  |  ${clean(ticket.eventPlace)}`.slice(0, 58), 45, 74 + bodyShift + infoShift, { align: "center" });
     pdf.setFontSize(approvedLayout ? Math.max(6, pdfTextSize - 1) : Math.max(5.5, pdfTextSize - 2));
-    pdf.text("VALOR", 27, 81 + bodyShift, { align: "center" });
-    pdf.text("PAGAMENTO", 63, 81 + bodyShift, { align: "center" });
+    pdf.text("VALOR", 27, 81 + bodyShift + infoShift, { align: "center" });
+    pdf.text("PAGAMENTO", 63, 81 + bodyShift + infoShift, { align: "center" });
     pdf.setFont("helvetica", "bold");
     pdf.setFontSize(approvedLayout ? Math.max(8, pdfDataSize * 0.75) : Math.max(7.5, pdfDataSize * 0.61));
     pdf.setTextColor(primary);
-    pdf.text(clean(ticket.ticketValue, "R$ 0,00"), 27, 86 + bodyShift, { align: "center" });
-    pdf.text(clean(ticket.paymentStatus, "Pendente").toUpperCase(), 63, 86 + bodyShift, { align: "center" });
+    pdf.text(clean(ticket.ticketValue, "R$ 0,00"), 27, 86 + bodyShift + infoShift, { align: "center" });
+    pdf.text(clean(ticket.paymentStatus, "Pendente").toUpperCase(), 63, 86 + bodyShift + infoShift, { align: "center" });
     pdf.setFont("helvetica", "normal");
     pdf.setTextColor("#526173");
     pdf.setFontSize(approvedLayout ? Math.max(5.5, pdfTextSize - 1.5) : Math.max(5, pdfTextSize - 2.5));
-    pdf.text(clean(ticket.paymentDetail).slice(0, 28), 63, 90 + bodyShift, { align: "center" });
+    pdf.text(clean(ticket.paymentDetail).slice(0, 28), 63, 90 + bodyShift + infoShift, { align: "center" });
     const qrBoxSize = approvedLayout ? 44 : 42;
     const qrSize = approvedLayout ? 39 : 36;
     const qrBoxX = (90 - qrBoxSize) / 2;
@@ -29807,11 +29830,11 @@ async function createTicketPdf(tickets, design = {}) {
     pdf.setTextColor(primary);
     pdf.setFont("courier", "bold");
     pdf.setFontSize(approvedLayout ? Math.max(6.5, pdfTextSize - 0.5) : Math.max(6, pdfTextSize - 1));
-    pdf.text(clean(ticket.shortCode), 45, approvedLayout ? 143.5 : 139 + bodyShift, { align: "center" });
+    pdf.text(clean(ticket.shortCode), 45, approvedLayout ? 143.5 : 137 + bodyShift, { align: "center" });
     pdf.setFont("helvetica", "normal");
     pdf.setTextColor("#526173");
     pdf.setFontSize(approvedLayout ? Math.max(6, pdfTextSize - 0.8) : Math.max(5.5, pdfTextSize - 1.5));
-    splitText(pdf, footer, 66, approvedLayout ? 1 : 2).forEach((line, lineIndex) => pdf.text(line, 45, (approvedLayout ? 146.8 : 144 + bodyShift) + lineIndex * 3.2, { align: "center" }));
+    splitText(pdf, footer, 66, approvedLayout ? 1 : 2).forEach((line, lineIndex) => pdf.text(line, 45, (approvedLayout ? 146.8 : 140 + bodyShift) + lineIndex * 3.2, { align: "center" }));
     pdf.setTextColor(frame.footerColor);
     pdf.setFontSize(approvedLayout ? 5.2 : 5);
     pdf.text(splitText(pdf, `Gerado por: ${clean(ticket.generatedByName, "Usu\xE1rio n\xE3o identificado")} | ${clean(ticket.generatedAtText, "Data e hora n\xE3o registradas")}`, 73, 1), 45, approvedLayout ? 151.2 : 151, { align: "center" });

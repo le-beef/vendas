@@ -7,3 +7,16 @@
 .pdf-layout-signature::after{position:absolute;top:22px;right:-4px;width:8px;height:8px;border-radius:50%;background:#fff;box-shadow:-38px 0 0 #fff;content:""}.pdf-layout-perforated{border:2px solid #17375f;background:#fff}.pdf-layout-perforated::before{inset:17px 6px 6px}.pdf-layout-perforated i{top:12px;right:0;left:0;height:7px;border-radius:0;background:#14b886;border-bottom:1px dashed #17375f}.pdf-layout-elegant{border-radius:0;background:#17375f;clip-path:polygon(8% 0,92% 0,100% 8%,100% 92%,92% 100%,8% 100%,0 92%,0 8%)}.pdf-layout-elegant::before{inset:17px 5px 5px;border-radius:0;clip-path:polygon(6% 0,94% 0,100% 5%,100% 95%,94% 100%,6% 100%,0 95%,0 5%)}.pdf-layout-elegant i{top:13px;right:5px;left:5px;height:6px;border-radius:0;background:#fff;border-top:2px solid #14b886}
 @media(max-width:600px){.pdf-layout-options{grid-template-columns:1fr}.pdf-layout-options label{grid-template-columns:46px minmax(0,1fr)}}
 @media(max-width:600px){.ticket-config-heading-actions{justify-content:flex-start}.ticket-config-lock{min-width:0}.ticket-config-heading-actions .button{width:auto}}
+.ticket-sector-tabs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:0 0 18px;padding:6px;border:1px solid var(--line);border-radius:14px;background:#eef2f7}
+.ticket-sector-tab{min-height:45px;border:0;border-radius:10px;background:transparent;color:var(--muted);font:700 14px "DM Sans",sans-serif;cursor:pointer}
+.ticket-sector-tab.is-active{background:#fff;color:var(--blue);box-shadow:0 2px 8px #14213d18}
+.pdf-identity{order:-2}.pdf-ticket-settings{order:-1}.pdf-spacing-settings{order:0}.pdf-actions{order:1}
+.ticket-config-page[data-active-ticket-sector="thermal"] .ticket-config-controls>.pdf-identity,
+.ticket-config-page[data-active-ticket-sector="thermal"] .ticket-config-controls>.pdf-ticket-settings,
+.ticket-config-page[data-active-ticket-sector="thermal"] .ticket-config-controls>.pdf-spacing-settings,
+.ticket-config-page[data-active-ticket-sector="thermal"] .ticket-config-controls>.pdf-actions,
+.ticket-config-page[data-active-ticket-sector="thermal"] .pdf-live-preview{display:none}
+.ticket-config-page[data-active-ticket-sector="pdf"] .ticket-config-controls>:not(.pdf-identity):not(.pdf-ticket-settings):not(.pdf-spacing-settings):not(.pdf-actions),
+.ticket-config-page[data-active-ticket-sector="pdf"] .thermal-live-preview{display:none}
+.pdf-spacing-settings input[type="range"]{width:100%}.pdf-spacing-settings small{color:var(--muted)}
+@media(max-width:600px){.ticket-sector-tab{font-size:12px}}
