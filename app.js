@@ -1030,6 +1030,9 @@ async function ticketShareId(sale, event) {
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(`${sale.id}:${firstToken}`));
   return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
 }
+async function ticketSharePath(sale, event) {
+  return qrTicketsFor(sale, event)[0]?.token ? `ticketLinks/${await ticketShareId(sale, event)}` : "";
+}
 function ticketPdfBase64(blob) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -1240,7 +1243,10 @@ async function deleteGeneratedTicket(saleId) {
     if (isDemo) { delete sale.qrTickets; appendDemoAudit("edited", sale, details); persistDemo(); }
     else {
       const logId = push(ref(db, "auditLogs")).key;
-      await update(ref(db), { [`sales/${saleId}/qrTickets`]: null, [`auditLogs/${logId}`]: auditLogData("edited", sale, details) });
+      const changes = { [`sales/${saleId}/qrTickets`]: null, [`auditLogs/${logId}`]: auditLogData("edited", sale, details) };
+      const sharePath = await ticketSharePath(sale, event);
+      if (sharePath) changes[sharePath] = null;
+      await update(ref(db), changes);
       delete sale.qrTickets;
     }
     $("ticketDeleteModal").close();
@@ -2880,7 +2886,13 @@ async function deleteSale(id) {
   const quantity = saleQuantity(sale);
   const details = isTableReservation(sale) ? `Excluiu a reserva de ${sale.reservationLabel || "mesa"} com ${quantity} pessoas.` : `Excluiu a venda com ${quantity} ${quantity === 1 ? "ingresso" : "ingressos"}: ${saleTicketSummary(sale)}.`;
   if (isDemo) { appendDemoAudit("deleted", sale, details); state.sales = state.sales.filter((item) => item.id !== id); persistDemo(); render(); }
-  else { const logId = push(ref(db, "auditLogs")).key; await update(ref(db), { [`sales/${id}`]: null, [`auditLogs/${logId}`]: auditLogData("deleted", sale, details) }); }
+  else {
+    const logId = push(ref(db, "auditLogs")).key;
+    const changes = { [`sales/${id}`]: null, [`auditLogs/${logId}`]: auditLogData("deleted", sale, details) };
+    const sharePath = await ticketSharePath(sale, state.events.find((event) => event.id === sale.eventId));
+    if (sharePath) changes[sharePath] = null;
+    await update(ref(db), changes);
+  }
   toast(isTableReservation(sale) ? "Reserva excluída." : "Venda excluída.");
   return true;
 }
@@ -2890,7 +2902,13 @@ async function deleteEvent(id) {
   if (!event || !confirm(`Excluir o evento “${event.name}” e todas as vendas, históricos, conexões e fechamentos dele? Esta ação não pode ser desfeita.`)) return;
   try {
   const changes = { [`events/${id}`]:null, [`platformSettlements/${id}`]:null, [`promoters/${id}`]:null };
-  state.sales.filter((sale) => sale.eventId === id).forEach((sale) => { changes[`sales/${sale.id}`] = null; });
+  for (const sale of state.sales.filter((item) => item.eventId === id)) {
+    changes[`sales/${sale.id}`] = null;
+    if (!isDemo) {
+      const sharePath = await ticketSharePath(sale, event);
+      if (sharePath) changes[sharePath] = null;
+    }
+  }
   state.auditLogs.filter((log) => log.eventId === id).forEach((log) => { changes[`auditLogs/${log.id}`] = null; });
   if (isDemo) {
     state.events = state.events.filter((item) => item.id !== id);
