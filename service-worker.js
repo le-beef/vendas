@@ -1,4 +1,4 @@
-const CACHE_NAME = "le-beef-painel-v6-0-8-1";
+const CACHE_NAME = "le-beef-painel-v6-0-10-1";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -17,6 +17,7 @@ const APP_SHELL = [
   "./financial-report.css?v=20",
   "./financial-settings.css?v=1",
   "./promoters.css?v=2",
+  "./promoter-report.css?v=1",
   "./settlements.css?v=1",
   "./online-sales.css?v=1",
   "./auth-permissions.css?v=19",
@@ -30,14 +31,14 @@ const APP_SHELL = [
   "./table-reservation-final.css?v=2",
   "./table-reservation-harmony.css?v=4",
   "./ticketing.css?v=11",
-  "./ticket-config.css?v=7",
+  "./ticket-config.css?v=8",
   "./excel-export.js?v=40",
   "./firebase-config.js",
-  "./app.js?v=108",
+  "./app.js?v=110",
   "./financial-core.js?v=2",
-  "./pages.js?v=11",
+  "./pages.js?v=12",
   "./qr-scanner-tools.js?v=1",
-  "./ticket-tools.js?v=11",
+  "./ticket-tools.js?v=12",
   "./thermal-print.js?v=10",
   "./ticket-layout.js?v=3",
   "./pages.css?v=5",

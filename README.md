@@ -1,5 +1,12 @@
 # Le Beef — painel de vendas de ingressos
 
+## Versão 6.0.10 — resultados do promoter
+
+- O perfil promoter acessa **Meus resultados** no menu Mais e pelo atalho do resumo. O relatório mostra somente vendas vinculadas à sua conta no evento selecionado, o total vendido e sua comissão por venda.
+- **Ganhos confirmados** consideram apenas vendas pagas; **ganhos previstos** consideram vendas pendentes. Esses números não representam repasses já efetuados ao promoter.
+- O promoter não recebe comandos de check-in de ingressos individuais ou reservas. As rotas da Portaria e as ações de validação por QR Code continuam bloqueadas para esse perfil.
+- Para que o bloqueio seja efetivo no banco, as regras do Firebase publicadas devem incluir as restrições do perfil promoter para `sales`, `checkedIn`, `occupantCheckins` e `qrTickets` (como no arquivo `database.rules.json` entregue com a versão 6.0.3). Publicar apenas os arquivos do site não atualiza as regras do Realtime Database.
+
 ## Versão 6.0.3 — vendas por usuário e vendas online em preparação
 
 - A área de vendas online permanece visível com o aviso “Em breve”, sem checkout ou conexão com o Mercado Pago nesta versão.

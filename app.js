@@ -2,10 +2,10 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/11.
 import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged, browserLocalPersistence, inMemoryPersistence, setPersistence, createUserWithEmailAndPassword, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js";
 import { getDatabase, ref, push, set, update, onValue, get, query, orderByChild, equalTo, runTransaction, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-database.js";
 import { firebaseConfig } from "./firebase-config.js";
-import { createEventPages } from "./pages.js?v=11";
+import { createEventPages } from "./pages.js?v=12";
 import { decodeQrImageData } from "./qr-scanner-tools.js?v=1";
 import { eventIsArchived, eventArchiveDeadline } from "./event-archive.js?v=1";
-import { createTicketPdf, createQrDataUrl } from "./ticket-tools.js?v=11";
+import { createTicketPdf, createQrDataUrl } from "./ticket-tools.js?v=12";
 import { THERMAL_PAPER_WIDTHS, buildThermalPrintHtml, normalizeThermalPaperWidth } from "./thermal-print.js?v=10";
 import { DEFAULT_TICKET_DESIGN, normalizeTicketDesign, ticketHeightForDesign } from "./ticket-layout.js?v=3";
 import { PLATFORM_COMMISSION_SCOPES, eventFinancialRules, normalizeCommissionScope, normalizePercentage, promoterFinancialSnapshot, saleFinancialSnapshot } from "./financial-core.js?v=2";
@@ -50,7 +50,6 @@ const money = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL
 const $ = (id) => document.getElementById(id);
 const ROLE_LABELS = { admin: "Administrador", event_manager: "Gerente do evento", seller: "Vendedor", promoter: "Promoter", door: "Portaria" };
 const PAYMENT_METHOD_LABELS = { pix: "Pix", cash: "Dinheiro", credit_card: "Cartão de crédito", debit_card: "Cartão de débito", bank_transfer: "Transferência", other: "Outro", courtesy: "Cortesia" };
-const PDF_TICKET_LAYOUTS = ["default", "double", "notched", "dashed"];
 
 function rememberSelectedEvent(eventId) {
   selectedEventId = String(eventId || "");
@@ -178,6 +177,11 @@ function requireRole(roles, message = "Seu perfil não permite realizar esta aç
   const managerEquivalent = hasRole("event_manager") && roles.includes("admin") && roles.includes("seller");
   if (hasRole(...roles) || managerEquivalent) return true;
   toast(message);
+  return false;
+}
+function requireCheckinRole() {
+  if (currentUserProfile?.active && ["admin", "event_manager", "seller", "door"].includes(currentUserProfile.role)) return true;
+  toast("Seu perfil não permite fazer check-in.");
   return false;
 }
 function userInitials(name, email = "") { const source = String(name || email || "U").trim(); const parts = source.split(/\s+/).filter(Boolean); return (parts.length > 1 ? `${parts[0][0]}${parts.at(-1)[0]}` : source.slice(0, 2)).toLocaleUpperCase("pt-BR"); }
@@ -504,21 +508,26 @@ function eventTicketDesign(event, paperWidth) {
   return normalizeTicketDesign({ ...source, paperWidth:width });
 }
 function normalizePdfTicketDesign(value = {}) {
-  const pdfLayout = PDF_TICKET_LAYOUTS.includes(value.pdfLayout) ? value.pdfLayout : "default";
   const pdfLogoDataUrl = normalizeTicketDesign({ logoDataUrl:value.pdfLogoDataUrl || "" }).logoDataUrl;
   const bounded = (input, fallback, min, max) => Math.min(max, Math.max(min, input === undefined || input === "" ? fallback : Number(input)));
   return {
-    pdfLayout, pdfLogoDataUrl,
+    pdfLogoDataUrl,
     pdfTitle:String(value.pdfTitle || "INGRESSO DIGITAL").slice(0, 36),
     pdfFooter:String(value.pdfFooter || "Apresente este QR Code na entrada.").slice(0, 120),
     pdfPrimaryColor:/^#[0-9a-f]{6}$/i.test(String(value.pdfPrimaryColor || "")) ? value.pdfPrimaryColor : "#17375f",
     pdfAccentColor:/^#[0-9a-f]{6}$/i.test(String(value.pdfAccentColor || "")) ? value.pdfAccentColor : "#14b886",
-    pdfLogoSize:bounded(value.pdfLogoSize, 16.2, 8, 20),
+    pdfPageHeight:bounded(value.pdfPageHeight, 160, 160, 200),
+    pdfMargin:bounded(value.pdfMargin, 6, 4, 8),
+    pdfLogoSize:bounded(value.pdfLogoSize, 16.2, 8, 22),
     pdfTitleSize:bounded(value.pdfTitleSize, 8.5, 7, 12),
     pdfEventSize:bounded(value.pdfEventSize, 17, 12, 20),
     pdfTextSize:bounded(value.pdfTextSize, 8, 6, 9),
     pdfDataSize:bounded(value.pdfDataSize, 14, 10, 16),
-    pdfHeaderSpacing:bounded(value.pdfHeaderSpacing, 0, 0, 2),
+    pdfQrSize:bounded(value.pdfQrSize, 38, 30, 42),
+    pdfQrSpacing:bounded(value.pdfQrSpacing, 0, 0, 5),
+    pdfLogoTitleSpacing:bounded(value.pdfLogoTitleSpacing, 3, 0, 6),
+    pdfTitleEventSpacing:bounded(value.pdfTitleEventSpacing, 4, 1, 6),
+    pdfEventLineSpacing:bounded(value.pdfEventLineSpacing, 5, 3.5, 6),
     pdfInfoSpacing:bounded(value.pdfInfoSpacing, 0, 0, 2)
   };
 }
@@ -526,18 +535,23 @@ function eventPdfTicketDesign(event) { return normalizePdfTicketDesign(event?.pd
 function pdfTicketDesignFromConfigForm() {
   const form = $("ticketConfigForm");
   return normalizePdfTicketDesign({
-    pdfLayout:form.elements.pdfLayout.value,
     pdfLogoDataUrl:form.dataset.pdfLogoData || "",
     pdfTitle:form.elements.pdfTitle.value,
     pdfFooter:form.elements.pdfFooter.value,
     pdfPrimaryColor:form.elements.pdfPrimaryColor.value,
     pdfAccentColor:form.elements.pdfAccentColor.value,
+    pdfPageHeight:form.elements.pdfPageHeight.value,
+    pdfMargin:form.elements.pdfMargin.value,
     pdfLogoSize:form.elements.pdfLogoSize.value,
     pdfTitleSize:form.elements.pdfTitleSize.value,
     pdfEventSize:form.elements.pdfEventSize.value,
     pdfTextSize:form.elements.pdfTextSize.value,
     pdfDataSize:form.elements.pdfDataSize.value,
-    pdfHeaderSpacing:form.elements.pdfHeaderSpacing.value,
+    pdfQrSize:form.elements.pdfQrSize.value,
+    pdfQrSpacing:form.elements.pdfQrSpacing.value,
+    pdfLogoTitleSpacing:form.elements.pdfLogoTitleSpacing.value,
+    pdfTitleEventSpacing:form.elements.pdfTitleEventSpacing.value,
+    pdfEventLineSpacing:form.elements.pdfEventLineSpacing.value,
     pdfInfoSpacing:form.elements.pdfInfoSpacing.value
   });
 }
@@ -545,8 +559,7 @@ function applyPdfTicketDesignToConfigForm(designValue) {
   const form = $("ticketConfigForm");
   const design = normalizePdfTicketDesign(designValue);
   form.dataset.pdfLogoData = design.pdfLogoDataUrl;
-  form.elements.pdfLayout.value = design.pdfLayout;
-  ["pdfTitle", "pdfFooter", "pdfPrimaryColor", "pdfAccentColor", "pdfLogoSize", "pdfTitleSize", "pdfEventSize", "pdfTextSize", "pdfDataSize", "pdfHeaderSpacing", "pdfInfoSpacing"].forEach((name) => { form.elements[name].value = design[name]; });
+  ["pdfTitle", "pdfFooter", "pdfPrimaryColor", "pdfAccentColor", "pdfPageHeight", "pdfMargin", "pdfLogoSize", "pdfTitleSize", "pdfEventSize", "pdfTextSize", "pdfDataSize", "pdfQrSize", "pdfQrSpacing", "pdfLogoTitleSpacing", "pdfTitleEventSpacing", "pdfEventLineSpacing", "pdfInfoSpacing"].forEach((name) => { form.elements[name].value = design[name]; });
   updatePdfTicketConfigPreview(design);
 }
 function ticketDesignFromConfigForm(paperWidth) {
@@ -605,12 +618,13 @@ function updateTicketConfigOutputs(design) {
 }
 function updatePdfTicketConfigPreview(designValue = pdfTicketDesignFromConfigForm()) {
   const design = normalizePdfTicketDesign(designValue);
+  $("pdfTicketPreviewFrame").style.aspectRatio = `90 / ${design.pdfPageHeight}`;
   const image = $("pdfTicketLogoPreview");
   image.hidden = !design.pdfLogoDataUrl;
   image.src = design.pdfLogoDataUrl || "";
   $("pdfTicketLogoPlaceholder").hidden = Boolean(design.pdfLogoDataUrl);
   $("removePdfTicketLogo").disabled = !design.pdfLogoDataUrl;
-  const units = { pdfLogoSize:"mm", pdfTitleSize:"pt", pdfEventSize:"pt", pdfTextSize:"pt", pdfDataSize:"pt", pdfHeaderSpacing:"mm", pdfInfoSpacing:"mm" };
+  const units = { pdfPageHeight:"mm", pdfMargin:"mm", pdfLogoSize:"mm", pdfTitleSize:"pt", pdfEventSize:"pt", pdfTextSize:"pt", pdfDataSize:"pt", pdfQrSize:"mm", pdfQrSpacing:"mm", pdfLogoTitleSpacing:"mm", pdfTitleEventSpacing:"mm", pdfEventLineSpacing:"mm", pdfInfoSpacing:"mm" };
   Object.entries(units).forEach(([name, unit]) => {
     const output = document.querySelector(`[data-pdf-ticket-output="${name}"]`);
     if (output) output.textContent = `${design[name]} ${unit}`;
@@ -626,27 +640,38 @@ function schedulePdfTicketConfigPreview(design) {
   pdfTicketPreviewTimer = setTimeout(() => renderPdfTicketConfigPreview(design), 120);
 }
 function buildPdfTicketPreviewHtml({ design, event, type, qrCode }) {
-  design = { ...design, primaryColor:design.pdfPrimaryColor, accentColor:design.pdfAccentColor };
-  const layout = PDF_TICKET_LAYOUTS.includes(design.pdfLayout) ? design.pdfLayout : "default";
+  const pageHeight = design.pdfPageHeight;
+  const percentY = (mm) => `${mm / pageHeight * 100}%`;
+  const percentX = (mm) => `${mm / 90 * 100}%`;
+  const margin = design.pdfMargin;
+  const qrTop = Math.min(99 + design.pdfQrSpacing + (pageHeight - 160) * 0.82, pageHeight - 20 - design.pdfQrSize);
   const logo = design.pdfLogoDataUrl ? `<img src="${escapeHtml(design.pdfLogoDataUrl)}" alt="Logo do PDF">` : "";
-  const eventName = escapeHtml(event.name || "Nome do evento");
-  const eventMeta = escapeHtml(event.date ? `${eventDateTimeText(event)} | ${event.place || "Le Beef"}` : "30/09/2026 às 20:00 | Le Beef");
+  const eventName = escapeHtml(event.name || "ENCONTRO DE GERAÇÕES");
+  const eventMeta = escapeHtml(event.date ? `${eventDateTimeText(event)} | ${event.place || "Le Beef"}` : "11 de out. de 2026 às 20:00 | Le Beef - Salão de Eventos");
   const title = escapeHtml(design.pdfTitle);
   const footer = escapeHtml(design.pdfFooter);
+  const eventFont = Math.min(design.pdfEventSize * 0.38, eventName.length > 34 ? 5.6 : 7.2);
+  const latestEventStart = 41 - (eventName.length > 18 ? design.pdfEventLineSpacing : 0);
+  const titleY = Math.min(6.5 + design.pdfLogoSize + design.pdfLogoTitleSpacing, latestEventStart - Math.max(6, design.pdfTitleEventSpacing + 1));
+  const visibleLogoSize = Math.min(design.pdfLogoSize, titleY - 8.5);
+  const visibleLogoGap = Math.max(0, titleY - 6.5 - visibleLogoSize);
   return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>
-    *{box-sizing:border-box}html,body{width:100%;height:100%;margin:0;overflow:hidden;background:#f4f7fb;font-family:Arial,Helvetica,sans-serif;color:${design.primaryColor}}
-    .ticket{--primary:${design.primaryColor};--accent:${design.accentColor};position:relative;width:100%;height:100%;overflow:hidden;background:var(--primary);container-type:inline-size}
-    .ticket.default,.ticket.double{border-radius:5cqw}.ticket.notched{border:1.4cqw solid var(--primary);border-radius:5cqw;background:#fff}.ticket.dashed{clip-path:polygon(4% 0,96% 0,100% 2.3%,100% 97.7%,96% 100%,4% 100%,0 97.7%,0 2.3%)}
-    .head{position:absolute;z-index:1;top:3.2%;right:5.5%;left:5.5%;height:23%;display:flex;align-items:center;flex-direction:column;justify-content:flex-start;padding:1.5% 3%;text-align:center;color:#fff;background:var(--accent)}
-    .double .head{border-radius:4cqw 4cqw 0 0}.notched .head{top:2%;right:2%;left:2%;height:27%;color:var(--primary);background:#fff}.dashed .head{right:5%;left:5%;height:18%;background:var(--primary)}
-    .head img{display:block;width:auto;max-width:78%;height:auto;max-height:${design.pdfLogoSize * 3.4}px;margin:0 auto 1%;object-fit:contain}.digital{font-size:${design.pdfTitleSize * 1.32}px;line-height:1.05}.head h1{width:100%;margin:2% 0 0;font-size:${design.pdfEventSize * 1.3}px;line-height:1.05;text-transform:uppercase}
-    .notched .head h1{margin-top:auto;padding:4% 2%;color:#fff;background:var(--accent)}.notched .head h1::after{display:block;position:absolute;right:0;bottom:-1px;left:0;border-bottom:2px dashed var(--primary);content:""}.dashed .head h1{position:absolute;top:100%;margin:0;padding:4% 2%;color:var(--primary);background:#fff;border-top:3px solid var(--accent)}
-    .body{position:absolute;right:7%;bottom:4.5%;left:7%;top:27%;display:flex;align-items:center;flex-direction:column;padding:7% 5% 3%;text-align:center;background:#fff;border-radius:4cqw}.default .body{top:27%;bottom:8%}.double .body{border:1px solid #d9e1ea}.notched .body{top:30%;right:2%;bottom:2%;left:2%;border-radius:0}.dashed .body{top:27%;right:5%;bottom:2%;left:5%;border-radius:0;clip-path:polygon(3% 0,97% 0,100% 2%,100% 98%,97% 100%,3% 100%,0 98%,0 2%)}
-    .notched::before,.notched::after{position:absolute;z-index:3;top:27%;width:6cqw;height:6cqw;border-radius:50%;background:#f4f7fb;content:""}.notched::before{left:-3cqw}.notched::after{right:-3cqw}
-    .label{display:block;font-size:${design.pdfTextSize * 1.22}px;font-weight:700;text-transform:uppercase}.participant{margin:1.5% 0 6%;font-size:${design.pdfDataSize * 1.3}px}.rule{width:88%;margin:0 0 5%;border-top:1px solid #d9e1ea}.type{margin:1.5% 0 2%;font-size:${Math.max(10, design.pdfDataSize * .95)}px}.meta{font-size:${Math.max(9, design.pdfTextSize * 1.12)}px;color:#526173}.values{width:88%;display:grid;grid-template-columns:1fr 1fr;gap:3%;margin:5% 0 3%;padding-top:4%;border-top:1px solid #d9e1ea}.values strong{display:block;margin-top:2%;font-size:${Math.max(11, design.pdfDataSize * 1.05)}px}.values small{font-size:${Math.max(8, design.pdfTextSize)}px}.qr{width:48%;aspect-ratio:1;margin:auto 0 1%;padding:2.5%;border:1px solid #d9e1ea;border-radius:3cqw;object-fit:contain}.dashed .qr{border:3px solid var(--accent)}.code{font:700 ${Math.max(10, design.pdfTextSize * 1.05)}px "Courier New",monospace}.message{margin:1% 0 2%;font-size:${Math.max(8, design.pdfTextSize)}px;color:#526173}.origin{width:88%;margin-top:auto;padding-top:2%;border-top:1px solid #d9e1ea;font-size:7px;line-height:1.3}
-    .head h1{min-width:0;max-width:100%;overflow-wrap:anywhere;font-size:${Math.min(design.pdfEventSize * 1.3, eventName.length > 20 ? 18 : 26)}px;margin-top:calc(2% + ${design.pdfHeaderSpacing * 3}px)}
-    .participant{margin-bottom:calc(6% + ${design.pdfInfoSpacing * 2}px)}
-  </style></head><body><article class="ticket ${layout}"><header class="head">${logo}<strong class="digital">${title}</strong><h1>${eventName}</h1></header><main class="body"><span class="label">Participante</span><strong class="participant">Alanda Silva</strong><div class="rule"></div><span class="label">Ingresso individual</span><strong class="type">${escapeHtml(type.name || "Ingresso")}</strong><span class="meta">${eventMeta}</span><div class="values"><div><span class="label">Valor</span><strong>${escapeHtml(money.format(Number(type.price || 29.9)))}</strong></div><div><span class="label">Pagamento</span><strong>PAGO</strong><small>Pix</small></div></div><img class="qr" src="${qrCode}" alt="QR Code"><strong class="code">2C4E26E9</strong><p class="message">${footer}</p><div class="origin">Gerado por: Administrador | 14/09/2026 às 12:04<br>LE BEEF | Ingresso 1/1</div></main></article></body></html>`;
+    *{box-sizing:border-box}html,body{width:100%;height:100%;margin:0;overflow:hidden;background:#fff;font-family:Arial,Helvetica,sans-serif}
+    .ticket{position:relative;width:100%;height:100%;overflow:hidden;border-radius:10cqw;background:${design.pdfPrimaryColor};color:${design.pdfPrimaryColor};container-type:inline-size;text-align:center}
+    .head{position:absolute;top:${percentY(margin)};left:${percentX(margin)};right:${percentX(margin)};height:${percentY(43-margin)};overflow:hidden;border-radius:4cqw 4cqw 0 0;background:${design.pdfAccentColor};color:#fff;display:flex;flex-direction:column;align-items:center}
+    .head img{display:block;max-width:80%;max-height:${visibleLogoSize / 90 * 100}cqw;height:auto;width:auto;object-fit:contain}
+    .digital{display:block;margin-top:${percentX(visibleLogoGap)};font-size:${design.pdfTitleSize * .38}cqw;line-height:1.1}
+    .head h1{max-width:88%;margin:${percentX(design.pdfTitleEventSpacing)} 0 0;font-size:${eventFont}cqw;line-height:${design.pdfEventLineSpacing / 90 * 100}cqw;overflow-wrap:anywhere;text-transform:uppercase}
+    .body{position:absolute;top:${percentY(43)};left:${percentX(margin)};right:${percentX(margin)};bottom:${percentY(11)};border-radius:0 0 4cqw 4cqw;background:#fff}
+    .dash{position:absolute;top:${percentY(43)};left:${percentX(margin)};right:${percentX(margin)};border-top:2px dashed ${design.pdfPrimaryColor}}
+    .item{position:absolute;left:9%;width:82%;margin:0}.label{font-size:${design.pdfTextSize * .34}cqw;font-weight:700;text-transform:uppercase}.name{font-size:${design.pdfDataSize * .42}cqw;font-weight:700}.muted{color:#526173}.rule{position:absolute;left:${percentX(margin+6)};right:${percentX(margin+6)};border-top:1px solid #d9e1ea}
+    .participant-label{top:${percentY(46)}}.participant-name{top:${percentY(50)}}.first-rule{top:${percentY(61.5)}}
+    .admission{top:${percentY(66+design.pdfInfoSpacing)}}.type{top:${percentY(70+design.pdfInfoSpacing)}}.meta{top:${percentY(76+design.pdfInfoSpacing)};font-size:${Math.max(2.1,design.pdfTextSize*.3)}cqw}.second-rule{top:${percentY(81.5+design.pdfInfoSpacing)}}
+    .values{position:absolute;top:${percentY(84+design.pdfInfoSpacing)};left:15%;right:15%;display:grid;grid-template-columns:1fr 1fr}.values>div+div{border-left:1px solid #d9e1ea}.values strong{display:block;margin-top:2%;font-size:${design.pdfDataSize*.35}cqw}.values small{display:block;margin-top:2%;font-size:${design.pdfTextSize*.27}cqw}
+    .qr{position:absolute;top:${percentY(qrTop)};left:50%;width:${percentX(design.pdfQrSize)};aspect-ratio:1;transform:translateX(-50%);padding:2%;border:1px solid #d9e1ea;border-radius:3cqw;background:#fff;object-fit:contain}
+    .code{top:${percentY(qrTop+design.pdfQrSize+2.5)};font:700 ${design.pdfTextSize*.35}cqw monospace}.message{top:${percentY(qrTop+design.pdfQrSize+5.5)};font-size:${design.pdfTextSize*.3}cqw}.last-rule{top:${percentY(pageHeight-12)}}
+    .origin{position:absolute;left:5%;right:5%;bottom:${percentY(2)};color:#fff;font-size:${design.pdfTextSize*.24}cqw;line-height:1.25}
+  </style></head><body><article class="ticket"><header class="head">${logo}<strong class="digital">${title}</strong><h1>${eventName}</h1></header><main class="body"></main><div class="dash"></div><span class="item label participant-label">Participante</span><strong class="item name participant-name">Alanda Silva</strong><div class="rule first-rule"></div><span class="item label muted admission">Ingresso individual</span><strong class="item name type">${escapeHtml(type.name || "Ingresso Pista")}</strong><span class="item muted meta">${eventMeta}</span><div class="rule second-rule"></div><div class="values"><div><span class="label">Valor</span><strong>${escapeHtml(money.format(Number(type.price || 30)))}</strong></div><div><span class="label">Pagamento</span><strong>PAGO</strong><small>Pix</small></div></div><img class="qr" src="${qrCode}" alt="QR Code"><strong class="item code">2C4E26E9</strong><p class="item muted message">${footer}</p><div class="rule last-rule"></div><div class="origin">Gerado por: Administrador | 14/09/2026 às 12:04<br>LE BEEF | Ingresso 1/1</div></article></body></html>`;
 }
 async function renderPdfTicketConfigPreview(designValue = pdfTicketDesignFromConfigForm()) {
   const form = $("ticketConfigForm");
@@ -1184,7 +1209,7 @@ async function showQrValidation(token) {
     $("qrValidationState").className = "qr-validation-state is-invalid";
     $("qrValidationState").innerHTML = `<span class="qr-validation-icon">!</span><h3>QR Code inválido</h3><p>Este ingresso não foi encontrado ou você não tem acesso ao evento.</p>`;
     $("confirmQrCheckin").hidden = true;
-    $("nextQrScan").hidden = false;
+    $("nextQrScan").hidden = currentUserProfile?.role === "promoter";
     $("qrValidationImage").removeAttribute("src");
   } else {
     const { sale, event, ticket } = found;
@@ -1192,14 +1217,14 @@ async function showQrValidation(token) {
     const used = Boolean(ticket.checkedIn);
     $("qrValidationState").className = `qr-validation-state ${used ? "is-used" : "is-valid"}`;
     $("qrValidationState").innerHTML = `<span class="qr-validation-icon">${used ? "✓" : "QR"}</span><p class="eyebrow">${used ? "INGRESSO JÁ UTILIZADO" : "INGRESSO VÁLIDO"}</p><h3>${escapeHtml(ticket.participantName || sale.buyerName || "Participante")}</h3><dl><div><dt>Evento</dt><dd>${escapeHtml(event?.name || "Evento")}</dd></div><div><dt>Modalidade</dt><dd>${isTableReservation(sale) ? escapeHtml(`${furnitureKindLabel(sale.furnitureKind)} / reserva`) : "Ingresso individual"}</dd></div><div><dt>Ingresso</dt><dd>${escapeHtml(ticket.ticketTypeName || "Ingresso")}</dd></div>${isTableReservation(sale) ? `<div><dt>Reserva</dt><dd>${escapeHtml(sale.reservationLabel || "Mesa/bistrô")}</dd></div>` : ""}<div><dt>Código</dt><dd>${escapeHtml(token.slice(-8).toUpperCase())}</dd></div>${used ? `<div class="qr-used-at"><dt>Utilizado em</dt><dd>${escapeHtml(qrCheckinDateTime(ticket.checkedInAt))}</dd></div>` : ""}</dl>${used ? `<p class="qr-used-message">Entrada já registrada. Não confirme novamente.</p>` : ""}`;
-    $("confirmQrCheckin").hidden = used;
-    $("nextQrScan").hidden = !used;
+    $("confirmQrCheckin").hidden = used || currentUserProfile?.role === "promoter";
+    $("nextQrScan").hidden = !used || currentUserProfile?.role === "promoter";
     $("qrValidationImage").src = await createQrDataUrl(qrValidationUrl(token), { width: 320 });
   }
   if (!modal.open) modal.showModal();
 }
 async function toggleQrTicketCheckin(token) {
-  if (!requireRole(["admin", "event_manager", "seller", "door"])) return;
+  if (!requireCheckinRole()) return;
   const found = locateQrTicket(token);
   if (!found || found.ticket.checkedIn) return toast(found ? "Este ingresso já teve a entrada confirmada." : "QR Code inválido.");
   const { sale, event, ticket, index } = found;
@@ -1310,7 +1335,7 @@ async function finishQrScan(value) {
 }
 
 async function openCameraPermissionDialog(message = "") {
-  if (!requireRole(["admin", "event_manager", "seller", "door"])) return;
+  if (!requireCheckinRole()) return;
   prepareQrAudio();
   const modal = $("cameraPermissionModal");
   const status = $("cameraPermissionStatus");
@@ -1360,7 +1385,7 @@ async function scanQrVideoFrame() {
 }
 
 async function openQrScanner() {
-  if (!requireRole(["admin", "event_manager", "seller", "door"])) return;
+  if (!requireCheckinRole()) return;
   const modal = $("qrScannerModal");
   const status = $("qrScannerStatus");
   stopQrScanner();
@@ -1683,7 +1708,9 @@ function tableReservationCheckinsHtml(sale) {
   if (!occupants.length) return `<span class="table-checkin-empty">Nenhum ocupante informado.</span>`;
   return `<div class="table-occupant-checkin-list">${occupants.map((name, index) => {
     const checked = checkins[index];
-    return `<div class="table-occupant-checkin-row"><span>${escapeHtml(name)}</span><button class="status ${checked ? "checked" : ""}" type="button" data-table-occupant-checkin="${sale.id}" data-occupant-index="${index}">${checked ? "✓ Check-in" : "Fazer check-in"}</button></div>`;
+    const status = checked ? "✓ Check-in" : "Aguardando";
+    const control = currentUserProfile?.role === "promoter" ? `<span class="status ${checked ? "checked" : ""}">${status}</span>` : `<button class="status ${checked ? "checked" : ""}" type="button" data-table-occupant-checkin="${sale.id}" data-occupant-index="${index}">${checked ? "✓ Check-in" : "Fazer check-in"}</button>`;
+    return `<div class="table-occupant-checkin-row"><span>${escapeHtml(name)}</span>${control}</div>`;
   }).join("")}</div>`;
 }
 function tableReservationDiscountHtml(sale) {
@@ -2305,6 +2332,29 @@ function renderPromoterCommissionReport(eventSales) {
   $("promoterCommissionBreakdown").innerHTML = rows.length ? rows.map((row) => `<tr><td data-label="Promoter">${escapeHtml(row.name)}</td><td data-label="Vendas">${row.sales}</td><td data-label="Base">${money.format(row.base)}</td><td data-label="Porcentagem">${row.rates.size === 1 ? `${[...row.rates][0]}%` : "Variável"}</td><td data-label="Comissão">${money.format(row.amount)}</td></tr>`).join("") : '<tr><td class="financial-empty" colspan="5">Nenhuma comissão de promoter registrada.</td></tr>';
 }
 
+function renderPromoterReport(event, eventSales) {
+  const ownSales = currentUserProfile?.role === "promoter" && currentUser?.uid
+    ? eventSales.filter((sale) => sale.promoterId === currentUser.uid && sale.eventId === event?.id && isCommercialSale(sale))
+    : [];
+  const salesTotal = ownSales.reduce((sum, sale) => sum + saleTotal(sale, event), 0);
+  const earned = ownSales.filter((sale) => sale.paid && sale.promoterCommissionApplied === true)
+    .reduce((sum, sale) => sum + Number(sale.promoterCommissionAmount || 0), 0);
+  const pending = ownSales.filter((sale) => !sale.paid && sale.promoterCommissionApplied === true)
+    .reduce((sum, sale) => sum + Number(sale.promoterCommissionAmount || 0), 0);
+  $("promoterReportEventMeta").textContent = event ? `${event.name} · ${eventDateTimeText(event)}` : "Selecione um evento.";
+  $("promoterReportSalesCount").textContent = String(ownSales.length);
+  $("promoterReportSalesTotal").textContent = money.format(salesTotal);
+  $("promoterReportEarned").textContent = money.format(earned);
+  $("promoterReportPending").textContent = money.format(pending);
+  $("promoterReportSales").innerHTML = ownSales.length ? [...ownSales].sort((a, b) => Number(b.createdAt || 0) - Number(a.createdAt || 0)).map((sale) => {
+    const soldAt = Number(sale.createdAt || 0);
+    const date = soldAt ? new Date(soldAt).toLocaleDateString("pt-BR") : "—";
+    const kind = isTableReservation(sale) ? (sale.reservationLabel || "Mesa / bistrô") : saleTicketSummary(sale, event);
+    const commission = sale.promoterCommissionApplied === true ? Number(sale.promoterCommissionAmount || 0) : 0;
+    return `<tr><td data-label="Data">${escapeHtml(date)}</td><td data-label="Comprador">${escapeHtml(sale.buyerName || "Não informado")}</td><td data-label="Ingresso / reserva">${escapeHtml(kind)}</td><td data-label="Valor">${money.format(saleTotal(sale, event))}</td><td data-label="Pagamento">${sale.paid ? "Pago" : "Pendente"}</td><td data-label="Minha comissão"><strong>${money.format(commission)}</strong><small>${sale.paid ? "Confirmada" : "Prevista"}</small></td></tr>`;
+  }).join("") : '<tr><td class="financial-empty" colspan="6">Você ainda não registrou vendas neste evento.</td></tr>';
+}
+
 function settlementPayments(settlement) {
   return objectToArray(settlement?.payments).sort((a, b) => Number(a.createdAt || 0) - Number(b.createdAt || 0));
 }
@@ -2492,6 +2542,7 @@ function render() {
   const tableCheckins = tableReservations.reduce((sum, sale) => sum + reservationCheckinCount(sale), 0);
   const checkins = unitCheckins + tableCheckins;
   $("selectedEventArea").hidden = !selectedEvent;
+  $("openFinancialReport").innerHTML = `${currentUserProfile?.role === "promoter" ? "Ver minhas vendas e ganhos" : "Ver relatório financeiro"} <span aria-hidden="true">→</span>`;
   $("ticketTypeFilter").innerHTML = `<option value="all">Todos</option>${availableTicketTypes.map((type) => `<option value="${type.id}">${escapeHtml(type.name)}</option>`).join("")}`;
   $("ticketTypeFilter").value = selectedTicketTypeFilter;
   $("paymentStatusFilter").value = selectedPaymentFilter;
@@ -2523,6 +2574,7 @@ function render() {
     return `<div class="ticket-stock-row"><strong title="${escapeHtml(type.name)}">${escapeHtml(type.name)}</strong><span><b>${typeCheckins}</b> check-in${typeCheckins === 1 ? "" : "s"} <i aria-hidden="true">•</i> <b>${typeWaiting}</b> aguardando</span></div>`;
   }).join("")}${tableReservations.length ? `<div class="ticket-stock-row table-checkin-row"><strong>Mesas/bistrôs</strong><span><b>${tableCheckins}</b> check-in${tableCheckins === 1 ? "" : "s"} <i aria-hidden="true">•</i> <b>${Math.max(0, tablePeople - tableCheckins)}</b> aguardando</span></div>` : ""}`;
   renderFinancialReport(hasRole("admin", "event_manager") ? selectedEvent : undefined, hasRole("admin", "event_manager") ? commercialSales : []);
+  renderPromoterReport(selectedEvent, commercialSales);
   renderTableMapPanel(selectedEvent, selectedSales);
   renderTableReservationsList(selectedEvent, selectedSales);
   if (selectedEvent) { $("selectedEventName").textContent = selectedEvent.name; $("selectedEventMeta").textContent = hasRole("door") ? `${selectedEvent.place} · ${eventDateTimeText(selectedEvent)}` : `${selectedEvent.place} · ${eventDateTimeText(selectedEvent)} · ${priceLabel(selectedEvent)}`; $("salesPanelTitle").textContent = `Vendas de ${selectedEvent.name}`; $("allSalesTitle").textContent = `Participantes — ${selectedEvent.name}`; if ($("ticketConfigForm").dataset.eventId !== selectedEvent.id) populateTicketConfigPage(selectedEvent); renderOnlineSalesSettings(selectedEvent); }
@@ -2655,7 +2707,7 @@ async function saveSale(data, id = "") {
   toast(id ? "Participante atualizado." : "Venda registrada.");
 }
 async function toggleCheckin(id) {
-  if (!requireRole(["admin", "event_manager", "seller", "door"])) return;
+  if (!requireCheckinRole()) return;
   const sale = state.sales.find((item) => item.id === id); if (!sale) return;
   preserveSaleDetails(id);
   const event = state.events.find((item) => item.id === sale.eventId);
@@ -2666,7 +2718,7 @@ async function toggleCheckin(id) {
   else { const logId = push(ref(db, "auditLogs")).key; const updates = { [`sales/${id}/checkedIn`]: value, [`auditLogs/${logId}`]: auditLogData("checkin", sale, details) }; qrTickets.forEach((ticket, index) => { if (!ticket.token) return; updates[`sales/${id}/qrTickets/${index}/checkedIn`] = value; updates[`sales/${id}/qrTickets/${index}/checkedInAt`] = value ? Date.now() : null; }); await update(ref(db), updates); }
 }
 async function toggleTableOccupantCheckin(id, occupantIndex) {
-  if (!requireRole(["admin", "event_manager", "seller", "door"])) return;
+  if (!requireCheckinRole()) return;
   const sale = state.sales.find((item) => item.id === id);
   preserveSaleDetails(id);
   const occupants = reservationOccupants(sale);
@@ -2857,7 +2909,7 @@ async function toggleEventArchive(id) {
     toast(restore ? "Evento restaurado." : "Evento arquivado.");
   } catch(error) { toast(`Não foi possível atualizar o evento: ${error.message}`); }
 }
-const syncEventPages = createEventPages({ normalize:normalizedSearch, escape:escapeHtml, eventDateTime:eventDateTimeText, isTable:isTableReservation, occupants:reservationOccupants, checkins:reservationOccupantCheckins, isArchived:eventIsArchived, canManage:canAdministerEvent, toggleArchive:toggleEventArchive, exportCheckins:() => { if (requireRole(["admin", "event_manager", "seller", "door"])) window.exportSalesXlsx(state.sales, state.events, selectedEventId, "checkins"); } });
+const syncEventPages = createEventPages({ normalize:normalizedSearch, escape:escapeHtml, eventDateTime:eventDateTimeText, isTable:isTableReservation, occupants:reservationOccupants, checkins:reservationOccupantCheckins, isArchived:eventIsArchived, canManage:canAdministerEvent, toggleArchive:toggleEventArchive, exportCheckins:() => { if (requireCheckinRole()) window.exportSalesXlsx(state.sales, state.events, selectedEventId, "checkins"); } });
 let archiveRefreshTimer;
 function scheduleArchiveRefresh() {
   clearTimeout(archiveRefreshTimer);
@@ -2891,7 +2943,7 @@ $("saleForm").addEventListener("click", handleWizardNavigation);
 $("saleForm").addEventListener("input", () => { if (wizardStep($("saleForm")) === 3) updateWizardReview($("saleForm")); });
 $("saleForm").addEventListener("change", () => { if (wizardStep($("saleForm")) === 3) updateWizardReview($("saleForm")); });
 $("applyParticipantFilters").addEventListener("click", () => { selectedTicketTypeFilter = $("ticketTypeFilter").value; selectedPaymentFilter = $("paymentStatusFilter").value; selectedEntryFilter = $("entryStatusFilter").value; document.querySelector(".ticket-filter").open = false; render(); });
-$("openFinancialReport").addEventListener("click", () => { if (!requireRole(["admin", "event_manager"], "O relatório financeiro é exclusivo para administradores e gerentes do evento.")) return; if (!selectedEventId) return toast("Selecione um evento para abrir o relatório financeiro."); location.hash = "relatorio-financeiro"; });
+$("openFinancialReport").addEventListener("click", () => { if (!requireRole(["admin", "event_manager", "promoter"], "Você não tem acesso a este relatório.")) return; if (!selectedEventId) return toast("Selecione um evento para abrir o relatório."); location.hash = "relatorio-financeiro"; });
 $("backToDashboard").addEventListener("click", () => { location.hash = "resumo"; });
 $("sellerClosingStart").addEventListener("change", render);
 $("sellerClosingEnd").addEventListener("change", render);
@@ -3062,7 +3114,7 @@ $("pdfTicketLogoInput").addEventListener("change", async (event) => {
 });
 $("removePdfTicketLogo").addEventListener("click", () => { $("ticketConfigForm").dataset.pdfLogoData = ""; updatePdfTicketConfigPreview(); });
 $("resetTicketConfig").addEventListener("click", () => { const form = $("ticketConfigForm"); if (form.dataset.locked !== "false") return; const width = normalizeThermalPaperWidth(form.elements.paperWidth.value); const design = normalizeTicketDesign({ ...DEFAULT_TICKET_DESIGN, paperWidth:width }); form.ticketDesignDrafts[String(width)] = design; applyTicketDesignToConfigForm(design); setTicketConfigLocked(false); });
-$("resetPdfTicketConfig").addEventListener("click", () => { if ($("ticketConfigForm").dataset.locked !== "false") return; applyPdfTicketDesignToConfigForm({ pdfLayout:"default", pdfLogoDataUrl:"" }); setTicketConfigLocked(false); });
+$("resetPdfTicketConfig").addEventListener("click", () => { if ($("ticketConfigForm").dataset.locked !== "false") return; applyPdfTicketDesignToConfigForm({ pdfLogoDataUrl:"" }); setTicketConfigLocked(false); });
 $("confirmQrCheckin").addEventListener("click", () => toggleQrTicketCheckin($("qrValidationModal").dataset.token));
 $("nextQrScan").addEventListener("click", () => { $("qrValidationModal").close(); location.hash = "portaria"; openQrScanner(); });
 $("qrValidationModal").addEventListener("cancel", (event) => { event.preventDefault(); $("qrValidationModal").close(); location.hash = "portaria"; });

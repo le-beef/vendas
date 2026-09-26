@@ -13,6 +13,7 @@ export function createEventPages(api) {
   document.body.append(nav);
   const extra = document.createElement('div');
   extra.innerHTML = `<section id="pageMore" class="workspace-panel" hidden><p class="eyebrow">EVENTO</p><h1>Mais opções</h1><p class="page-description">Acesse as ferramentas e configurações deste evento.</p><div class="page-shortcuts"><a href="#portaria" data-no-promoter>✓ <strong>Portaria</strong><small>Busca e check-in individual</small></a><a href="#relatorio-financeiro" data-manager>▥ <strong>Financeiro</strong><small>Recebimentos e vendedores</small></a><a href="#vendas-online" data-manager>◎ <strong>Vendas online</strong><small>Em breve</small></a><a href="#promoters" data-manager>♙ <strong>Promoters</strong><small>Equipe e comissões deste evento</small></a><a href="#historico" data-manager>◷ <strong>Histórico</strong><small>Alterações da equipe</small></a><a href="#configuracao-ingresso" data-admin>▤ <strong>Configuração do ingresso</strong><small>Logo, tamanhos e prévia térmica</small></a><a href="#gerenciar-usuarios" data-admin>♙ <strong>Gerenciar usuários</strong><small>Contas, perfis e eventos permitidos</small></a></div><h2 data-manager>Configurações do evento</h2><div id="pageEventActions"></div></section><section id="pageDoor" class="workspace-panel" hidden><p class="eyebrow">PORTARIA</p><h1>Receber participantes</h1><p class="page-description">Leia o QR Code ou pesquise pelo nome, telefone ou mesa para registrar cada entrada.</p><div class="door-qr-card"><span class="door-qr-icon" aria-hidden="true"></span><div><strong>Validar ingresso pelo QR Code</strong><small>Abra a câmera, aponte para o código e confira se o ingresso está válido ou já foi utilizado.</small></div><button id="openQrScanner" class="button primary" type="button">Abrir câmera</button><button id="chooseQrImage" class="button secondary" type="button">Ler uma foto</button><input id="qrImageInput" type="file" accept="image/*" capture="environment" hidden></div><div class="door-tools"><label><span class="sr-only">Buscar participante</span><input id="doorSearch" type="search" placeholder="Nome, telefone ou mesa" autocomplete="off"></label><label><span class="sr-only">Situação da entrada</span><select id="doorFilter"><option value="all">Todas as entradas</option><option value="waiting">Aguardando</option><option value="checked">Check-in realizado</option></select></label></div><div class="door-export"><button id="exportDoorCheckins" class="button secondary" type="button">Excel completo dos check-ins</button></div><p id="doorCount" role="status"></p><div id="doorList"></div></section><section id="pageHistory" class="workspace-panel" hidden></section>`;
+  extra.querySelector('#pageMore .page-shortcuts').insertAdjacentHTML('beforeend', '<a href="#relatorio-financeiro" data-promoter>▥ <strong>Meus resultados</strong><small>Minhas vendas e comissões</small></a>');
   main.append(...extra.children);
   document.querySelector('.events-panel').insertAdjacentHTML('beforebegin', '<div id="archiveHomeLink" class="page-action"><a class="button secondary" href="#arquivados">▣ Eventos arquivados <span id="archiveCount">0</span></a></div>');
   main.insertAdjacentHTML('beforeend', '<section id="pageArchived" class="workspace-panel" hidden><a class="button secondary" href="#eventos">← Eventos ativos</a><p class="eyebrow" style="margin-top:24px">ARQUIVO</p><h1>Eventos arquivados</h1><p class="page-description">Eventos encerrados e arquivados manualmente. O arquivamento automático ocorre às 23h59 do dia seguinte ao evento, no horário de Brasília.</p><div id="archivedEventsList" class="archive-list"></div></section>');
@@ -55,7 +56,8 @@ export function createEventPages(api) {
     let page = location.hash.slice(1) || 'eventos';
     if (!['eventos', 'arquivados', 'configuracao-ingresso', 'gerenciar-usuarios', 'promoters', 'vendas-online', ...links.map(l => l[0])].includes(page)) page = 'eventos';
     if (!data.event && page !== 'arquivados') page = 'eventos';
-    if (['relatorio-financeiro','historico'].includes(page) && !data.manager) page = 'resumo';
+    if (page === 'relatorio-financeiro' && !data.manager && !data.promoter) page = 'resumo';
+    if (page === 'historico' && !data.manager) page = 'resumo';
     if (page === 'configuracao-ingresso' && !data.admin) page = 'resumo';
     if (page === 'gerenciar-usuarios' && !data.admin) page = 'resumo';
     if (page === 'promoters' && !data.manager) page = 'resumo';
@@ -86,7 +88,8 @@ export function createEventPages(api) {
     byId('salesPageAction').hidden = page !== 'vendas' || !data.seller;
     byId('tableMapPanel').hidden = page !== 'mesas' || !data.tables;
     byId('tableReservationsPanel').hidden = page !== 'mesas' || !data.tables;
-    byId('financialReportPage').hidden = page !== 'relatorio-financeiro';
+    byId('financialReportPage').hidden = page !== 'relatorio-financeiro' || data.promoter;
+    byId('promoterReportPage').hidden = page !== 'relatorio-financeiro' || !data.promoter;
     byId('pageTicketConfig').hidden = page !== 'configuracao-ingresso';
     byId('pageUsers').hidden = page !== 'gerenciar-usuarios';
     byId('pagePromoters').hidden = page !== 'promoters';
@@ -99,9 +102,11 @@ export function createEventPages(api) {
     document.querySelectorAll('[data-admin]').forEach(el => el.hidden = !data.admin);
     document.querySelectorAll('[data-tables]').forEach(el => el.hidden = !data.tables);
     document.querySelectorAll('[data-no-promoter]').forEach(el => el.hidden = data.promoter);
+    document.querySelectorAll('[data-promoter]').forEach(el => el.hidden = !data.promoter);
     nav.querySelectorAll('a').forEach(link => {
       const route = link.dataset.pageLink;
-      link.hidden = (route === 'mesas' && !data.tables) || (route === 'portaria' && data.promoter) || (['historico','relatorio-financeiro'].includes(route) && !data.manager);
+      link.hidden = (route === 'mesas' && !data.tables) || (route === 'portaria' && data.promoter) || (route === 'historico' && !data.manager) || (route === 'relatorio-financeiro' && !data.manager && !data.promoter);
+      if (route === 'relatorio-financeiro') link.lastChild.textContent = data.promoter ? 'Meus ganhos' : 'Financeiro';
       link.classList.toggle('active', route === page);
       link.classList.toggle('mobile-parent-active', route === 'mais' && ['portaria','historico','relatorio-financeiro','configuracao-ingresso','gerenciar-usuarios','promoters','vendas-online'].includes(page));
       if (route === page) link.setAttribute('aria-current','page'); else link.removeAttribute('aria-current');
