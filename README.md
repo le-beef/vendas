@@ -1,5 +1,17 @@
 # Le Beef — painel de vendas de ingressos
 
+## Versão 6.0.12 — configuração térmica
+
+- Removidos somente os seletores de cor sem efeito da aba **Impressão térmica**.
+- As cores já armazenadas no cadastro do ingresso térmico são preservadas ao salvar; a impressão continua em preto e branco.
+- Os controles de cor, a prévia e a geração do **PDF digital** permanecem inalterados.
+
+## Versão 6.0.11 — ajustes do PDF digital
+
+- Em **Espaçamentos do PDF**, o controle **Entre o topo e a logo** ajusta de 0 a 6 mm a distância da borda superior do cabeçalho até a logo. O padrão é 2 mm.
+- Em **Logo e fontes**, o controle **Fonte do rodapé** altera as letras das informações de geração e identificação do ingresso entre 4 e 8 pt.
+- Os dois ajustes são independentes do ingresso térmico, aparecem na pré-visualização e são salvos por evento para uso no PDF final.
+
 ## Versão 6.0.10 — resultados do promoter
 
 - O perfil promoter acessa **Meus resultados** no menu Mais e pelo atalho do resumo. O relatório mostra somente vendas vinculadas à sua conta no evento selecionado, o total vendido e sua comissão por venda.

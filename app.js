@@ -5,7 +5,7 @@ import { firebaseConfig } from "./firebase-config.js";
 import { createEventPages } from "./pages.js?v=12";
 import { decodeQrImageData } from "./qr-scanner-tools.js?v=1";
 import { eventIsArchived, eventArchiveDeadline } from "./event-archive.js?v=1";
-import { createTicketPdf, createQrDataUrl } from "./ticket-tools.js?v=12";
+import { createTicketPdf, createQrDataUrl } from "./ticket-tools.js?v=13";
 import { THERMAL_PAPER_WIDTHS, buildThermalPrintHtml, normalizeThermalPaperWidth } from "./thermal-print.js?v=10";
 import { DEFAULT_TICKET_DESIGN, normalizeTicketDesign, ticketHeightForDesign } from "./ticket-layout.js?v=3";
 import { PLATFORM_COMMISSION_SCOPES, eventFinancialRules, normalizeCommissionScope, normalizePercentage, promoterFinancialSnapshot, saleFinancialSnapshot } from "./financial-core.js?v=2";
@@ -525,10 +525,12 @@ function normalizePdfTicketDesign(value = {}) {
     pdfDataSize:bounded(value.pdfDataSize, 14, 10, 16),
     pdfQrSize:bounded(value.pdfQrSize, 38, 30, 42),
     pdfQrSpacing:bounded(value.pdfQrSpacing, 0, 0, 5),
+    pdfLogoTopSpacing:bounded(value.pdfLogoTopSpacing, 2, 0, 6),
     pdfLogoTitleSpacing:bounded(value.pdfLogoTitleSpacing, 3, 0, 6),
     pdfTitleEventSpacing:bounded(value.pdfTitleEventSpacing, 4, 1, 6),
     pdfEventLineSpacing:bounded(value.pdfEventLineSpacing, 5, 3.5, 6),
-    pdfInfoSpacing:bounded(value.pdfInfoSpacing, 0, 0, 2)
+    pdfInfoSpacing:bounded(value.pdfInfoSpacing, 0, 0, 2),
+    pdfFooterSize:bounded(value.pdfFooterSize, 5, 4, 8)
   };
 }
 function eventPdfTicketDesign(event) { return normalizePdfTicketDesign(event?.pdfTicketDesign); }
@@ -549,25 +551,28 @@ function pdfTicketDesignFromConfigForm() {
     pdfDataSize:form.elements.pdfDataSize.value,
     pdfQrSize:form.elements.pdfQrSize.value,
     pdfQrSpacing:form.elements.pdfQrSpacing.value,
+    pdfLogoTopSpacing:form.elements.pdfLogoTopSpacing.value,
     pdfLogoTitleSpacing:form.elements.pdfLogoTitleSpacing.value,
     pdfTitleEventSpacing:form.elements.pdfTitleEventSpacing.value,
     pdfEventLineSpacing:form.elements.pdfEventLineSpacing.value,
-    pdfInfoSpacing:form.elements.pdfInfoSpacing.value
+    pdfInfoSpacing:form.elements.pdfInfoSpacing.value,
+    pdfFooterSize:form.elements.pdfFooterSize.value
   });
 }
 function applyPdfTicketDesignToConfigForm(designValue) {
   const form = $("ticketConfigForm");
   const design = normalizePdfTicketDesign(designValue);
   form.dataset.pdfLogoData = design.pdfLogoDataUrl;
-  ["pdfTitle", "pdfFooter", "pdfPrimaryColor", "pdfAccentColor", "pdfPageHeight", "pdfMargin", "pdfLogoSize", "pdfTitleSize", "pdfEventSize", "pdfTextSize", "pdfDataSize", "pdfQrSize", "pdfQrSpacing", "pdfLogoTitleSpacing", "pdfTitleEventSpacing", "pdfEventLineSpacing", "pdfInfoSpacing"].forEach((name) => { form.elements[name].value = design[name]; });
+  ["pdfTitle", "pdfFooter", "pdfPrimaryColor", "pdfAccentColor", "pdfPageHeight", "pdfMargin", "pdfLogoSize", "pdfTitleSize", "pdfEventSize", "pdfTextSize", "pdfDataSize", "pdfQrSize", "pdfQrSpacing", "pdfLogoTopSpacing", "pdfLogoTitleSpacing", "pdfTitleEventSpacing", "pdfEventLineSpacing", "pdfInfoSpacing", "pdfFooterSize"].forEach((name) => { form.elements[name].value = design[name]; });
   updatePdfTicketConfigPreview(design);
 }
 function ticketDesignFromConfigForm(paperWidth) {
   const form = $("ticketConfigForm");
   const width = normalizeThermalPaperWidth(paperWidth ?? form.elements.paperWidth.value);
+  const savedColors = form.ticketDesignDrafts?.[String(width)] || DEFAULT_TICKET_DESIGN;
   return normalizeTicketDesign({
     title: form.elements.title.value, footer: form.elements.footer.value,
-    primaryColor: form.elements.primaryColor.value, accentColor: form.elements.accentColor.value,
+    primaryColor: savedColors.primaryColor, accentColor: savedColors.accentColor,
     logoDataUrl: form.dataset.logoData || "", paperWidth:width, ticketHeight: form.elements.ticketHeight.value,
     logoSize: form.elements.logoSize.value, titleSize: form.elements.titleSize.value,
     textSize: form.elements.textSize.value, dataSize: form.elements.dataSize.value,
@@ -581,7 +586,7 @@ function applyTicketDesignToConfigForm(designValue) {
   const design = normalizeTicketDesign(designValue);
   form.dataset.paperWidth = String(design.paperWidth);
   form.dataset.logoData = design.logoDataUrl;
-  ["title", "footer", "primaryColor", "accentColor", "paperWidth", "ticketHeight", "logoSize", "titleSize", "textSize", "dataSize", "spacing", "qrSize", "qrSpacing", "margin"].forEach((name) => { form.elements[name].value = design[name]; });
+  ["title", "footer", "paperWidth", "ticketHeight", "logoSize", "titleSize", "textSize", "dataSize", "spacing", "qrSize", "qrSpacing", "margin"].forEach((name) => { form.elements[name].value = design[name]; });
   ["showEstablishment", "showEventMeta", "showPayment", "showFooter"].forEach((name) => { form.elements[name].checked = design[name]; });
   renderTicketConfigPreview();
 }
@@ -624,7 +629,7 @@ function updatePdfTicketConfigPreview(designValue = pdfTicketDesignFromConfigFor
   image.src = design.pdfLogoDataUrl || "";
   $("pdfTicketLogoPlaceholder").hidden = Boolean(design.pdfLogoDataUrl);
   $("removePdfTicketLogo").disabled = !design.pdfLogoDataUrl;
-  const units = { pdfPageHeight:"mm", pdfMargin:"mm", pdfLogoSize:"mm", pdfTitleSize:"pt", pdfEventSize:"pt", pdfTextSize:"pt", pdfDataSize:"pt", pdfQrSize:"mm", pdfQrSpacing:"mm", pdfLogoTitleSpacing:"mm", pdfTitleEventSpacing:"mm", pdfEventLineSpacing:"mm", pdfInfoSpacing:"mm" };
+  const units = { pdfPageHeight:"mm", pdfMargin:"mm", pdfLogoSize:"mm", pdfTitleSize:"pt", pdfEventSize:"pt", pdfTextSize:"pt", pdfDataSize:"pt", pdfFooterSize:"pt", pdfQrSize:"mm", pdfQrSpacing:"mm", pdfLogoTopSpacing:"mm", pdfLogoTitleSpacing:"mm", pdfTitleEventSpacing:"mm", pdfEventLineSpacing:"mm", pdfInfoSpacing:"mm" };
   Object.entries(units).forEach(([name, unit]) => {
     const output = document.querySelector(`[data-pdf-ticket-output="${name}"]`);
     if (output) output.textContent = `${design[name]} ${unit}`;
@@ -652,13 +657,14 @@ function buildPdfTicketPreviewHtml({ design, event, type, qrCode }) {
   const footer = escapeHtml(design.pdfFooter);
   const eventFont = Math.min(design.pdfEventSize * 0.38, eventName.length > 34 ? 5.6 : 7.2);
   const latestEventStart = 41 - (eventName.length > 18 ? design.pdfEventLineSpacing : 0);
-  const titleY = Math.min(6.5 + design.pdfLogoSize + design.pdfLogoTitleSpacing, latestEventStart - Math.max(6, design.pdfTitleEventSpacing + 1));
-  const visibleLogoSize = Math.min(design.pdfLogoSize, titleY - 8.5);
-  const visibleLogoGap = Math.max(0, titleY - 6.5 - visibleLogoSize);
+  const logoTop = margin + design.pdfLogoTopSpacing;
+  const titleY = Math.min(logoTop + design.pdfLogoSize + design.pdfLogoTitleSpacing, latestEventStart - Math.max(6, design.pdfTitleEventSpacing + 1));
+  const visibleLogoSize = Math.min(design.pdfLogoSize, titleY - logoTop - 2);
+  const visibleLogoGap = Math.max(0, titleY - logoTop - visibleLogoSize);
   return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>
     *{box-sizing:border-box}html,body{width:100%;height:100%;margin:0;overflow:hidden;background:#fff;font-family:Arial,Helvetica,sans-serif}
     .ticket{position:relative;width:100%;height:100%;overflow:hidden;border-radius:10cqw;background:${design.pdfPrimaryColor};color:${design.pdfPrimaryColor};container-type:inline-size;text-align:center}
-    .head{position:absolute;top:${percentY(margin)};left:${percentX(margin)};right:${percentX(margin)};height:${percentY(43-margin)};overflow:hidden;border-radius:4cqw 4cqw 0 0;background:${design.pdfAccentColor};color:#fff;display:flex;flex-direction:column;align-items:center}
+    .head{position:absolute;top:${percentY(margin)};left:${percentX(margin)};right:${percentX(margin)};height:${percentY(43-margin)};padding-top:${percentX(design.pdfLogoTopSpacing)};overflow:hidden;border-radius:4cqw 4cqw 0 0;background:${design.pdfAccentColor};color:#fff;display:flex;flex-direction:column;align-items:center}
     .head img{display:block;max-width:80%;max-height:${visibleLogoSize / 90 * 100}cqw;height:auto;width:auto;object-fit:contain}
     .digital{display:block;margin-top:${percentX(visibleLogoGap)};font-size:${design.pdfTitleSize * .38}cqw;line-height:1.1}
     .head h1{max-width:88%;margin:${percentX(design.pdfTitleEventSpacing)} 0 0;font-size:${eventFont}cqw;line-height:${design.pdfEventLineSpacing / 90 * 100}cqw;overflow-wrap:anywhere;text-transform:uppercase}
@@ -670,7 +676,7 @@ function buildPdfTicketPreviewHtml({ design, event, type, qrCode }) {
     .values{position:absolute;top:${percentY(84+design.pdfInfoSpacing)};left:15%;right:15%;display:grid;grid-template-columns:1fr 1fr}.values>div+div{border-left:1px solid #d9e1ea}.values strong{display:block;margin-top:2%;font-size:${design.pdfDataSize*.35}cqw}.values small{display:block;margin-top:2%;font-size:${design.pdfTextSize*.27}cqw}
     .qr{position:absolute;top:${percentY(qrTop)};left:50%;width:${percentX(design.pdfQrSize)};aspect-ratio:1;transform:translateX(-50%);padding:2%;border:1px solid #d9e1ea;border-radius:3cqw;background:#fff;object-fit:contain}
     .code{top:${percentY(qrTop+design.pdfQrSize+2.5)};font:700 ${design.pdfTextSize*.35}cqw monospace}.message{top:${percentY(qrTop+design.pdfQrSize+5.5)};font-size:${design.pdfTextSize*.3}cqw}.last-rule{top:${percentY(pageHeight-12)}}
-    .origin{position:absolute;left:5%;right:5%;bottom:${percentY(2)};color:#fff;font-size:${design.pdfTextSize*.24}cqw;line-height:1.25}
+    .origin{position:absolute;left:5%;right:5%;bottom:${percentY(2)};color:#fff;font-size:${design.pdfFooterSize*.38}cqw;line-height:1.25}
   </style></head><body><article class="ticket"><header class="head">${logo}<strong class="digital">${title}</strong><h1>${eventName}</h1></header><main class="body"></main><div class="dash"></div><span class="item label participant-label">Participante</span><strong class="item name participant-name">Alanda Silva</strong><div class="rule first-rule"></div><span class="item label muted admission">Ingresso individual</span><strong class="item name type">${escapeHtml(type.name || "Ingresso Pista")}</strong><span class="item muted meta">${eventMeta}</span><div class="rule second-rule"></div><div class="values"><div><span class="label">Valor</span><strong>${escapeHtml(money.format(Number(type.price || 30)))}</strong></div><div><span class="label">Pagamento</span><strong>PAGO</strong><small>Pix</small></div></div><img class="qr" src="${qrCode}" alt="QR Code"><strong class="item code">2C4E26E9</strong><p class="item muted message">${footer}</p><div class="rule last-rule"></div><div class="origin">Gerado por: Administrador | 14/09/2026 às 12:04<br>LE BEEF | Ingresso 1/1</div></article></body></html>`;
 }
 async function renderPdfTicketConfigPreview(designValue = pdfTicketDesignFromConfigForm()) {

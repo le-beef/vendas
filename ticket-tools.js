@@ -29683,10 +29683,12 @@ async function createTicketPdf(tickets, design = {}) {
   const dataSize = boundedNumber(design.pdfDataSize, 14, 10, 16);
   const qrBoxSize = boundedNumber(design.pdfQrSize, 38, 30, 42);
   const qrSpacing = Math.min(5, Math.max(0, Number(design.pdfQrSpacing) || 0));
+  const logoTopSpacing = design.pdfLogoTopSpacing === undefined ? 2 : Math.min(6, Math.max(0, Number(design.pdfLogoTopSpacing) || 0));
   const logoTitleGap = design.pdfLogoTitleSpacing === undefined ? 3 : Math.min(6, Math.max(0, Number(design.pdfLogoTitleSpacing) || 0));
   const titleEventGap = boundedNumber(design.pdfTitleEventSpacing, 4, 1, 6);
   const eventLineGap = boundedNumber(design.pdfEventLineSpacing, 5, 3.5, 6);
   const infoShift = Math.min(2, Math.max(0, Number(design.pdfInfoSpacing) || 0));
+  const footerSize = boundedNumber(design.pdfFooterSize, 5, 4, 8);
   const rawLogo = /^data:image\/(?:png|jpeg);base64,/i.test(clean(design.pdfLogoDataUrl)) ? clean(design.pdfLogoDataUrl) : "";
   const pdfLogo = await flattenPdfLogo(rawLogo, accent);
   const pdf = new E({ orientation:"portrait", unit:"mm", format:[90, pageHeight], compress:true });
@@ -29698,8 +29700,9 @@ async function createTicketPdf(tickets, design = {}) {
     const fittedEvent = fitPdfEventTitle(pdf, ticket.eventName, eventSize);
     const lines = fittedEvent.lines;
     const latestEventStart = 41 - (lines.length - 1) * eventLineGap;
-    const titleY = pdfLogo ? Math.min(6.5 + logoSize + logoTitleGap, latestEventStart - Math.max(6, titleEventGap + 1)) : 17;
-    const visibleLogoSize = Math.min(logoSize, titleY - 8.5);
+    const logoTop = margin + logoTopSpacing;
+    const titleY = pdfLogo ? Math.min(logoTop + logoSize + logoTitleGap, latestEventStart - Math.max(6, titleEventGap + 1)) : 17;
+    const visibleLogoSize = Math.min(logoSize, titleY - logoTop - 2);
     pdf.setFont("helvetica", "bold");
     pdf.setTextColor("#ffffff");
     pdf.setFontSize(titleSize);
@@ -29760,11 +29763,11 @@ async function createTicketPdf(tickets, design = {}) {
     const footerLines = splitText(pdf, footer, 90 - margin * 2 - 12, 2);
     footerLines.forEach((line, lineIndex) => pdf.text(line, 45, qrBoxY + qrBoxSize + 5.5 + lineIndex * 3, { align:"center" }));
     pdf.setTextColor("#ffffff");
-    pdf.setFontSize(5);
+    pdf.setFontSize(footerSize);
     pdf.text(splitText(pdf, `Gerado por: ${clean(ticket.generatedByName, "Usuário não identificado")} | ${clean(ticket.generatedAtText, "Data e hora não registradas")}`, 90 - margin * 2 - 10, 1), 45, pageHeight - 7, { align:"center" });
-    pdf.setFontSize(4.8);
+    pdf.setFontSize(Math.max(4, footerSize - 0.2));
     pdf.text(splitText(pdf, `LE BEEF | Ingresso ${index + 1}/${tickets.length}`, 90 - margin * 2 - 10, 1), 45, pageHeight - 3.5, { align:"center" });
-    if (pdfLogo) addPdfLogo(pdf, pdfLogo, visibleLogoSize, 6.5);
+    if (pdfLogo) addPdfLogo(pdf, pdfLogo, visibleLogoSize, logoTop);
   }
   return pdf.output("blob");
 }
