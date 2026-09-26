@@ -1,0 +1,2 @@
+/* Ajustes finais dos cartões de reserva. */
+.table-reservation-main small{display:block!important;overflow:hidden;color:#64748b;font-size:9px;font-weight:700;line-height:1.2;text-overflow:ellipsis;white-space:nowrap;text-transform:none}.table-reservation-card.is-expanded .participant-detail-toggle::after{content:" ↑"}

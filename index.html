@@ -1,0 +1,465 @@
+<!doctype html>
+<html lang="pt-BR" data-theme="light">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#14213d" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="Le Beef" />
+    <title>Le Beef | Controle de ingressos</title>
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="icon" href="icon-192.png?v=19" type="image/png" />
+    <link rel="apple-touch-icon" href="icon-192.png?v=19" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="styles.css?v=1" />
+    <link rel="stylesheet" href="access.css" />
+    <link rel="stylesheet" href="sales.css?v=16" />
+    <link rel="stylesheet" href="layout.css" />
+    <link rel="stylesheet" href="dashboard.css?v=31" />
+    <link rel="stylesheet" href="mobile-participants.css?v=27" />
+    <link rel="stylesheet" href="participant-filter.css?v=15" />
+    <link rel="stylesheet" href="filter-counter.css?v=9" />
+    <link rel="stylesheet" href="branding.css?v=10" />
+    <link rel="stylesheet" href="whatsapp.css?v=23" />
+    <link rel="stylesheet" href="pwa.css?v=7" />
+    <link rel="stylesheet" href="financial-report.css?v=20" />
+    <link rel="stylesheet" href="financial-settings.css?v=1" />
+    <link rel="stylesheet" href="promoters.css?v=2" />
+    <link rel="stylesheet" href="settlements.css?v=1" />
+    <link rel="stylesheet" href="online-sales.css?v=1" />
+    <link rel="stylesheet" href="auth-permissions.css?v=19" />
+    <link rel="stylesheet" href="audit-log.css?v=27" />
+    <link rel="stylesheet" href="payment-closing.css?v=28" />
+    <link rel="stylesheet" href="event-access.css?v=18" />
+    <link rel="stylesheet" href="table-map.css?v=9" />
+    <link rel="stylesheet" href="table-reservation-override.css?v=1" />
+    <link rel="stylesheet" href="table-reservation-details.css?v=2" />
+    <link rel="stylesheet" href="table-reservation-final.css?v=1" />
+    <link rel="stylesheet" href="table-reservation-harmony.css?v=4" />
+    <link rel="stylesheet" href="ticketing.css?v=11" />
+    <link rel="stylesheet" href="ticket-config.css?v=6" />
+    <link rel="stylesheet" href="pages.css?v=5" />
+    <link rel="stylesheet" href="toast-responsive.css?v=1" />
+    <style id="topbar-critical-styles">
+      html { scroll-padding-top: 84px; }
+      body { padding-top: 84px !important; }
+      header.topbar {
+        position: fixed !important;
+        top: 0 !important;
+        right: 0 !important;
+        left: 0 !important;
+        z-index: 1000 !important;
+        width: 100% !important;
+        border-bottom: 0 !important;
+        background-color: #14213d !important;
+        background-image: linear-gradient(125deg, #14213d, #1e3a5f) !important;
+        box-shadow: 0 8px 24px #14213d2e !important;
+      }
+      header.topbar .connection { color: #dbeafe !important; }
+      header.topbar .install-app-button { border-color: #ffffff4a; background: #ffffff14; color: #fff; }
+      header.topbar .install-app-button:hover,
+      header.topbar .install-app-button:focus-visible { border-color: #fff; background: #fff; color: #14213d; }
+      @media (max-width: 600px) {
+        html { scroll-padding-top: 72px; }
+        body { padding-top: 72px !important; }
+        header.topbar { height: 72px !important; }
+        header.topbar .topbar-actions { flex-direction: column; align-items: flex-end; gap: 4px; }
+        header.topbar .connection { display: flex !important; max-width: none; font-size: 9px; line-height: 1; white-space: nowrap; }
+      }
+    </style>
+  </head>
+  <body>
+    <dialog id="accessModal" class="access-modal">
+      <form id="accessForm">
+        <div class="access-brand"><img src="logo-le-beef.png" alt="Le Beef Espaço de Eventos" /></div>
+        <p class="eyebrow">ÁREA RESTRITA</p>
+        <h1>Bem-vindo de volta.</h1>
+        <p>Entre com sua conta individual para acessar o painel.</p>
+        <label>E-mail<input id="accessEmail" name="email" type="email" autocomplete="username" required autofocus placeholder="nome@lebeef.com.br" /></label>
+        <label>Senha<div class="password-input-wrap"><input id="accessPassword" name="password" type="password" autocomplete="current-password" required placeholder="Sua senha" /><button class="password-visibility" type="button" data-toggle-password="accessPassword" aria-label="Mostrar senha" aria-pressed="false" title="Mostrar senha"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"></path><circle cx="12" cy="12" r="3"></circle><path class="password-visibility-slash" d="M4 4l16 16"></path></svg></button></div></label>
+        <p id="accessError" class="access-error" aria-live="polite"></p>
+        <button id="accessSubmitButton" class="button primary full" type="submit">Entrar no painel</button>
+        <button id="resetPasswordButton" class="access-reset-button" type="button">Esqueci minha senha</button>
+        <small class="access-persistence-note">Sua conta permanecerá conectada neste aparelho até você sair.</small>
+      </form>
+    </dialog>
+    <header class="topbar">
+      <a class="brand" href="#" aria-label="Le Beef - início"><img src="logo-le-beef-branca.png" alt="Le Beef Espaço de Eventos" /></a>
+      <div class="topbar-actions">
+        <button id="installAppButton" class="install-app-button" type="button" hidden><span aria-hidden="true">↓</span> Instalar app</button>
+        <details id="userMenu" class="user-menu" hidden>
+          <summary aria-label="Abrir menu da conta"><span id="userInitials" class="user-initials">U</span><span class="user-summary-copy"><strong id="userDisplayName">Usuário</strong><small id="userRoleLabel">Perfil</small></span></summary>
+          <div class="user-menu-popover"><div class="user-menu-identity"><strong id="userPopoverName">Usuário</strong><small id="userEmail">email</small><span id="userRoleBadge">Perfil</span></div><button id="manageUsersButton" type="button" data-roles="admin">Gerenciar usuários</button><button id="logoutButton" class="logout-button" type="button">Sair da conta</button></div>
+        </details>
+        <div class="connection"><i id="connectionDot"></i><span id="connectionText">Desconectado</span></div>
+      </div>
+    </header>
+
+    <main>
+      <div id="dashboardPage" class="dashboard-page">
+      <section class="hero">
+        <div>
+          <p class="eyebrow">PAINEL DE CONTROLE</p>
+          <h1>Vendas organizadas.<br /><em>Entrada sem filas.</em></h1>
+          <p class="subtitle">Cadastre eventos, acompanhe as vendas e faça o check-in dos participantes em um só lugar.</p>
+        </div>
+        <button class="button primary" data-open="eventModal" data-roles="admin">+ Novo evento</button>
+      </section>
+
+      <article class="panel events-panel">
+        <div class="panel-heading"><div><p class="eyebrow">MEUS EVENTOS</p><h2>Qual evento você quer acompanhar?</h2><p>Selecione um cartão para abrir o painel exclusivo dele.</p></div><button class="button secondary" data-open="eventModal" data-roles="admin">+ Adicionar evento</button></div>
+        <div id="eventsList" class="events-list"></div>
+      </article>
+
+      <section id="selectedEventArea" class="event-dashboard" hidden>
+        <div class="selected-event-header">
+          <div><p class="eyebrow">EVENTO SELECIONADO</p><h2 id="selectedEventName">Evento</h2><p id="selectedEventMeta"></p></div>
+          <div class="event-actions">
+            <button class="button primary" type="button" data-selected-action="sale" data-roles="admin,event_manager,seller">+ Nova venda</button>
+            <button class="button secondary" type="button" data-selected-action="edit" data-roles="admin,event_manager">Editar</button>
+            <button class="button secondary history-button" type="button" data-selected-action="history" data-roles="admin,event_manager"><span aria-hidden="true">◷</span> Histórico</button>
+            <button class="button secondary" type="button" data-selected-action="export" data-roles="admin,event_manager,seller">Excel</button>
+            <button class="button danger" type="button" data-selected-action="delete" data-roles="admin">Excluir</button>
+          </div>
+        </div>
+
+        <section class="metrics" aria-label="Resumo do evento selecionado">
+          <article class="revenue-card">
+            <div class="revenue-overview">
+              <div class="revenue-total" data-roles="admin,event_manager,seller"><span>Faturamento total</span><strong id="revenue">R$ 0,00</strong></div>
+              <div class="compact-metric ticket-stock-card"><span>Ingressos vendidos</span><strong id="sold">0</strong><small><b id="available">0</b> disponíveis</small><small id="tableSalesMetric" class="table-sales-metric" hidden></small><button class="metric-detail-button" type="button" data-toggle-metric-details="ticketStockBreakdown" aria-expanded="false">Detalhar</button></div>
+              <div class="compact-metric ticket-checkin-card"><span>Check-ins</span><strong id="checkins">0</strong><small>presentes</small><button class="metric-detail-button" type="button" data-toggle-metric-details="ticketCheckinBreakdown" aria-expanded="false">Detalhar</button></div>
+            </div>
+            <div id="ticketStockBreakdown" class="ticket-stock-breakdown" aria-label="Ingressos vendidos e ainda disponíveis por tipo" hidden></div>
+            <div id="ticketCheckinBreakdown" class="ticket-checkin-breakdown" aria-label="Check-ins e entradas aguardando por tipo de ingresso" hidden></div>
+            <div class="revenue-breakdown" data-roles="admin,event_manager,seller" aria-label="Situação dos pagamentos"><div class="revenue-detail confirmed"><small>Confirmados</small><b id="revenuePaid">R$ 0,00</b></div><div class="revenue-detail pending"><small>Pendentes</small><b id="revenuePending">R$ 0,00</b></div></div>
+            <button id="openFinancialReport" class="financial-report-button" type="button" data-roles="admin,event_manager">Ver relatório financeiro <span aria-hidden="true">→</span></button>
+          </article>
+        </section>
+
+        <article id="tableMapPanel" class="panel table-map-panel" hidden>
+          <div class="panel-heading table-map-panel-heading"><div><p class="eyebrow">RESERVAS</p><h2>Mapa de mesas</h2><p>Selecione uma mesa ou bistrô para registrar ou consultar os ocupantes.</p></div><div id="tableMapLegend" class="table-map-legend"><span><i class="is-free"></i>Livre</span><span><i class="is-pending"></i>Ocupada</span><span><i class="is-paid"></i>Pago</span></div></div>
+          <div id="tableMapAreaTabs" class="map-area-tabs" role="tablist" aria-label="Áreas do evento"></div>
+          <div class="table-map-viewer-shell"><div id="tableMapViewer" class="table-map-stage table-map-viewer" aria-label="Mapa das mesas do evento"></div><button id="openMapZoom" class="map-zoom-button" type="button" aria-label="Ampliar mapa" title="Ampliar mapa"><span aria-hidden="true"></span></button></div>
+          <div id="tableMapSummary" class="table-map-summary"></div>
+        </article>
+
+        <article id="tableReservationsPanel" class="panel table-reservations-panel" hidden>
+          <div class="panel-heading table-reservations-heading"><div><p class="eyebrow">RESERVAS</p><h2 id="tableReservationsTitle">Mesas e bistrôs</h2><p>Reservas deste evento, atualizadas em tempo real.</p></div><div class="participant-tools"><div class="participant-tool-row"><details class="ticket-filter table-reservation-filter"><summary aria-label="Filtrar reservas"><span class="filter-glyph" aria-hidden="true"></span><span id="tableReservationFilterLabel">Todos</span></summary><div class="filter-menu"><label>Área<select id="tableReservationAreaFilter"><option value="all">Todas</option><option value="salao">Salão</option><option value="mezanino">Mezanino</option></select></label><label>Situação do pagamento<select id="tableReservationPaymentFilter"><option value="all">Todos</option><option value="paid">Pago</option><option value="pending">Pendente</option></select></label><div class="filter-actions"><button id="clearTableReservationFiltersMenu" class="filter-clear-button" type="button">Limpar filtros</button><button id="applyTableReservationFilters" class="filter-apply-button" type="button">Aplicar filtros</button></div></div></details><button class="view-all-button" id="openAllTableReservations" type="button">Ver todas</button></div><span id="tableReservationCount" class="filter-count">0 reservadas • 0 pessoas</span></div></div>
+          <div class="participant-search-row table-reservation-search-row"><label class="participant-search"><span class="search-glyph" aria-hidden="true"></span><span class="sr-only">Buscar reserva por responsável ou telefone</span><input id="tableReservationSearch" type="search" inputmode="search" autocomplete="off" placeholder="Buscar por responsável ou telefone" /></label><button id="clearTableReservationSearch" class="clear-participant-filters" type="button" hidden>Limpar</button></div>
+          <div class="table-reservation-export"><button id="exportTableReservations" class="button secondary" type="button" data-roles="admin,event_manager,seller">Excel das reservas</button></div>
+          <div class="table-reservations-body"><div id="tableReservationsList" class="table-reservations-list"></div></div>
+        </article>
+
+        <article class="panel sales-panel">
+          <div class="panel-heading"><div><p class="eyebrow">PARTICIPANTES</p><h2 id="salesPanelTitle">Vendas recentes</h2><p>Somente as vendas deste evento, atualizadas em tempo real.</p></div><div class="participant-tools"><div class="participant-tool-row"><details class="ticket-filter"><summary aria-label="Filtrar participantes"><span class="filter-glyph" aria-hidden="true"></span><span id="filterLabel">Todos</span></summary><div class="filter-menu"><label>Tipo de ingresso<select id="ticketTypeFilter"><option value="all">Todos</option></select></label><label data-roles="admin,seller">Situação do pagamento<select id="paymentStatusFilter"><option value="all">Todos</option><option value="paid">Pago</option><option value="pending">Pendente</option></select></label><label>Situação da entrada<select id="entryStatusFilter"><option value="all">Todos</option><option value="checked">Check-in realizado</option><option value="waiting">Aguardando entrada</option></select></label><div class="filter-actions"><button id="clearParticipantFiltersMenu" class="filter-clear-button" type="button" data-clear-participant-filters>Limpar filtros</button><button id="applyParticipantFilters" class="filter-apply-button" type="button">Aplicar filtros</button></div></div></details><button class="view-all-button" data-open="allSalesModal">Ver todas</button></div><span id="filterCount" class="filter-count">0 vendidos • 0 disponíveis</span></div></div>
+          <div class="participant-search-row"><label class="participant-search"><span class="search-glyph" aria-hidden="true"></span><span class="sr-only">Buscar participante por nome ou telefone</span><input id="participantSearch" type="search" inputmode="search" autocomplete="off" placeholder="Buscar por nome ou telefone" /></label><button id="clearParticipantFilters" class="clear-participant-filters" type="button" data-clear-participant-filters hidden>Limpar</button></div>
+          <div class="table-reservation-export participant-export"><button id="exportParticipants" class="button secondary" type="button" data-roles="admin,event_manager,seller">Excel dos participantes</button></div>
+          <div class="table-wrap"><table><thead><tr><th>Participante</th><th>Tipo</th><th>Observação</th><th class="financial-column">Valor</th><th class="financial-column">Pagamento</th><th>Entrada</th><th>Ações</th></tr></thead><tbody id="salesList"></tbody></table></div>
+        </article>
+      </section>
+      </div>
+
+      <section id="financialReportPage" class="financial-report-page" aria-labelledby="financialReportTitle" hidden>
+        <div class="financial-page-header">
+          <button id="backToDashboard" class="financial-back-button" type="button"><span aria-hidden="true">←</span> Voltar ao painel</button>
+          <div><p class="eyebrow">FINANCEIRO</p><h1 id="financialReportTitle">Relatório financeiro</h1><p id="financialReportEventMeta">Evento selecionado</p></div>
+        </div>
+
+        <section class="financial-summary-grid" aria-label="Resumo financeiro">
+          <article class="financial-card total"><span>Total vendido</span><strong id="financialTotalSold">R$ 0,00</strong><small>Valor de todas as vendas</small></article>
+          <article class="financial-card received"><span>Total recebido</span><strong id="financialTotalReceived">R$ 0,00</strong><small>Pagamentos confirmados</small></article>
+          <article class="financial-card pending"><span>Total pendente</span><strong id="financialTotalPending">R$ 0,00</strong><small>Ainda falta receber</small></article>
+          <article class="financial-card average"><span>Ticket médio</span><strong id="financialAverageOrder">R$ 0,00</strong><small>Valor médio por venda</small></article>
+        </section>
+
+        <article class="financial-panel platform-commission-panel" data-roles="admin,event_manager">
+          <div class="financial-panel-heading"><div><p class="eyebrow">PLATAFORMA</p><h2>Comissão deste evento</h2><p>Valores registrados com a regra vigente no momento de cada venda.</p></div><strong id="financialCommissionScope">Não cobrar</strong></div>
+          <div class="platform-commission-summary"><div><span>Base comissionável</span><strong id="financialCommissionBase">R$ 0,00</strong></div><div><span>Comissão acumulada</span><strong id="financialCommissionAmount">R$ 0,00</strong></div><div><span>Vendas com comissão</span><strong id="financialCommissionSales">0</strong></div><div><span>Taxas repassadas</span><strong id="financialBuyerFees">R$ 0,00</strong></div><div><span>Vendas online pagas</span><strong id="financialOnlineSales">0</strong></div><div><span>Vendas manuais pagas</span><strong id="financialManualSales">0</strong></div></div>
+          <p class="platform-commission-note">Somente pagamentos confirmados entram no total. A comissão da plataforma usa o subtotal dos ingressos e não inclui a taxa repassada ao comprador.</p>
+        </article>
+
+        <article class="financial-panel platform-settlements-panel" data-roles="admin,event_manager">
+          <div class="financial-panel-heading settlement-heading"><div><p class="eyebrow">REPASSES</p><h2>Fechamentos da plataforma</h2><p>Agrupe as vendas com comissão e registre os pagamentos recebidos, inclusive parciais.</p></div><button id="openPlatformSettlement" class="button primary" type="button" data-roles="admin">Fazer fechamento</button></div>
+          <div class="settlement-open-summary"><span>Comissão ainda sem fechamento</span><strong id="unsettledCommissionAmount">R$ 0,00</strong><small id="unsettledCommissionSales">0 vendas disponíveis</small></div>
+          <div id="platformSettlementsList" class="platform-settlements-list"><div class="empty">Nenhum fechamento realizado.</div></div>
+        </article>
+
+        <section class="financial-insights-grid">
+          <article class="financial-panel receipt-panel"><div class="financial-panel-heading"><div><p class="eyebrow">RECEBIMENTOS</p><h2>Taxa de recebimento</h2></div><strong id="financialReceiptRate">0%</strong></div><div class="receipt-progress" role="progressbar" aria-label="Percentual recebido" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span id="financialReceiptProgress"></span></div><p id="financialReceiptCaption">Nenhuma venda registrada.</p></article>
+          <article class="financial-panel sales-indicators"><p class="eyebrow">INDICADORES</p><h2>Movimento do evento</h2><div class="financial-indicator-list"><div><span>Vendas registradas</span><strong id="financialSalesCount">0</strong></div><div><span>Ingressos vendidos</span><strong id="financialTicketsCount">0</strong></div><div><span>Média por ingresso</span><strong id="financialAverageTicket">R$ 0,00</strong></div></div></article>
+        </section>
+
+        <article class="financial-panel financial-breakdown"><div class="financial-panel-heading"><div><p class="eyebrow">DETALHAMENTO</p><h2>Resultado por tipo de ingresso</h2><p>Compare vendas, estoque restante, ocupação, faturamento e pagamentos de cada tipo.</p></div></div><div class="financial-table-wrap financial-detailed-wrap"><table class="financial-detailed-table"><thead><tr><th>Tipo de ingresso</th><th>Vendas</th><th>Vendidos</th><th>Disponíveis</th><th>Ocupação</th><th>Total</th><th>Recebido</th><th>Pendente</th></tr></thead><tbody id="financialTicketBreakdown"></tbody></table></div></article>
+
+        <article class="financial-panel seller-closing"><div class="financial-panel-heading seller-closing-heading"><div><p class="eyebrow">EQUIPE</p><h2>Fechamento por vendedor</h2><p>Confira vendas, ingressos e recebimentos de cada usuário no período.</p></div><div class="seller-closing-heading-actions"><span id="sellerClosingPeriodLabel">Todo o evento</span><button id="sellerDetailsToggle" class="seller-details-toggle" type="button" aria-expanded="false" aria-controls="sellerTicketReport">Detalhar</button></div></div><div class="seller-closing-filters"><label>Data inicial<input id="sellerClosingStart" type="date" /></label><label>Data final<input id="sellerClosingEnd" type="date" /></label><button id="sellerClosingToday" class="button secondary" type="button">Hoje</button><button id="sellerClosingAll" class="button secondary" type="button">Todo o evento</button></div><div class="financial-table-wrap"><table class="seller-closing-table"><thead><tr><th>Vendedor</th><th>Vendas</th><th>Ingressos</th><th>Total vendido</th><th>Recebido</th><th>Pendente</th></tr></thead><tbody id="sellerClosingBreakdown"></tbody></table></div><section id="sellerTicketReport" class="seller-ticket-inline" hidden><div class="seller-ticket-inline-heading"><p class="eyebrow">DETALHAMENTO POR INGRESSO</p><h3>Tipos vendidos por vendedor</h3><p>Valores calculados para o mesmo período selecionado acima.</p></div><div class="financial-table-wrap financial-detailed-wrap"><table class="financial-detailed-table"><thead><tr><th>Vendedor</th><th>Tipo de ingresso</th><th>Vendas</th><th>Ingressos</th><th>Total</th><th>Recebido</th><th>Pendente</th></tr></thead><tbody id="sellerTicketBreakdown"></tbody></table></div></section></article>
+        <article class="financial-panel financial-breakdown promoter-commission-report" data-roles="admin,event_manager"><div class="financial-panel-heading"><div><p class="eyebrow">PROMOTERS</p><h2>Comissões da equipe</h2><p>Somente pagamentos confirmados e com promoter identificado.</p></div></div><div class="financial-table-wrap"><table><thead><tr><th>Promoter</th><th>Vendas</th><th>Base</th><th>Porcentagem</th><th>Comissão</th></tr></thead><tbody id="promoterCommissionBreakdown"></tbody></table></div></article>
+      </section>
+
+      <section id="pageTicketConfig" class="workspace-panel ticket-config-page" hidden>
+        <div class="ticket-config-heading"><div><p class="eyebrow">CONFIGURAÇÃO DO INGRESSO</p><h1>Ingressos térmico e digital</h1><p class="page-description">Configure a impressão térmica e o PDF enviado ao participante. Destranque o editor somente quando precisar fazer alterações.</p></div><div class="ticket-config-heading-actions"><button id="ticketConfigLock" class="button secondary ticket-config-lock" type="button" aria-pressed="false" aria-label="Destrancar edição"><span data-lock-icon aria-hidden="true">🔒</span><span data-lock-label>Edição bloqueada</span></button><a class="button secondary" href="#mais">← Voltar</a></div></div>
+        <form id="ticketConfigForm">
+          <div class="ticket-config-layout">
+            <div class="ticket-config-controls">
+              <section class="ticket-config-card"><h2>Identidade</h2><label>Título<input name="title" maxlength="36" /></label><label>Mensagem final<input name="footer" maxlength="120" /></label><div class="ticket-config-two"><label>Cor principal<input name="primaryColor" type="color" /></label><label>Cor de destaque<input name="accentColor" type="color" /></label></div><div class="ticket-logo-setting"><span class="field-label">Logo do evento</span><div class="ticket-logo-preview"><img id="ticketLogoPreview" alt="Prévia da logo do evento" hidden><span id="ticketLogoPlaceholder">Nenhuma logo selecionada</span></div><div class="ticket-logo-actions"><label class="button secondary" for="ticketLogoInput">Adicionar/trocar imagem</label><input id="ticketLogoInput" type="file" accept="image/png,image/jpeg" hidden><button id="removeTicketLogo" class="button danger" type="button">Remover</button></div><small>PNG ou JPG. A imagem será reduzida sem deformação.</small></div></section>
+              <section class="ticket-config-card pdf-ticket-settings"><div><p class="eyebrow">PDF DIGITAL</p><h2>Logo, modelo e tamanhos do PDF</h2><p class="pdf-ticket-description">Estas opções alteram somente o ingresso em PDF enviado ao participante.</p></div><div class="ticket-logo-setting"><span class="field-label">Logo do PDF</span><div class="ticket-logo-preview pdf-logo-preview"><img id="pdfTicketLogoPreview" alt="Prévia da logo do PDF" hidden><span id="pdfTicketLogoPlaceholder">Nenhuma logo selecionada</span></div><div class="ticket-logo-actions"><label class="button secondary" for="pdfTicketLogoInput">Adicionar/trocar imagem</label><input id="pdfTicketLogoInput" type="file" accept="image/png,image/jpeg" hidden><button id="removePdfTicketLogo" class="button danger" type="button">Remover</button></div><small>PNG ou JPG. A proporção original será preservada no cabeçalho.</small></div><fieldset class="pdf-layout-options"><legend>Modelo do ingresso em PDF</legend><label><input type="radio" name="pdfLayout" value="default"><span class="pdf-layout-sample pdf-layout-default"><i></i></span><strong>Padrão atual</strong><small>Visual original com cabeçalho corrigido.</small></label><label><input type="radio" name="pdfLayout" value="double"><span class="pdf-layout-sample pdf-layout-signature"><i></i></span><strong>Recortes laterais</strong><small>Modelo limpo com formato de ingresso.</small></label><label><input type="radio" name="pdfLayout" value="notched"><span class="pdf-layout-sample pdf-layout-perforated"><i></i></span><strong>Destacável moderno</strong><small>Faixa do evento e linha de destaque.</small></label><label><input type="radio" name="pdfLayout" value="dashed"><span class="pdf-layout-sample pdf-layout-elegant"><i></i></span><strong>Faixa elegante</strong><small>Cantos diagonais e moldura única.</small></label></fieldset><div class="pdf-size-controls"><h3>Tamanhos do PDF</h3><label>Tamanho da logo <output data-pdf-ticket-output="pdfLogoSize"></output><input name="pdfLogoSize" type="range" min="8" max="20" step="0.5"></label><label>Fonte “Ingresso digital” <output data-pdf-ticket-output="pdfTitleSize"></output><input name="pdfTitleSize" type="range" min="7" max="12" step="0.5"></label><label>Fonte do nome do evento <output data-pdf-ticket-output="pdfEventSize"></output><input name="pdfEventSize" type="range" min="12" max="20" step="0.5"></label><label>Fonte dos textos <output data-pdf-ticket-output="pdfTextSize"></output><input name="pdfTextSize" type="range" min="6" max="9" step="0.5"></label><label>Fonte dos dados principais <output data-pdf-ticket-output="pdfDataSize"></output><input name="pdfDataSize" type="range" min="10" max="16" step="0.5"></label></div></section>
+              <section class="ticket-config-card"><h2>Formato e proporções</h2><label>Largura do papel<select name="paperWidth"><option value="58">58 mm</option><option value="80">80 mm</option></select></label><small class="ticket-width-note">As configurações de 58 mm e 80 mm são independentes.</small><label>Altura do ingresso <output data-ticket-output="ticketHeight"></output><input name="ticketHeight" type="range" min="80" max="140" step="5"></label><small>Escolha entre 80 mm e 140 mm. A medida salva será usada como altura real de cada ingresso impresso.</small><label>Tamanho da logo <output data-ticket-output="logoSize"></output><input name="logoSize" type="range" min="4" max="10" step="0.5"></label><label>Tamanho do título <output data-ticket-output="titleSize"></output><input name="titleSize" type="range" min="8" max="12" step="0.5"></label><label>Tamanho dos textos <output data-ticket-output="textSize"></output><input name="textSize" type="range" min="5.5" max="8" step="0.5"></label><label>Tamanho dos dados <output data-ticket-output="dataSize"></output><input name="dataSize" type="range" min="6.5" max="9.5" step="0.5"></label><label>Espaçamento das informações <output data-ticket-output="spacing"></output><input name="spacing" type="range" min="0.35" max="1.2" step="0.05"></label><label>Tamanho do QR Code <output data-ticket-output="qrSize"></output><input name="qrSize" type="range" min="18" max="40" step="1"></label><label>Espaço antes do QR Code <output data-ticket-output="qrSpacing"></output><input name="qrSpacing" type="range" min="0" max="20" step="0.5"></label><small>Menor aproxima o QR Code das informações; maior move o QR Code para baixo.</small><label>Margens <output data-ticket-output="margin"></output><input name="margin" type="range" min="1.5" max="3.5" step="0.25"></label></section>
+              <section class="ticket-config-card ticket-visibility"><h2>Informações exibidas</h2><label><input name="showEstablishment" type="checkbox"> Nome Le Beef</label><label><input name="showEventMeta" type="checkbox"> Data e local do evento</label><label><input name="showPayment" type="checkbox"> Pagamento</label><label><input name="showFooter" type="checkbox"> Mensagem final</label></section>
+              <div class="ticket-config-actions"><button id="resetTicketConfig" class="button secondary" type="button">Restaurar padrão</button><button class="button primary" type="submit">Salvar configuração</button></div>
+            </div>
+            <div class="ticket-preview-column"><aside class="ticket-live-preview pdf-live-preview"><div><p class="eyebrow">PRÉ-VISUALIZAÇÃO</p><h2>Resultado aproximado do PDF</h2><p>A prévia acompanha a logo, o modelo, as cores e os tamanhos do PDF Digital.</p></div><div id="pdfTicketPreviewFrameShell"><iframe id="pdfTicketPreviewFrame" title="Pré-visualização do ingresso em PDF"></iframe></div><small>O arquivo final mantém uma página independente para cada ingresso.</small></aside><aside class="ticket-live-preview thermal-live-preview"><div><p class="eyebrow">PRÉ-VISUALIZAÇÃO</p><h2>Resultado aproximado da impressão</h2><p>A prévia usa a altura escolhida entre 80 mm e 140 mm.</p></div><div id="ticketPreviewFrameShell"><iframe id="ticketPreviewFrame" title="Pré-visualização do ingresso térmico"></iframe></div><small>A caixa representa uma unidade. Cada ingresso será impresso em sua própria página.</small></aside></div>
+          </div>
+        </form>
+      </section>
+
+      <section id="pageUsers" class="workspace-panel user-management-page" hidden>
+        <div class="user-management-shell">
+          <div class="user-management-page-heading"><div><p class="eyebrow">ACESSOS</p><h1>Gerenciar usuários</h1><p>Crie contas individuais e defina o que cada pessoa pode fazer.</p></div><a class="button secondary" href="#mais">← Voltar</a></div>
+          <form id="createUserForm" class="create-user-form">
+            <fieldset id="createUserEventAccess" class="create-user-event-access"><legend>Eventos permitidos</legend><p id="createUserEventHint">Marque um ou mais eventos que esta pessoa poderá acessar.</p><div id="createUserEvents" class="user-event-options"></div></fieldset>
+            <div class="two-columns"><label>Nome<input name="name" required placeholder="Nome da pessoa" /></label><label>E-mail<input name="email" type="email" required autocomplete="off" placeholder="nome@exemplo.com" /></label></div>
+            <div class="two-columns"><label>Senha inicial<div class="password-input-wrap"><input id="newUserPassword" name="password" type="password" minlength="6" required autocomplete="new-password" placeholder="Mínimo de 6 caracteres" /><button class="password-visibility" type="button" data-toggle-password="newUserPassword" aria-label="Mostrar senha" aria-pressed="false" title="Mostrar senha"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"></path><circle cx="12" cy="12" r="3"></circle><path class="password-visibility-slash" d="M4 4l16 16"></path></svg></button></div></label><label>Perfil<select name="role" required><option value="seller">Vendedor</option><option value="door">Portaria</option><option value="event_manager">Gerente do evento</option><option value="admin">Administrador</option></select></label></div>
+            <button id="createUserButton" class="button primary" type="submit">+ Criar usuário</button>
+          </form>
+          <div class="permission-guide"><div><strong>Administrador</strong><span>Acesso completo, eventos, financeiro e usuários.</span></div><div><strong>Gerente do evento</strong><span>Administra somente os eventos atribuídos.</span></div><div><strong>Vendedor</strong><span>Vendas, pagamentos, check-in e Excel.</span></div><div><strong>Portaria</strong><span>Consulta de participantes e check-in.</span></div></div>
+          <div class="users-section-heading"><div><p class="eyebrow">EQUIPE</p><h2>Usuários cadastrados</h2></div><span id="usersCount">0 usuários</span></div>
+          <div id="usersList" class="users-list"><div class="empty">Carregando usuários...</div></div>
+        </div>
+      </section>
+
+      <section id="pagePromoters" class="workspace-panel promoters-page" hidden>
+        <div class="promoters-heading"><div><p class="eyebrow">EQUIPE DE VENDAS</p><h1>Promoters do evento</h1><p>Cadastre os promoters e defina a comissão individual para este evento.</p></div><a class="button secondary" href="#mais">← Voltar</a></div>
+        <form id="createPromoterForm" class="promoter-form">
+          <div><p class="eyebrow">NOVO PROMOTER</p><h2>Criar acesso e comissão</h2></div>
+          <div class="promoter-form-grid"><label>Nome<input name="name" required maxlength="100" placeholder="Nome do promoter" /></label><label>E-mail<input name="email" type="email" required maxlength="160" autocomplete="off" placeholder="nome@exemplo.com" /></label><label>Senha inicial<div class="password-input-wrap"><input id="newPromoterPassword" name="password" type="password" minlength="6" required autocomplete="new-password" placeholder="Mínimo de 6 caracteres" /><button class="password-visibility" type="button" data-toggle-password="newPromoterPassword" aria-label="Mostrar senha" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"></path><circle cx="12" cy="12" r="3"></circle><path class="password-visibility-slash" d="M4 4l16 16"></path></svg></button></div></label><label>Porcentagem do promoter<input name="commissionPercent" type="number" min="0" max="100" step="0.01" value="0" required inputmode="decimal" /></label><label>Aplicar comissão em<select name="commissionScope" required><option value="both">Vendas online e manuais</option><option value="online">Somente vendas online</option><option value="manual">Somente vendas manuais</option><option value="none">Não pagar comissão</option></select></label></div>
+          <button id="createPromoterButton" class="button primary" type="submit">+ Criar promoter</button>
+        </form>
+        <div class="users-section-heading"><div><p class="eyebrow">PROMOTERS</p><h2>Equipe deste evento</h2></div><span id="promotersCount">0 promoters</span></div>
+        <div id="promotersList" class="promoters-list"><div class="empty">Nenhum promoter cadastrado neste evento.</div></div>
+      </section>
+
+      <section id="pageOnlineSales" class="workspace-panel online-sales-page" hidden>
+        <div class="online-sales-heading"><div><p class="eyebrow">VENDAS ONLINE</p><h1>Em breve</h1><p>As vendas online serão liberadas em uma futura atualização.</p></div><a class="button secondary" href="#mais">← Voltar</a></div>
+        <section class="online-config-card"><div><p class="eyebrow">NOVIDADE EM PREPARAÇÃO</p><h2>Vendas online em breve</h2><p>Estamos preparando esta funcionalidade. Quando estiver disponível, a configuração e a liberação serão feitas nesta página.</p></div></section>
+      </section>
+    </main>
+
+    <footer class="site-footer">Le Beef | Versão: 6.0.4</footer>
+
+    <button class="fab" data-open="saleModal" data-roles="admin,event_manager,seller" aria-label="Registrar venda">+</button>
+
+    <dialog id="platformSettlementModal" class="platform-settlement-modal">
+      <form id="platformSettlementForm">
+        <div class="modal-heading"><div><p class="eyebrow">NOVO LOTE</p><h2>Fazer fechamento</h2><p>O lote incluirá todas as vendas pagas com comissão que ainda não pertencem a outro fechamento.</p></div><button class="close" type="button" data-close="platformSettlementModal" aria-label="Fechar">×</button></div>
+        <div class="settlement-modal-summary"><span>Vendas no lote<strong id="settlementPreviewSales">0</strong></span><span>Comissão devida<strong id="settlementPreviewAmount">R$ 0,00</strong></span></div>
+        <label>Valor já pago<input name="initialPayment" type="number" min="0" step="0.01" value="0" inputmode="decimal" /></label>
+        <label>Data do pagamento<input name="paymentDate" type="date" /></label>
+        <label>Observação<textarea name="notes" maxlength="300" rows="3" placeholder="Opcional"></textarea></label>
+        <button id="createPlatformSettlementButton" class="button primary full" type="submit">Criar fechamento</button>
+      </form>
+    </dialog>
+
+    <dialog id="eventModal">
+      <form id="eventForm" method="dialog">
+        <div class="modal-heading"><div><p class="eyebrow">CADASTRO</p><h2 id="eventModalTitle">Novo evento</h2></div><button class="close" type="button" data-close="eventModal" aria-label="Fechar">×</button></div>
+        <label>Nome do evento<input name="name" required placeholder="Ex.: Festival de Inverno" /></label>
+        <div class="event-schedule-fields"><label>Data<input name="date" type="date" required /></label><label>Horário<input name="time" type="time" required /></label><label class="event-place-field">Local<input name="place" required placeholder="Ex.: Auditório" /></label></div>
+        <div class="event-mode-field"><label>Modo do evento<select id="eventMode" name="eventMode"><option value="unit">Somente vendas unitárias</option><option value="mixed">Mesas/bistrôs + vendas unitárias</option></select></label><p class="field-help">No modo com mesas, as vendas unitárias continuam disponíveis normalmente.</p></div>
+        <fieldset id="eventFinancialSettings" class="event-financial-settings">
+          <legend>Comissão da plataforma</legend>
+          <p class="field-help">Configuração exclusiva da plataforma. A regra aplicada fica salva em cada venda e não muda retroativamente.</p>
+          <div class="event-financial-settings-grid">
+            <label>Porcentagem por venda<input name="platformCommissionPercent" type="number" min="0" max="100" step="0.01" value="0" inputmode="decimal" /></label>
+            <label>Cobrar em quais vendas<select name="platformCommissionScope"><option value="none">Não cobrar comissão</option><option value="online">Somente vendas online</option><option value="manual">Somente vendas manuais</option><option value="both">Vendas online e manuais</option></select></label>
+          </div>
+        </fieldset>
+        <fieldset id="eventManualFeeSettings" class="event-financial-settings">
+          <legend>Taxa opcional nas vendas manuais</legend>
+          <p class="field-help">Configure a taxa que poderá ser repassada ao comprador nas vendas lançadas pela equipe.</p>
+          <div class="event-financial-settings-grid">
+            <label>Tipo da taxa<select name="manualBuyerFeeMode"><option value="none">Não oferecer taxa</option><option value="percent">Porcentagem</option><option value="fixed">Valor fixo</option></select></label>
+            <label>Valor da taxa<input name="manualBuyerFeeValue" type="number" min="0" step="0.01" value="0" inputmode="decimal" /></label>
+          </div>
+          <label class="toggle-setting"><input name="manualBuyerFeeDefault" type="checkbox" /><span>Deixar “repassar taxa” marcado por padrão nas novas vendas</span></label>
+        </fieldset>
+        <section id="eventMapSettings" class="event-map-settings" hidden>
+          <div class="map-settings-heading"><div><span class="field-label">Mapa de mesas e bistrôs</span><p class="field-help">Escolha as áreas abertas, selecione o tipo e toque nas posições predefinidas para ativá-las.</p></div><label class="chair-price-field">Valor por pessoa/cadeira<input id="chairPrice" name="chairPrice" type="number" min="0" step="0.01" placeholder="R$ 0,00" /></label></div>
+          <fieldset class="map-area-selector"><legend>Áreas disponíveis neste evento</legend><label><input type="checkbox" name="mapArea" value="salao" /> Salão</label><label><input type="checkbox" name="mapArea" value="mezanino" /> Mezanino</label></fieldset>
+          <div class="map-editor-toolbar"><div class="map-tool-buttons"><button class="map-tool-button" type="button" data-map-tool="table"><img src="mesa-icon.png" alt="" />Ativar como mesa</button><button class="map-tool-button" type="button" data-map-tool="bistro"><img src="bistro-icon.png" alt="" />Ativar como bistrô</button></div></div>
+          <div id="mapEditorAreaTabs" class="map-area-tabs" role="tablist" aria-label="Área sendo editada"></div>
+          <div id="tableMapEditor" class="table-map-stage table-map-editor" aria-label="Editor do mapa de mesas"><div class="map-empty-hint">Selecione Salão ou Mezanino para começar.</div></div>
+          <p class="map-editor-help">Clique numa posição para ativá-la. Clique novamente com o mesmo tipo selecionado para desativar. A numeração é única entre todas as áreas.</p>
+        </section>
+        <div class="ticket-types-field"><div class="field-label"><span>Tipos/lotes, valores e quantidades</span><button class="text-button" type="button" id="addTicketType">+ Adicionar tipo</button></div><p class="field-help">Cada tipo ou lote terá seu próprio limite de vendas.</p><div id="ticketTypesList" class="ticket-types-list"></div></div>
+        <div class="packages-field"><div class="field-label"><span>Pacotes e cortesias</span><span class="package-create-actions"><button class="text-button" type="button" id="addPackage">+ Pacote</button><button class="text-button courtesy-create-button" type="button" id="addCourtesy">+ Cortesia</button></span></div><p class="field-help">Monte pacotes ou cortesias com os ingressos acima. O estoque continuará sendo descontado de cada tipo individual.</p><div id="packagesList" class="packages-list"></div></div>
+        <button class="button primary full" id="eventSubmitButton" type="submit">Criar evento</button>
+      </form>
+    </dialog>
+
+    <dialog id="saleModal">
+      <form id="saleForm" method="dialog">
+        <div class="modal-heading"><div><p class="eyebrow">VENDA</p><h2 id="saleModalTitle">Registrar ingresso</h2></div><button class="close" type="button" data-close="saleModal" aria-label="Fechar">×</button></div>
+        <label>Evento<select id="saleEvent" name="eventId" required></select></label>
+        <div class="sale-items-field">
+          <div class="field-label"><span>Itens desta venda</span><button class="text-button" type="button" id="addSaleTicketItem">+ Adicionar item</button></div>
+          <p class="field-help">Adicione ingressos avulsos ou pacotes e informe a quantidade.</p>
+          <div id="saleTicketItemsList" class="sale-ticket-items-list"></div>
+          <div class="sale-items-summary" aria-live="polite"><span><small>Quantidade total</small><strong id="saleItemsQuantity">0</strong></span><span><small>Valor total</small><strong id="saleItemsTotal">R$ 0,00</strong></span></div>
+        </div>
+        <label>Nome do participante<input name="buyerName" required placeholder="Nome completo" /></label>
+        <div id="saleGuestNamesField" class="sale-guest-names-field" hidden>
+          <div class="field-label"><span>Nomes dos ingressos adicionais</span></div>
+          <p class="field-help">Os nomes são preenchidos automaticamente para agilizar. Você pode apagar e escrever qualquer nome.</p>
+          <div id="saleGuestNamesList" class="sale-guest-names-list"></div>
+        </div>
+        <label>Telefone (opcional)<input name="buyerPhone" type="tel" placeholder="(00) 00000-0000" /></label>
+        <p class="phone-recommendation">Importante: informe o telefone sempre que possível para conseguir enviar os ingressos pelo WhatsApp.</p>
+        <label>E-mail (opcional)<input name="buyerEmail" type="email" placeholder="nome@exemplo.com" /></label>
+        <p class="courtesy-sale-notice">Cortesia selecionada: valor R$ 0,00 e baixa automática no estoque dos ingressos que a compõem.</p>
+        <div class="two-columns payment-status-fields"><label>Pagamento<select name="paymentStatus" required><option value="paid">Pago</option><option value="pending">Pendente</option></select></label><label>Forma de pagamento<select name="paymentMethod"><option value="">Selecione</option><option value="pix">Pix</option><option value="cash">Dinheiro</option><option value="credit_card">Cartão de crédito</option><option value="debit_card">Cartão de débito</option><option value="bank_transfer">Transferência</option><option value="other">Outro</option></select></label></div>
+        <label class="manual-fee-option"><input name="applyBuyerFee" type="checkbox"><span>Repassar a taxa configurada ao comprador</span><strong data-manual-fee-preview>+ R$ 0,00</strong></label>
+        <label class="payment-date-field">Data do pagamento<input name="paymentDate" type="date" /></label>
+        <label>Observações (opcional)<textarea name="notes" rows="3" placeholder="Ex.: retirada no local, meia-entrada..."></textarea></label>
+        <button class="button primary full" id="saleSubmitButton" type="submit">Confirmar venda</button>
+      </form>
+    </dialog>
+
+    <dialog id="tableReservationModal" class="table-reservation-modal">
+      <form id="tableReservationForm">
+        <div class="modal-heading"><div><p class="eyebrow">RESERVA DE MESA</p><h2 id="tableReservationTitle">Mesa</h2><p id="tableReservationArea">Área do evento</p></div><button class="close" type="button" data-close="tableReservationModal" aria-label="Fechar">×</button></div>
+        <input name="eventId" type="hidden" /><input name="furnitureId" type="hidden" /><input name="saleId" type="hidden" />
+        <div class="reservation-responsible"><span class="field-label">Responsável pela mesa</span><label>Nome completo<input name="buyerName" required placeholder="Nome do responsável" /></label><div class="two-columns"><label>Telefone (opcional)<input name="buyerPhone" type="tel" placeholder="(00) 00000-0000" /></label><label>E-mail (opcional)<input name="buyerEmail" type="email" placeholder="nome@exemplo.com" /></label></div><p class="phone-recommendation">Importante: informe o telefone sempre que possível para conseguir enviar os ingressos pelo WhatsApp.</p><div class="chair-discount-line"><span>Desconto desta cadeira</span><div id="responsibleChairDiscount" class="chair-discount-control" data-chair-discount data-discount-type="percent"><button class="chair-discount-toggle" type="button" data-toggle-chair-discount aria-expanded="false" title="Adicionar desconto">%</button><label hidden><span class="chair-discount-prefix">%</span><input class="chair-discount-value" type="number" min="0" max="100" step="0.01" value="0" inputmode="decimal" aria-label="Desconto da cadeira do responsável" /></label></div></div></div>
+        <div class="reservation-occupants-field"><div class="field-label"><span>Outros participantes</span><button id="addTableOccupant" class="text-button" type="button">+ Adicionar pessoa</button></div><p class="field-help">O responsável já conta como a primeira pessoa. Para os demais, informe somente o nome.</p><div id="tableOccupantsList" class="table-occupants-list"></div></div>
+        <div class="reservation-total-summary"><span><small>Total de pessoas</small><strong id="tableReservationPeople">1</strong></span><span><small>Valor por pessoa</small><strong id="tableReservationUnitPrice">R$ 0,00</strong></span><span><small>Descontos</small><strong id="tableReservationDiscount">R$ 0,00</strong></span><span><small>Total da reserva</small><strong id="tableReservationTotal">R$ 0,00</strong></span></div>
+        <div class="two-columns payment-status-fields"><label>Pagamento<select name="paymentStatus" required><option value="paid">Pago</option><option value="pending">Pendente</option></select></label><label>Forma de pagamento<select name="paymentMethod"><option value="">Selecione</option><option value="pix">Pix</option><option value="cash">Dinheiro</option><option value="credit_card">Cartão de crédito</option><option value="debit_card">Cartão de débito</option><option value="bank_transfer">Transferência</option><option value="other">Outro</option></select></label></div>
+        <label class="manual-fee-option"><input name="applyBuyerFee" type="checkbox"><span>Repassar a taxa configurada ao comprador</span><strong data-table-manual-fee-preview>+ R$ 0,00</strong></label>
+        <label class="payment-date-field">Data do pagamento<input name="paymentDate" type="date" /></label>
+        <label>Observações (opcional)<textarea name="notes" rows="3" placeholder="Informações sobre a reserva"></textarea></label>
+        <div class="reservation-form-actions"><button id="deleteTableReservation" class="button danger" type="button" hidden>Excluir venda</button><button id="occupyTableWithoutSale" class="button secondary" type="button">Ocupar sem venda</button><button class="button primary" type="submit">Salvar reserva</button></div>
+      </form>
+    </dialog>
+
+    <dialog id="tableOccupancyModal" class="table-occupancy-modal">
+      <div class="table-occupancy-shell">
+        <div class="modal-heading"><div><p class="eyebrow">OCUPADA SEM VENDA</p><h2 id="tableOccupancyTitle">Mesa</h2><p id="tableOccupancyArea">Área do evento</p></div><button class="close" type="button" data-close="tableOccupancyModal" aria-label="Fechar">×</button></div>
+        <div class="table-occupancy-notice"><span aria-hidden="true">●</span><div><strong>Esta mesa está indisponível.</strong><p>Ela permanece ocupada no mapa, mas não entra nas vendas, no faturamento ou nos relatórios.</p></div></div>
+        <button id="releaseTableOccupancy" class="button primary full" type="button">Liberar mesa</button>
+      </div>
+    </dialog>
+
+    <dialog id="mapZoomModal" class="map-zoom-modal">
+      <div class="map-zoom-shell">
+        <div class="map-zoom-heading"><div><p class="eyebrow">MAPA AMPLIADO</p><h2 id="mapZoomTitle">Mapa de mesas</h2></div><button class="close" type="button" data-close="mapZoomModal" aria-label="Fechar">×</button></div>
+        <div id="tableMapZoomAreaTabs" class="map-area-tabs map-zoom-tabs" role="tablist" aria-label="Áreas do mapa ampliado"></div>
+        <div id="mapZoomCanvas" class="map-zoom-canvas"><div id="tableMapZoomViewer" class="table-map-stage table-map-zoom-viewer" aria-label="Mapa ampliado das mesas"></div></div>
+        <p class="map-zoom-help">Toque numa mesa ou bistrô para abrir a reserva.</p>
+      </div>
+    </dialog>
+
+    <dialog id="paymentConfirmationModal" class="payment-confirmation-modal">
+      <form id="paymentConfirmationForm">
+        <div class="modal-heading"><div><p class="eyebrow">PAGAMENTO</p><h2>Confirmar recebimento</h2><p id="paymentConfirmationParticipant">Participante</p></div><button class="close" type="button" data-close="paymentConfirmationModal" aria-label="Fechar">×</button></div>
+        <input name="saleId" type="hidden" />
+        <label>Forma de pagamento<select name="paymentMethod" required><option value="">Selecione</option><option value="pix">Pix</option><option value="cash">Dinheiro</option><option value="credit_card">Cartão de crédito</option><option value="debit_card">Cartão de débito</option><option value="bank_transfer">Transferência</option><option value="other">Outro</option></select></label>
+        <label>Data do pagamento<input name="paymentDate" type="date" required /></label>
+        <button class="button primary full" type="submit">Confirmar pagamento</button>
+      </form>
+    </dialog>
+
+    <dialog id="allSalesModal" class="all-sales-modal">
+      <div class="modal-heading"><div><p class="eyebrow">HISTÓRICO</p><h2 id="allSalesTitle">Todas as vendas</h2><p class="export-hint">Participantes do evento selecionado.</p><div class="all-sales-total" data-roles="admin,seller" aria-live="polite"><span id="allSalesTotalLabel">Total vendido — Todos</span><strong id="allSalesTotal">R$ 0,00</strong></div></div><div class="modal-actions"><button class="close" type="button" data-close="allSalesModal" aria-label="Fechar">×</button></div></div>
+      <div class="table-wrap"><table class="all-sales-table"><thead><tr><th>Participante</th><th>Tipo</th><th>Telefone / observação</th><th>Evento</th><th class="financial-column">Valor</th><th class="financial-column">Pagamento</th><th>Entrada</th><th>Ações</th></tr></thead><tbody id="allSalesList"></tbody></table></div>
+    </dialog>
+
+    <dialog id="allTableReservationsModal" class="all-sales-modal all-table-reservations-modal">
+      <div class="modal-heading"><div><p class="eyebrow">RESERVAS</p><h2 id="allTableReservationsTitle">Todas as reservas</h2><p class="export-hint">Mesas e bistrôs do evento selecionado.</p><div class="all-sales-total" data-roles="admin,seller" aria-live="polite"><span>Total reservado</span><strong id="allTableReservationsTotal">R$ 0,00</strong></div></div><div class="modal-actions"><button class="close" type="button" data-close="allTableReservationsModal" aria-label="Fechar">×</button></div></div>
+      <div class="table-wrap"><table class="all-sales-table"><thead><tr><th>Responsável</th><th>Mesa / bistrô</th><th>Contato / ocupantes</th><th>Evento</th><th class="financial-column">Valor</th><th class="financial-column">Pagamento</th><th>Ações</th></tr></thead><tbody id="allTableReservationsList"></tbody></table></div>
+    </dialog>
+
+    <dialog id="auditLogModal" class="audit-log-modal">
+      <div class="audit-log-shell">
+        <div class="modal-heading audit-log-heading"><div><p class="eyebrow">AUDITORIA</p><h2 id="auditLogTitle">Histórico de alterações</h2><p>Criações, edições, exclusões, pagamentos e check-ins das vendas.</p></div><button class="close" type="button" data-close="auditLogModal" aria-label="Fechar">×</button></div>
+        <div class="audit-log-summary"><span>Linha do tempo do evento</span><strong id="auditLogCount">0 registros</strong></div>
+        <div id="auditLogList" class="audit-log-list" aria-live="polite"><div class="audit-empty">Carregando histórico...</div></div>
+      </div>
+    </dialog>
+
+    <dialog id="whatsappModal" class="whatsapp-choice-modal">
+      <form method="dialog">
+        <div class="modal-heading"><div><p class="eyebrow">CONTATO</p><h2>Escolha o WhatsApp</h2></div><button class="close" type="button" data-close="whatsappModal" aria-label="Fechar">×</button></div>
+        <div class="whatsapp-contact-card"><strong id="whatsappContactName">Participante</strong><span id="whatsappContactPhone">Telefone</span></div>
+        <div class="whatsapp-options">
+          <button class="whatsapp-option business" type="button" data-whatsapp-app="business"><span class="whatsapp-option-badge" aria-hidden="true">B</span><span><strong>WhatsApp Business</strong><small>Abrir no aplicativo Business</small></span></button>
+          <button class="whatsapp-option personal" type="button" data-whatsapp-app="personal"><span class="whatsapp-option-badge" aria-hidden="true">W</span><span><strong>WhatsApp normal</strong><small>Abrir no aplicativo pessoal</small></span></button>
+        </div>
+        <p id="whatsappPlatformHint" class="whatsapp-platform-hint"></p>
+        <button class="button secondary full" type="button" data-close="whatsappModal">Cancelar</button>
+      </form>
+    </dialog>
+
+    <dialog id="ticketSendModal" class="ticket-send-modal">
+      <div class="ticket-send-shell">
+        <div class="modal-heading"><div><p class="eyebrow">INGRESSO GERADO</p><h2>Enviar ingresso</h2></div><button class="close" type="button" data-close-ticket-send aria-label="Fechar">×</button></div>
+        <div class="ticket-send-contact"><strong id="ticketSendName">Participante</strong><span id="ticketSendPhone">Telefone</span></div>
+        <button id="shareTicketFile" class="ticket-send-choice ticket-send-any" type="button"><span aria-hidden="true">↗</span><span><strong>Escolher contato e enviar PDF</strong><small>Abre o compartilhamento do celular com o PDF anexado. Escolha WhatsApp normal, Business e o destinatário.</small></span></button>
+        <div id="ticketSendRegisteredOptions" class="ticket-send-registered"><p>Enviar para o número cadastrado</p><button type="button" data-ticket-whatsapp="personal"><span class="whatsapp-option-badge" aria-hidden="true">W</span><span><strong>WhatsApp normal</strong><small>Baixa o PDF e abre a conversa cadastrada</small></span></button><button type="button" data-ticket-whatsapp="business"><span class="whatsapp-option-badge" aria-hidden="true">B</span><span><strong>WhatsApp Business</strong><small>Baixa o PDF e abre a conversa cadastrada</small></span></button></div>
+        <p class="ticket-send-hint">Por segurança do Android, uma conversa específica não pode receber um arquivo automaticamente. Nessas duas opções, anexe o PDF baixado na conversa.</p>
+      </div>
+    </dialog>
+
+    <dialog id="ticketDeleteModal" class="ticket-delete-modal">
+      <div class="ticket-delete-shell">
+        <div class="modal-heading"><div><p class="eyebrow">SEGURANÇA DO INGRESSO</p><h2>Excluir ingresso gerado?</h2></div><button class="close" type="button" data-close-ticket-delete aria-label="Fechar">×</button></div>
+        <div class="ticket-delete-warning"><strong id="ticketDeleteParticipant">Participante</strong><p>O QR Code atual será invalidado imediatamente. Use esta opção somente em caso de perda ou roubo; depois será possível gerar um novo ingresso.</p></div>
+        <div class="ticket-delete-actions"><button class="button secondary" type="button" data-close-ticket-delete>Cancelar</button><button id="confirmTicketDelete" class="button danger" type="button">Sim, excluir ingresso</button></div>
+      </div>
+    </dialog>
+
+    <dialog id="thermalPrintModal" class="thermal-print-modal">
+      <div class="thermal-print-shell">
+        <div class="modal-heading"><div><p class="eyebrow">IMPRESSÃO TÉRMICA</p><h2>Configurar impressão</h2></div><button class="close" type="button" data-close-thermal-print aria-label="Fechar">×</button></div>
+        <label>Largura do papel<select id="thermalPaperWidth"><option value="58">58 mm</option><option value="80">80 mm</option></select></label>
+        <p class="thermal-printer-explanation">A altura e o visual seguem a Configuração do ingresso. Após clicar em “Abrir impressão”, escolha a impressora no diálogo oficial do navegador.</p>
+        <div class="thermal-print-actions"><button class="button secondary" type="button" data-close-thermal-print>Cancelar</button><button id="confirmThermalPrint" class="button primary" type="button">Abrir impressão</button></div>
+      </div>
+    </dialog>
+
+    <dialog id="qrValidationModal" class="qr-validation-modal">
+      <div class="qr-validation-shell">
+        <div class="modal-heading"><div><p class="eyebrow">PORTARIA</p><h2>Validar ingresso</h2></div><button class="close" type="button" data-close-qr-validation aria-label="Fechar">×</button></div>
+        <img id="qrValidationImage" class="qr-validation-image" alt="QR Code do ingresso" />
+        <div id="qrValidationState" class="qr-validation-state"></div>
+        <button id="confirmQrCheckin" class="button primary full" type="button">Confirmar check-in</button>
+        <button id="nextQrScan" class="button secondary full" type="button" hidden>Ler próximo QR Code</button>
+      </div>
+    </dialog>
+
+    <dialog id="cameraPermissionModal" class="camera-permission-modal">
+      <div class="camera-permission-shell">
+        <div class="modal-heading"><div><p class="eyebrow">CÂMERA</p><h2>Autorizar leitura do QR Code</h2></div><button class="close" type="button" data-close-camera-permission aria-label="Fechar">×</button></div>
+        <span class="camera-permission-icon" aria-hidden="true"></span>
+        <div class="camera-permission-copy"><strong>O aplicativo precisa usar a câmera traseira.</strong><p>Toque em “Autorizar câmera” e, quando o Android ou navegador perguntar, escolha <b>Permitir durante o uso</b>.</p></div>
+        <p id="cameraPermissionStatus" class="camera-permission-status" role="status"></p>
+        <button id="grantCameraPermission" class="button primary full" type="button">Autorizar câmera</button>
+        <button id="cameraPermissionPhoto" class="button secondary full" type="button">Ler uma foto do QR Code</button>
+      </div>
+    </dialog>
+
+    <dialog id="qrScannerModal" class="qr-scanner-modal">
+      <div class="qr-scanner-shell">
+        <div class="qr-scanner-heading"><div><p class="eyebrow">PORTARIA</p><h2>Ler QR Code</h2><p>Aponte a câmera para o código do ingresso.</p></div><button class="close" type="button" data-close-qr-scanner aria-label="Fechar câmera">×</button></div>
+        <div class="qr-camera-frame"><video id="qrScannerVideo" playsinline muted aria-label="Imagem da câmera"></video><div class="qr-camera-target" aria-hidden="true"></div></div>
+        <p id="qrScannerStatus" class="qr-scanner-status" role="status">Preparando a câmera...</p>
+        <button id="qrScannerPhoto" class="button secondary full" type="button">Escolher foto do QR Code</button>
+      </div>
+    </dialog>
+
+    <div id="toast" role="status" aria-live="polite"></div>
+    <script src="pwa.js"></script>
+    <script src="excel-export.js?v=40"></script>
+    <script type="module" src="app.js?v=105"></script>
+  </body>
+</html>

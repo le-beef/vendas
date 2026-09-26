@@ -1,0 +1,158 @@
+.payment-display {
+  display: inline-flex;
+  align-items: flex-start;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.payment-details {
+  max-width: 145px;
+  margin: 0 !important;
+  color: #64748b !important;
+  font-size: 9px !important;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.payment-status-fields select:disabled,
+.payment-date-field input:disabled {
+  cursor: not-allowed;
+  background: #f1f5f9;
+  color: #94a3b8;
+}
+
+.payment-is-pending .payment-status-fields label:last-child,
+.payment-is-pending .payment-date-field {
+  opacity: 0.55;
+}
+
+.payment-confirmation-modal {
+  width: min(440px, calc(100% - 28px));
+}
+
+.payment-confirmation-modal .modal-heading p:last-child {
+  margin: 5px 0 0;
+  color: #64748b;
+  font-size: 12px;
+}
+
+.seller-closing {
+  padding: 0;
+  overflow: hidden;
+}
+
+.seller-closing-heading {
+  padding: 22px;
+}
+
+.seller-closing-heading p:last-child {
+  margin: 6px 0 0;
+  color: #64748b;
+  font-size: 12px;
+}
+
+.seller-closing-heading > span {
+  flex-shrink: 0;
+  padding: 7px 10px;
+  border-radius: 999px;
+  background: #eff6ff;
+  color: #2563eb;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.seller-closing-filters {
+  display: grid;
+  grid-template-columns: minmax(150px, 190px) minmax(150px, 190px) auto auto;
+  align-items: end;
+  gap: 10px;
+  padding: 14px 22px;
+  border-top: 1px solid #e7eaf0;
+  background: #f8fafc;
+}
+
+.seller-closing-filters label {
+  color: #475569;
+  font-size: 11px;
+}
+
+.seller-closing-filters input {
+  min-height: 40px;
+  background: #fff;
+}
+
+.seller-closing-filters .button {
+  min-height: 40px;
+  padding: 10px 14px;
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  color: #1e3a5f;
+  font-size: 11px;
+}
+
+.seller-closing-filters .button:hover,
+.seller-closing-filters .button:focus-visible {
+  border-color: #2563eb;
+  color: #2563eb;
+  outline: none;
+}
+
+.seller-closing-table td:first-child strong,
+.seller-closing-table td:first-child small {
+  display: block;
+}
+
+.seller-closing-table td:first-child small {
+  margin-top: 3px;
+  color: #64748b;
+  font-size: 10px;
+  font-weight: 500;
+}
+
+.seller-closing-total td {
+  background: #eff6ff;
+  color: #14213d;
+  font-weight: 700;
+}
+
+@media (max-width: 800px) {
+  .seller-closing-filters {
+    grid-template-columns: 1fr 1fr;
+    padding: 12px 16px;
+  }
+
+  .seller-closing-filters .button { width: 100%; }
+}
+
+@media (max-width: 600px) {
+  .payment-details {
+    max-width: 110px;
+    font-size: 8px !important;
+  }
+
+  .seller-closing-heading {
+    padding: 17px;
+    flex-direction: column;
+  }
+
+  .seller-closing-filters {
+    grid-template-columns: 1fr 1fr;
+    padding: 11px;
+  }
+
+  .seller-closing-filters label {
+    min-width: 0;
+  }
+
+  .seller-closing-filters input {
+    padding: 9px 7px;
+    font-size: 12px;
+  }
+
+  .seller-closing-total {
+    border-color: #bfdbfe !important;
+    background: #eff6ff !important;
+  }
+
+  .seller-closing-total td { background: transparent; }
+}

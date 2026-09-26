@@ -1,0 +1,3003 @@
+import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js";
+import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged, browserLocalPersistence, inMemoryPersistence, setPersistence, createUserWithEmailAndPassword, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js";
+import { getDatabase, ref, push, set, update, onValue, get, query, orderByChild, equalTo, runTransaction, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-database.js";
+import { firebaseConfig } from "./firebase-config.js";
+import { createEventPages } from "./pages.js?v=11";
+import { decodeQrImageData } from "./qr-scanner-tools.js?v=1";
+import { eventIsArchived, eventArchiveDeadline } from "./event-archive.js?v=1";
+import { createTicketPdf, createQrDataUrl } from "./ticket-tools.js?v=10";
+import { THERMAL_PAPER_WIDTHS, buildThermalPrintHtml, normalizeThermalPaperWidth } from "./thermal-print.js?v=10";
+import { DEFAULT_TICKET_DESIGN, normalizeTicketDesign, ticketHeightForDesign } from "./ticket-layout.js?v=3";
+import { PLATFORM_COMMISSION_SCOPES, eventFinancialRules, normalizeCommissionScope, normalizePercentage, promoterFinancialSnapshot, saleFinancialSnapshot } from "./financial-core.js?v=2";
+
+const demoEvents = [
+  { id: "demo-1", name: "Festival de Inverno", date: "2026-08-02", time: "20:00", place: "Espaço Aurora", capacity: 300, ticketTypes: [{ id: "inteira", name: "Inteira", price: 85, capacity: 200 }, { id: "meia", name: "Meia-entrada", price: 42.5, capacity: 100 }], packages: [{ id: "combo-casal", name: "Combo Casal", discountType: "percent", discountValue: 10, discountPercent: 10, regularPrice: 127.5, price: 114.75, items: [{ ticketTypeId: "inteira", quantity: 1 }, { ticketTypeId: "meia", quantity: 1 }] }] },
+  { id: "demo-2", name: "Noite de Comédia", date: "2026-08-18", time: "19:30", place: "Teatro Central", capacity: 180, ticketTypes: [{ id: "padrão", name: "Ingresso padrão", price: 45, capacity: 180 }] }
+];
+const demoSales = [
+  { id: "demo-sale", eventId: "demo-1", ticketTypeId: "multiple", ticketTypeName: "Vários ingressos", items: [{ ticketTypeId: "inteira", ticketTypeName: "Inteira", unitPrice: 85, quantity: 1, subtotal: 85 }, { ticketTypeId: "meia", ticketTypeName: "Meia-entrada", unitPrice: 42.5, quantity: 2, subtotal: 85 }], buyerName: "Marina Alves", buyerPhone: "(11) 98888-1234", buyerEmail: "", notes: "Retirada no local", paid: true, paymentMethod: "pix", paymentDate: new Date().toISOString().slice(0, 10), quantity: 3, total: 170, checkedIn: true, createdByUid: "local-demo", createdByName: "Administrador local", createdByEmail: "demo@local", createdAt: Date.now() }
+];
+let state = { events: [], sales: [], users: [], promoters: [], paymentConnections: [], platformSettlements: [], auditLogs: [] };
+const PAYMENT_API_BASE = "https://southamerica-east1-vendas-76f49.cloudfunctions.net";
+let selectedEventId = "";
+let pendingSelectedEventId = "";
+const AUTH_SESSION_KEY = "le-beef-auth-session-user";
+const EVENT_SESSION_KEY = "le-beef-selected-event-session";
+let selectedTicketTypeFilter = "all";
+let selectedPaymentFilter = "all";
+let selectedEntryFilter = "all";
+let participantSearchQuery = "";
+let tableReservationSearchQuery = "";
+let tableReservationAreaFilter = "all";
+let tableReservationPaymentFilter = "all";
+const expandedParticipantSaleIds = new Set();
+let participantViewportAnchor = null;
+const expandedTableReservationSaleIds = new Set();
+let tableReservationViewportAnchor = null;
+let eventMapDraft = { areas: [], furniture: [] };
+let activeMapEditorArea = "";
+let activeMapViewerArea = "";
+let activeMapTool = "";
+let firebaseApp;
+let auth;
+let db;
+let currentUser;
+let currentUserProfile;
+let dataSubscriptions = [];
+let isDemo = !firebaseConfig.apiKey || !firebaseConfig.databaseURL || location.protocol === "file:";
+
+const money = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
+const $ = (id) => document.getElementById(id);
+const ROLE_LABELS = { admin: "Administrador", event_manager: "Gerente do evento", seller: "Vendedor", promoter: "Promoter", door: "Portaria" };
+const PAYMENT_METHOD_LABELS = { pix: "Pix", cash: "Dinheiro", credit_card: "Cartão de crédito", debit_card: "Cartão de débito", bank_transfer: "Transferência", other: "Outro", courtesy: "Cortesia" };
+const PDF_TICKET_LAYOUTS = ["default", "double", "notched", "dashed"];
+
+function rememberSelectedEvent(eventId) {
+  selectedEventId = String(eventId || "");
+  pendingSelectedEventId = "";
+  if (selectedEventId) sessionStorage.setItem(EVENT_SESSION_KEY, selectedEventId);
+  else sessionStorage.removeItem(EVENT_SESSION_KEY);
+}
+function clearSelectedEventSession() {
+  selectedEventId = "";
+  pendingSelectedEventId = "";
+  sessionStorage.removeItem(EVENT_SESSION_KEY);
+  localStorage.removeItem("ingressa-selected-event");
+}
+function restoreNavigationSession() {
+  const page = location.hash.slice(1);
+  if (!page || page === "eventos") { clearSelectedEventSession(); return true; }
+  if (page === "arquivados") { clearSelectedEventSession(); return true; }
+  const savedEventId = sessionStorage.getItem(EVENT_SESSION_KEY) || "";
+  if (!savedEventId) return false;
+  selectedEventId = savedEventId;
+  pendingSelectedEventId = savedEventId;
+  return true;
+}
+function navigateToEventsHome() {
+  clearSelectedEventSession();
+  history.replaceState(null, "", `${location.pathname}${location.search}#eventos`);
+}
+
+function roleLabel(role) { return ROLE_LABELS[role] || "Sem perfil"; }
+function paymentMethodLabel(method) { return PAYMENT_METHOD_LABELS[method] || "Forma não informada"; }
+function todayInputValue() { const now = new Date(); now.setMinutes(now.getMinutes() - now.getTimezoneOffset()); return now.toISOString().slice(0, 10); }
+function paymentDateLabel(value) { return value ? new Date(`${value}T12:00:00`).toLocaleDateString("pt-BR") : "Data não informada"; }
+function paymentDetailsHtml(sale) { if (sale.courtesy || sale.paymentMethod === "courtesy") return `<small class="payment-details">Sem cobrança</small>`; return sale.paid ? `<small class="payment-details">${escapeHtml(paymentMethodLabel(sale.paymentMethod))} · ${escapeHtml(paymentDateLabel(sale.paymentDate))}</small>` : ""; }
+function syncEventFinancialSettings(event = null) {
+  const fieldset = $("eventFinancialSettings");
+  const form = $("eventForm");
+  if (!fieldset || !form) return;
+  const rules = eventFinancialRules(event || {});
+  form.elements.platformCommissionPercent.value = String(rules.platformCommissionPercent);
+  form.elements.platformCommissionScope.value = rules.platformCommissionScope;
+  const editable = hasRole("admin");
+  fieldset.hidden = !editable;
+  [...fieldset.elements].forEach((control) => { control.disabled = !editable; });
+}
+function syncEventManualFeeSettings(event = null) {
+  const form = $("eventForm");
+  if (!form) return;
+  form.elements.manualBuyerFeeMode.value = normalizeBuyerFeeMode(event?.manualBuyerFeeMode);
+  form.elements.manualBuyerFeeValue.value = String(Math.max(0, Number(event?.manualBuyerFeeValue || 0)));
+  form.elements.manualBuyerFeeDefault.checked = event?.manualBuyerFeeDefault === true;
+}
+function eventSlug(value) { return String(value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60); }
+function normalizeCustomDomain(value) { return String(value || "").trim().toLowerCase().replace(/^https?:\/\//, "").replace(/\/$/, ""); }
+function publicEventUrl(event) {
+  if (!event) return new URL("comprar.html", location.href).href;
+  const domain = normalizeCustomDomain(event.customDomain);
+  return domain ? `https://${domain}/?evento=${encodeURIComponent(event.publicSlug || event.id)}` : new URL(`comprar.html?evento=${encodeURIComponent(event.publicSlug || event.id)}`, location.href).href;
+}
+function renderOnlineSalesSettings(event) {
+  const form = $("onlineSalesForm");
+  if (!form || !event) return;
+  if (form.dataset.eventId !== event.id) {
+    form.dataset.eventId = event.id;
+    form.elements.onlineSalesEnabled.checked = event.onlineSalesEnabled === true;
+    form.elements.publicSlug.value = event.publicSlug || eventSlug(event.name) || event.id;
+    form.elements.customDomain.value = event.customDomain || "";
+    form.elements.onlineBuyerFeeMode.value = normalizeBuyerFeeMode(event.onlineBuyerFeeMode);
+    form.elements.onlineBuyerFeeValue.value = String(Math.max(0, Number(event.onlineBuyerFeeValue || 0)));
+    form.elements.manualBuyerFeeMode.value = normalizeBuyerFeeMode(event.manualBuyerFeeMode);
+    form.elements.manualBuyerFeeValue.value = String(Math.max(0, Number(event.manualBuyerFeeValue || 0)));
+    form.elements.manualBuyerFeeDefault.checked = event.manualBuyerFeeDefault === true;
+  }
+  const draftEvent = { ...event, publicSlug:eventSlug(form.elements.publicSlug.value) || event.id, customDomain:normalizeCustomDomain(form.elements.customDomain.value) };
+  const url = publicEventUrl(draftEvent);
+  $("openPublicEventPage").href = url;
+  const connection = state.paymentConnections.find((item) => item.id === event.id);
+  const status = $("mercadoPagoConnectionStatus");
+  status.classList.toggle("is-connected", Boolean(connection?.connected));
+  status.classList.toggle("is-disconnected", !connection?.connected);
+  status.querySelector("strong").textContent = connection?.connected ? "Conta conectada" : "Não conectada";
+  status.querySelector("small").textContent = connection?.connected ? `${connection.nickname || connection.email || "Mercado Pago"} · recebimento habilitado` : "Conecte a conta que receberá as vendas deste evento.";
+  $("connectMercadoPago").textContent = connection?.connected ? "Reconectar conta" : "Conectar conta Mercado Pago";
+}
+async function saveOnlineSalesSettings(data) {
+  if (!canAdministerEvent(selectedEventId)) throw new Error("Você não administra este evento.");
+  const slug = eventSlug(data.publicSlug);
+  if (!slug) throw new Error("Informe um endereço válido para o evento.");
+  if (state.events.some((event) => event.id !== selectedEventId && event.publicSlug === slug)) throw new Error("Esse endereço já está sendo usado por outro evento.");
+  const settings = {
+    onlineSalesEnabled:data.onlineSalesEnabled === "on",
+    publicSlug:slug,
+    customDomain:normalizeCustomDomain(data.customDomain),
+    onlineBuyerFeeMode:normalizeBuyerFeeMode(data.onlineBuyerFeeMode),
+    onlineBuyerFeeValue:Math.max(0, Number(data.onlineBuyerFeeValue || 0)),
+    manualBuyerFeeMode:normalizeBuyerFeeMode(data.manualBuyerFeeMode),
+    manualBuyerFeeValue:Math.max(0, Number(data.manualBuyerFeeValue || 0)),
+    manualBuyerFeeDefault:data.manualBuyerFeeDefault === "on",
+    onlineSettingsUpdatedAt:Date.now()
+  };
+  if (settings.onlineBuyerFeeMode === "percent" && settings.onlineBuyerFeeValue > 100) throw new Error("A taxa online em porcentagem não pode ultrapassar 100%.");
+  if (settings.manualBuyerFeeMode === "percent" && settings.manualBuyerFeeValue > 100) throw new Error("A taxa manual em porcentagem não pode ultrapassar 100%.");
+  if (isDemo) { state.events = state.events.map((event) => event.id === selectedEventId ? { ...event, ...settings } : event); persistDemo(); render(); }
+  else await update(ref(db, `events/${selectedEventId}`), settings);
+  $("onlineSalesForm").dataset.eventId = "";
+  toast("Configuração das vendas online salva.");
+}
+async function connectMercadoPagoAccount() {
+  if (!canAdministerEvent(selectedEventId)) return toast("Você não administra este evento.");
+  if (isDemo) return toast("A conexão com o Mercado Pago funciona após publicar o backend da versão 6.0.");
+  const button = $("connectMercadoPago");
+  button.disabled = true; button.textContent = "Abrindo Mercado Pago...";
+  try {
+    const token = await currentUser.getIdToken();
+    const response = await fetch(`${PAYMENT_API_BASE}/beginMercadoPagoOAuth`, { method:"POST", headers:{ Authorization:`Bearer ${token}`, "Content-Type":"application/json" }, body:JSON.stringify({ eventId:selectedEventId }) });
+    const result = await response.json();
+    if (!response.ok || !result.authorizationUrl) throw new Error(result.error || "Não foi possível iniciar a conexão.");
+    location.href = result.authorizationUrl;
+  } catch (error) { toast(error.message); button.disabled = false; renderOnlineSalesSettings(state.events.find((event) => event.id === selectedEventId)); }
+}
+function hasRole(...roles) { return Boolean(currentUserProfile?.active && (roles.includes(currentUserProfile.role) || (currentUserProfile.role === "promoter" && roles.includes("seller")))); }
+function allowedEventIds(profile = currentUserProfile) { return Object.entries(profile?.eventIds || {}).filter(([, allowed]) => allowed === true).map(([eventId]) => eventId).sort(); }
+function canAdministerEvent(eventId) { return hasRole("admin") || (hasRole("event_manager") && allowedEventIds().includes(eventId)); }
+function eventAccessSignature(profile) { return allowedEventIds(profile).join("|"); }
+function requireRole(roles, message = "Seu perfil não permite realizar esta ação.") {
+  const managerEquivalent = hasRole("event_manager") && roles.includes("admin") && roles.includes("seller");
+  if (hasRole(...roles) || managerEquivalent) return true;
+  toast(message);
+  return false;
+}
+function userInitials(name, email = "") { const source = String(name || email || "U").trim(); const parts = source.split(/\s+/).filter(Boolean); return (parts.length > 1 ? `${parts[0][0]}${parts.at(-1)[0]}` : source.slice(0, 2)).toLocaleUpperCase("pt-BR"); }
+function clearDataSubscriptions() { dataSubscriptions.forEach((unsubscribe) => unsubscribe()); dataSubscriptions = []; }
+function showAccessModal(message = "") { $("accessError").textContent = message; if (!$("accessModal").open) $("accessModal").showModal(); }
+function hideAccessModal() { if ($("accessModal").open) $("accessModal").close(); }
+function authErrorMessage(error) {
+  if (["auth/invalid-credential", "auth/user-not-found", "auth/wrong-password", "auth/invalid-email"].includes(error.code)) return "E-mail ou senha inválidos.";
+  if (error.code === "auth/too-many-requests") return "Muitas tentativas. Aguarde alguns minutos e tente novamente.";
+  if (error.code === "auth/network-request-failed") return "Sem conexão com a internet. Tente novamente.";
+  if (error.code === "auth/operation-not-allowed") return "Ative o login por e-mail e senha no Firebase Authentication.";
+  if (error.code === "auth/email-already-in-use") return "Este e-mail já possui uma conta.";
+  if (error.code === "auth/weak-password") return "A senha precisa ter pelo menos 6 caracteres.";
+  return error.message || "Não foi possível concluir a autenticação.";
+}
+function applyRolePermissions() {
+  document.body.classList.remove("role-admin", "role-event_manager", "role-seller", "role-door");
+  if (currentUserProfile?.role) document.body.classList.add(`role-${currentUserProfile.role}`);
+  document.querySelectorAll("[data-roles]").forEach((element) => {
+    const roles = String(element.dataset.roles).split(",");
+    const managerEquivalent = currentUserProfile?.role === "event_manager" && roles.includes("admin") && roles.includes("seller");
+    const promoterEquivalent = currentUserProfile?.role === "promoter" && roles.includes("seller");
+    element.hidden = !(roles.includes(currentUserProfile?.role) || managerEquivalent || promoterEquivalent);
+  });
+  $("userMenu").hidden = !currentUserProfile;
+  if (!currentUserProfile) return;
+  const displayName = currentUserProfile.name || currentUser?.email || "Usuário";
+  $("userInitials").textContent = userInitials(displayName, currentUser?.email);
+  $("userDisplayName").textContent = displayName;
+  $("userPopoverName").textContent = displayName;
+  $("userEmail").textContent = currentUser?.email || currentUserProfile.email || "";
+  $("userRoleLabel").textContent = roleLabel(currentUserProfile.role);
+  $("userRoleBadge").textContent = roleLabel(currentUserProfile.role);
+}
+function attachRealtimeListeners() {
+  clearDataSubscriptions();
+  const readError = async (error) => { toast(`Acesso ao Firebase bloqueado: ${error.code || error.message}`); if (error.code === "PERMISSION_DENIED" || error.code === "permission_denied") await signOut(auth); };
+  dataSubscriptions.push(onValue(ref(db, `users/${currentUser.uid}`), async (snapshot) => {
+    const profile = snapshot.val();
+    if (!profile?.active || !ROLE_LABELS[profile.role]) { await signOut(auth); return; }
+    const roleChanged = currentUserProfile?.role !== profile.role;
+    const eventAccessChanged = eventAccessSignature(currentUserProfile) !== eventAccessSignature(profile);
+    currentUserProfile = { ...profile, active: true };
+    applyRolePermissions();
+    if (roleChanged || eventAccessChanged) attachRealtimeListeners(); else render();
+  }, readError));
+
+  if (hasRole("admin")) {
+    dataSubscriptions.push(onValue(ref(db, "events"), (snapshot) => { state.events = objectToArray(snapshot.val()); render(); }, readError));
+    dataSubscriptions.push(onValue(ref(db, "sales"), (snapshot) => { state.sales = objectToArray(snapshot.val()); render(); }, readError));
+    dataSubscriptions.push(onValue(ref(db, "users"), (snapshot) => { state.users = objectToArray(snapshot.val()); renderUsers(); }, readError));
+    dataSubscriptions.push(onValue(ref(db, "auditLogs"), (snapshot) => { state.auditLogs = objectToArray(snapshot.val()); renderAuditHistory(); }, readError));
+    dataSubscriptions.push(onValue(ref(db, "promoters"), (snapshot) => { state.promoters = promoterRecords(snapshot.val()); renderPromoters(); }, readError));
+    dataSubscriptions.push(onValue(ref(db, "paymentConnections"), (snapshot) => { state.paymentConnections = objectToArray(snapshot.val()); render(); }, readError));
+    dataSubscriptions.push(onValue(ref(db, "platformSettlements"), (snapshot) => { state.platformSettlements = settlementRecords(snapshot.val()); render(); }, readError));
+    return;
+  }
+
+  const eventMap = new Map();
+  const salesByEvent = new Map();
+  const auditLogsByEvent = new Map();
+  const promotersByEvent = new Map();
+  const settlementsByEvent = new Map();
+  const connectionsByEvent = new Map();
+  state.events = [];
+  state.sales = [];
+  state.users = currentUserProfile ? [{ id: currentUser.uid, ...currentUserProfile }] : [];
+  state.promoters = [];
+  state.platformSettlements = [];
+  state.paymentConnections = [];
+  state.auditLogs = [];
+  render();
+  allowedEventIds().forEach((eventId) => {
+    dataSubscriptions.push(onValue(ref(db, `events/${eventId}`), (snapshot) => {
+      if (snapshot.exists()) eventMap.set(eventId, { id: eventId, ...snapshot.val() }); else eventMap.delete(eventId);
+      state.events = [...eventMap.values()];
+      render();
+    }, readError));
+    if (!hasRole("promoter")) {
+      const eventSalesQuery = query(ref(db, "sales"), orderByChild("eventId"), equalTo(eventId));
+      dataSubscriptions.push(onValue(eventSalesQuery, (snapshot) => {
+        salesByEvent.set(eventId, objectToArray(snapshot.val()));
+        state.sales = [...salesByEvent.values()].flat();
+        render();
+      }, readError));
+    }
+    if (hasRole("event_manager")) {
+      const eventAuditQuery = query(ref(db, "auditLogs"), orderByChild("eventId"), equalTo(eventId));
+      dataSubscriptions.push(onValue(eventAuditQuery, (snapshot) => {
+        auditLogsByEvent.set(eventId, objectToArray(snapshot.val()));
+        state.auditLogs = [...auditLogsByEvent.values()].flat();
+        renderAuditHistory();
+      }, readError));
+      dataSubscriptions.push(onValue(ref(db, `promoters/${eventId}`), (snapshot) => {
+        promotersByEvent.set(eventId, objectToArray(snapshot.val()).map((promoter) => ({ ...promoter, eventId })));
+        state.promoters = [...promotersByEvent.values()].flat();
+        renderPromoters();
+      }, readError));
+      dataSubscriptions.push(onValue(ref(db, `platformSettlements/${eventId}`), (snapshot) => {
+        settlementsByEvent.set(eventId, objectToArray(snapshot.val()).map((settlement) => ({ ...settlement, eventId })));
+        state.platformSettlements = [...settlementsByEvent.values()].flat();
+        render();
+      }, readError));
+      dataSubscriptions.push(onValue(ref(db, `paymentConnections/${eventId}`), (snapshot) => {
+        const connection = snapshot.val();
+        if (connection) connectionsByEvent.set(eventId, { id: eventId, ...connection }); else connectionsByEvent.delete(eventId);
+        state.paymentConnections = [...connectionsByEvent.values()];
+        render();
+      }, readError));
+    } else if (hasRole("promoter")) {
+      dataSubscriptions.push(onValue(ref(db, `promoters/${eventId}/${currentUser.uid}`), (snapshot) => {
+        const promoter = snapshot.val();
+        if (promoter) promotersByEvent.set(eventId, [{ id: currentUser.uid, eventId, ...promoter }]); else promotersByEvent.delete(eventId);
+        state.promoters = [...promotersByEvent.values()].flat();
+        renderPromoters();
+        render();
+      }, readError));
+    }
+  });
+  if (hasRole("promoter")) {
+    const promoterSalesQuery = query(ref(db, "sales"), orderByChild("promoterId"), equalTo(currentUser.uid));
+    dataSubscriptions.push(onValue(promoterSalesQuery, (snapshot) => { state.sales = objectToArray(snapshot.val()); render(); }, readError));
+  }
+}
+async function handleAuthenticatedUser(user) {
+  clearDataSubscriptions();
+  if (!user) {
+    clearSelectedEventSession(); sessionStorage.removeItem(AUTH_SESSION_KEY); if (!location.hash.startsWith("#validar=")) navigateToEventsHome();
+    currentUser = null; currentUserProfile = null; state = { events: [], sales: [], users: [], promoters: [], paymentConnections: [], platformSettlements: [], auditLogs: [] }; $("connectionDot").classList.remove("online"); $("connectionText").textContent = "Desconectado"; applyRolePermissions(); render(); showAccessModal(); return;
+  }
+  try {
+    const profileSnapshot = await get(ref(db, `users/${user.uid}`));
+    const profile = profileSnapshot.val();
+    if (!profile || !profile.active || !ROLE_LABELS[profile.role]) { await signOut(auth); showAccessModal("Sua conta ainda não possui permissão ativa. Fale com o administrador."); return; }
+    const continuingSession = sessionStorage.getItem(AUTH_SESSION_KEY) === user.uid;
+    sessionStorage.setItem(AUTH_SESSION_KEY, user.uid);
+    if (!location.hash.startsWith("#validar=") && (!continuingSession || !restoreNavigationSession())) navigateToEventsHome();
+    currentUser = user; currentUserProfile = { ...profile, active: profile.active === true }; hideAccessModal(); applyRolePermissions();
+    $("connectionDot").classList.add("online"); $("connectionText").textContent = "Conectado";
+    attachRealtimeListeners();
+  } catch (error) { console.error(error); await signOut(auth); showAccessModal("Não foi possível carregar suas permissões. Confira as regras do Firebase."); }
+}
+async function start() {
+  if (isDemo) {
+    currentUser = { uid: "local-demo", email: "demo@local" }; currentUserProfile = { name: "Administrador local", email: "demo@local", role: "admin", active: true };
+    state = { events: JSON.parse(localStorage.getItem("ingressa-events") || "null") || demoEvents, sales: JSON.parse(localStorage.getItem("ingressa-sales") || "null") || demoSales, users: [{ id: "local-demo", ...currentUserProfile }], promoters: [], paymentConnections: [], platformSettlements: JSON.parse(localStorage.getItem("ingressa-platform-settlements") || "null") || [], auditLogs: JSON.parse(localStorage.getItem("ingressa-audit-logs") || "null") || [] };
+    if (!location.hash.startsWith("#validar=") && !restoreNavigationSession()) navigateToEventsHome();
+    $("connectionText").textContent = "Desconectado"; applyRolePermissions(); render(); return;
+  }
+  try {
+    showAccessModal();
+    $("connectionText").textContent = "Desconectado";
+    firebaseApp = initializeApp(firebaseConfig); auth = getAuth(firebaseApp); db = getDatabase(firebaseApp, firebaseConfig.databaseURL);
+    await setPersistence(auth, browserLocalPersistence);
+    onAuthStateChanged(auth, (user) => { handleAuthenticatedUser(user); });
+  } catch (error) { console.error(error); showAccessModal("Não foi possível iniciar o login. Confira a configuração do Firebase."); }
+}
+
+function objectToArray(value) { return Object.entries(value || {}).map(([id, item]) => ({ id, ...item })); }
+function promoterRecords(value) { return Object.entries(value || {}).flatMap(([eventId, promoters]) => objectToArray(promoters).map((promoter) => ({ ...promoter, eventId }))); }
+function settlementRecords(value) { return Object.entries(value || {}).flatMap(([eventId, settlements]) => objectToArray(settlements).map((settlement) => ({ ...settlement, eventId }))); }
+function ticketTypesFor(event) {
+  const original = event?.ticketTypes?.length ? event.ticketTypes : [{ id: "padrão", name: "Ingresso padrão", price: Number(event?.price || 0) }];
+  const hasPerTypeCapacity = original.every((item) => item.capacity !== undefined && item.capacity !== null && item.capacity !== "");
+  if (hasPerTypeCapacity) return original.map((item) => ({ ...item, price: Number(item.price || 0), capacity: Math.max(0, Number(item.capacity || 0)) }));
+  const previousTotal = Math.max(0, Number(event?.capacity || 0));
+  const base = Math.floor(previousTotal / original.length);
+  const remainder = previousTotal % original.length;
+  return original.map((item, index) => ({ ...item, price: Number(item.price || 0), capacity: base + (index < remainder ? 1 : 0) }));
+}
+function eventCapacity(event) { return ticketTypesFor(event).reduce((sum, item) => sum + Number(item.capacity || 0), 0); }
+function isTableReservation(sale) { return sale?.reservationType === "table" && Boolean(sale.furnitureId); }
+function isTableBlock(sale) { return sale?.reservationType === "table_block" && Boolean(sale.furnitureId); }
+function isCommercialSale(sale) { return !isTableBlock(sale) && sale?.onlinePending !== true; }
+function reservationOccupants(sale) {
+  const stored = Array.isArray(sale?.occupants) ? sale.occupants : Object.values(sale?.occupants || {});
+  const names = stored.map((name) => String(name || "").trim()).filter(Boolean);
+  if (!names.length && sale?.buyerName) names.push(String(sale.buyerName).trim());
+  return names;
+}
+function reservationOccupantPricing(sale) {
+  const stored = Array.isArray(sale?.occupantPricing) ? sale.occupantPricing : Object.keys(sale?.occupantPricing || {}).sort((a, b) => Number(a) - Number(b)).map((key) => sale.occupantPricing[key]);
+  return reservationOccupants(sale).map((_, index) => {
+    const item = stored[index] || {};
+    return { discountType: item.discountType === "fixed" ? "fixed" : "percent", discountValue: Math.max(0, Number(item.discountValue || 0)) };
+  });
+}
+function reservationOccupantCheckins(sale) {
+  const stored = sale?.occupantCheckins;
+  const values = Array.isArray(stored) ? stored : Object.keys(stored || {}).sort((a, b) => Number(a) - Number(b)).map((key) => stored[key]);
+  return reservationOccupants(sale).map((_, index) => Boolean(values[index]));
+}
+function reservationCheckinCount(sale) { return reservationOccupantCheckins(sale).filter(Boolean).length; }
+function eventUsesTableMap(event) { return event?.eventMode === "mixed" && normalizeTableMap(event?.tableMap).areas.length > 0; }
+function mapAreaLabel(area) { return area === "mezanino" ? "Mezanino" : "Salão"; }
+function furnitureKindLabel(kind) { return kind === "bistro" ? "Bistrô" : "Mesa"; }
+function normalizeTableMap(value) {
+  const sourceAreas = Array.isArray(value?.areas) ? value.areas : Object.values(value?.areas || {});
+  const areas = [...new Set(sourceAreas.map(String).filter((area) => area === "salao" || area === "mezanino"))];
+  const sourceFurniture = Array.isArray(value?.furniture) ? value.furniture : Object.values(value?.furniture || {});
+  const furniture = sourceFurniture.map((item) => ({
+    id: String(item.id || newEntityId("movel")),
+    area: item.area === "mezanino" ? "mezanino" : "salao",
+    kind: item.kind === "bistro" ? "bistro" : "table",
+    number: Math.max(1, Number(item.number || 1)),
+    x: Math.min(96, Math.max(4, Number(item.x || 50))),
+    y: Math.min(96, Math.max(4, Number(item.y || 50))),
+    width: Math.min(24, Math.max(5, Number(item.width || (item.kind === "bistro" ? 9 : 11)))),
+    height: Math.min(24, Math.max(5, Number(item.height || (item.kind === "bistro" ? 7 : 11))))
+  })).filter((item) => areas.includes(item.area));
+  return { areas, furniture };
+}
+function packagesFor(event) {
+  const original = Array.isArray(event?.packages) ? event.packages : Object.values(event?.packages || {});
+  return original.map((item) => {
+    const packageItems = (Array.isArray(item.items) ? item.items : Object.values(item.items || {})).map((component) => ({ ticketTypeId: component.ticketTypeId || "", quantity: Math.max(0, Number(component.quantity || 0)) })).filter((component) => component.ticketTypeId && component.quantity > 0);
+    const regularPrice = packageItems.reduce((sum, component) => { const type = ticketTypesFor(event).find((ticket) => ticket.id === component.ticketTypeId); return sum + Number(type?.price || 0) * component.quantity; }, 0);
+    const packageKind = item.packageKind === "courtesy" || item.kind === "courtesy" ? "courtesy" : "package";
+    const discountType = packageKind === "courtesy" ? "percent" : item.discountType === "fixed" ? "fixed" : "percent";
+    const legacyPercent = Math.min(100, Math.max(0, Number(item.discountPercent || 0)));
+    const discountValue = packageKind === "courtesy" ? 100 : Math.max(0, Number(item.discountValue ?? (discountType === "fixed" ? item.discountAmount : legacyPercent) ?? 0));
+    const discountAmount = packageKind === "courtesy" ? regularPrice : discountType === "fixed" ? Math.min(regularPrice, discountValue) : regularPrice * Math.min(100, discountValue) / 100;
+    const discountPercent = regularPrice > 0 ? discountAmount / regularPrice * 100 : 0;
+    const price = packageKind === "courtesy" ? 0 : Math.max(0, Number(item.price ?? regularPrice - discountAmount));
+    return { ...item, id: item.id || "", name: item.name || (packageKind === "courtesy" ? "Cortesia" : "Pacote"), packageKind, items: packageItems, regularPrice: Number(item.regularPrice ?? regularPrice), discountType, discountValue, discountAmount, discountPercent, price };
+  }).filter((item) => item.id && item.name && item.items.length);
+}
+function packageTicketCount(packageItem) { return packageItem.items.reduce((sum, component) => sum + Number(component.quantity || 0), 0); }
+function saleItems(sale, event = state.events.find((item) => item.id === sale?.eventId)) {
+  const storedItems = Array.isArray(sale?.items) ? sale.items : Object.values(sale?.items || {});
+  if (storedItems.length) return storedItems.map((item) => {
+    const quantity = Math.max(0, Number(item.quantity || 0));
+    if (item.kind === "package" || item.packageId) {
+      const packageItem = packagesFor(event).find((entry) => entry.id === item.packageId);
+      const rawComponents = Array.isArray(item.components) ? item.components : Object.values(item.components || {});
+      const sourceComponents = rawComponents.length ? rawComponents : packageItem?.items || [];
+      const components = sourceComponents.map((component) => {
+        const ticketType = ticketTypesFor(event).find((type) => type.id === component.ticketTypeId || type.name === component.ticketTypeName);
+        return { ticketTypeId: component.ticketTypeId || ticketType?.id || "", ticketTypeName: component.ticketTypeName || ticketType?.name || "Ingresso padrão", unitPrice: Number(component.unitPrice ?? ticketType?.price ?? 0), quantity: Math.max(0, Number(component.quantity || 0)) };
+      }).filter((component) => component.ticketTypeId && component.quantity > 0);
+      const packageKind = item.packageKind === "courtesy" || packageItem?.packageKind === "courtesy" ? "courtesy" : "package";
+      const packageName = item.packageName || packageItem?.name || String(item.ticketTypeName || (packageKind === "courtesy" ? "Cortesia" : "Pacote")).replace(/^(?:Pacote|Cortesia):\s*/i, "");
+      const unitPrice = Number(item.unitPrice ?? packageItem?.price ?? 0);
+      return { kind: "package", packageKind, packageId: item.packageId || packageItem?.id || "", packageName, ticketTypeId: `package:${item.packageId || packageItem?.id || ""}`, ticketTypeName: `${packageKind === "courtesy" ? "Cortesia" : "Pacote"}: ${packageName}`, unitPrice, quantity, subtotal: Number(item.subtotal ?? unitPrice * quantity), components };
+    }
+    const ticketType = ticketTypesFor(event).find((type) => type.id === item.ticketTypeId || type.name === item.ticketTypeName);
+    const unitPrice = Number(item.unitPrice ?? ticketType?.price ?? 0);
+    return { kind: "ticket", ticketTypeId: item.ticketTypeId || ticketType?.id || "", ticketTypeName: item.ticketTypeName || ticketType?.name || "Ingresso padrão", unitPrice, quantity, subtotal: Number(item.subtotal ?? unitPrice * quantity) };
+  }).filter((item) => item.quantity > 0);
+  const quantity = Math.max(0, Number(sale?.quantity || 0));
+  if (!quantity) return [];
+  const ticketType = ticketTypesFor(event).find((type) => type.id === sale?.ticketTypeId || type.name === sale?.ticketTypeName);
+  const unitPrice = Number(ticketType?.price ?? (Number(sale?.total || 0) / quantity) ?? 0);
+  return [{ kind: "ticket", ticketTypeId: sale?.ticketTypeId || ticketType?.id || "", ticketTypeName: sale?.ticketTypeName || ticketType?.name || "Ingresso padrão", unitPrice, quantity, subtotal: Number(sale?.total ?? unitPrice * quantity) }];
+}
+function saleStockItems(sale, event) {
+  const stock = new Map();
+  saleItems(sale, event).forEach((item) => {
+    const components = item.kind === "package" ? item.components.map((component) => ({ ...component, quantity: Number(component.quantity || 0) * Number(item.quantity || 0) })) : [{ ticketTypeId: item.ticketTypeId, ticketTypeName: item.ticketTypeName, unitPrice: item.unitPrice, quantity: item.quantity }];
+    components.forEach((component) => { const key = component.ticketTypeId || component.ticketTypeName; const current = stock.get(key) || { ...component, quantity: 0 }; current.quantity += Number(component.quantity || 0); stock.set(key, current); });
+  });
+  return [...stock.values()];
+}
+function saleQuantity(sale, event) { return saleStockItems(sale, event).reduce((sum, item) => sum + Number(item.quantity || 0), 0); }
+function saleSubtotal(sale, event) { return saleItems(sale, event).reduce((sum, item) => sum + Number(item.subtotal || 0), 0); }
+function saleTotal(sale, event) { const subtotal = saleSubtotal(sale, event); return sale?.buyerFeeAmount === undefined ? subtotal : Math.round((subtotal + Number(sale.buyerFeeAmount || 0)) * 100) / 100; }
+function normalizeBuyerFeeMode(value) { return ["percent", "fixed"].includes(value) ? value : "none"; }
+function buyerFeeSettings(event, channel = "manual") {
+  const prefix = channel === "online" ? "online" : "manual";
+  return { mode: normalizeBuyerFeeMode(event?.[`${prefix}BuyerFeeMode`]), value: Math.max(0, Number(event?.[`${prefix}BuyerFeeValue`] || 0)) };
+}
+function calculateBuyerFee(subtotal, settings) { const amount = settings.mode === "percent" ? Number(subtotal || 0) * settings.value / 100 : settings.mode === "fixed" ? settings.value : 0; return Math.round(Math.max(0, amount) * 100) / 100; }
+function manualBuyerFeeFor(event, subtotal, apply, current = null) {
+  if (!apply) return { applyBuyerFee:false, buyerFeeMode:"none", buyerFeeValue:0, buyerFeeAmount:0, subtotal:Math.round(Number(subtotal || 0) * 100) / 100 };
+  const settings = current?.applyBuyerFee && current?.buyerFeeMode ? { mode:normalizeBuyerFeeMode(current.buyerFeeMode), value:Math.max(0, Number(current.buyerFeeValue || 0)) } : buyerFeeSettings(event, "manual");
+  return { applyBuyerFee:settings.mode !== "none", buyerFeeMode:settings.mode, buyerFeeValue:settings.value, buyerFeeAmount:calculateBuyerFee(subtotal, settings), subtotal:Math.round(Number(subtotal || 0) * 100) / 100 };
+}
+function storedQrTickets(sale) {
+  const source = Array.isArray(sale?.qrTickets) ? sale.qrTickets : Object.keys(sale?.qrTickets || {}).sort((a, b) => Number(a) - Number(b)).map((key) => sale.qrTickets[key]);
+  return source.filter(Boolean);
+}
+function qrTicketBlueprints(sale, event) {
+  if (isTableReservation(sale)) {
+    const occupants = reservationOccupants(sale);
+    const fallbackValue = occupants.length ? saleTotal(sale, event) / occupants.length : 0;
+    return occupants.map((name, index) => ({ sourceKey: `table:${index}`, participantName: name, ticketTypeId: "table-chair", ticketTypeName: `${sale.reservationLabel || "Mesa/bistrô"} - cadeira ${index + 1}`, occupantIndex: index, value: Number(sale.occupantPricing?.[index]?.finalPrice ?? fallbackValue) }));
+  }
+  const blueprints = [];
+  const stockItems = saleStockItems(sale, event);
+  const regularTotal = stockItems.reduce((sum, item) => sum + Number(item.unitPrice || 0) * Number(item.quantity || 0), 0);
+  const participantNames = Array.isArray(sale.participantNames) ? sale.participantNames : Object.keys(sale.participantNames || {}).sort((a, b) => Number(a) - Number(b)).map((key) => sale.participantNames[key]);
+  let participantIndex = 0;
+  stockItems.forEach((item) => {
+    const value = regularTotal ? saleTotal(sale, event) * Number(item.unitPrice || 0) / regularTotal : 0;
+    for (let index = 0; index < Number(item.quantity || 0); index += 1) {
+      const participantName = participantNames[participantIndex] || (participantIndex ? guestDefaultName(sale.buyerName, participantIndex + 1) : sale.buyerName) || "Participante";
+      blueprints.push({ sourceKey: `ticket:${item.ticketTypeId || item.ticketTypeName}:${index}`, participantName, ticketTypeId: item.ticketTypeId || "ticket", ticketTypeName: item.ticketTypeName || "Ingresso", occupantIndex: null, value });
+      participantIndex += 1;
+    }
+  });
+  return blueprints;
+}
+function qrToken() { return crypto.randomUUID().replaceAll("-", ""); }
+function qrValidationUrl(token) {
+  const base = location.protocol === "file:" ? "https://le-beef.github.io/vendas/" : `${location.origin}${location.pathname}`;
+  return `${base}#validar=${encodeURIComponent(token)}`;
+}
+function qrTicketsFor(sale, event) {
+  const stored = storedQrTickets(sale);
+  const blueprints = qrTicketBlueprints(sale, event);
+  return blueprints.map((blueprint, index) => {
+    const item = stored.find((ticket) => ticket.sourceKey === blueprint.sourceKey) || stored[index] || {};
+    const legacyChecked = isTableReservation(sale) ? reservationOccupantCheckins(sale)[blueprint.occupantIndex] : Boolean(sale.checkedIn);
+    return { ...blueprint, token: item.token || "", checkedIn: item.checkedIn === undefined ? legacyChecked : Boolean(item.checkedIn), checkedInAt: item.checkedInAt || null, generatedAt:item.generatedAt || null, generatedByUid:item.generatedByUid || "", generatedByName:item.generatedByName || "", generatedByEmail:item.generatedByEmail || "" };
+  });
+}
+function saleCheckinCount(sale, event) { const tickets = qrTicketsFor(sale, event); return tickets.length ? tickets.filter((ticket) => ticket.checkedIn).length : sale.checkedIn ? saleQuantity(sale, event) : 0; }
+function saleFullyCheckedIn(sale, event) { const quantity = saleQuantity(sale, event); return quantity > 0 && saleCheckinCount(sale, event) >= quantity; }
+function eventTicketDesign(event, paperWidth) {
+  const legacy = event?.ticketDesign;
+  const width = normalizeThermalPaperWidth(paperWidth ?? legacy?.paperWidth);
+  const savedForWidth = event?.ticketDesigns?.[String(width)];
+  const source = savedForWidth || (Number(legacy?.paperWidth) === width ? legacy : { ...DEFAULT_TICKET_DESIGN, paperWidth:width });
+  return normalizeTicketDesign({ ...source, paperWidth:width });
+}
+function normalizePdfTicketDesign(value = {}) {
+  const pdfLayout = PDF_TICKET_LAYOUTS.includes(value.pdfLayout) ? value.pdfLayout : "default";
+  const pdfLogoDataUrl = normalizeTicketDesign({ logoDataUrl:value.pdfLogoDataUrl || "" }).logoDataUrl;
+  const bounded = (input, fallback, min, max) => Math.min(max, Math.max(min, Number(input) || fallback));
+  return {
+    pdfLayout, pdfLogoDataUrl,
+    pdfLogoSize:bounded(value.pdfLogoSize, 16.2, 8, 20),
+    pdfTitleSize:bounded(value.pdfTitleSize, 8.5, 7, 12),
+    pdfEventSize:bounded(value.pdfEventSize, 17, 12, 20),
+    pdfTextSize:bounded(value.pdfTextSize, 8, 6, 9),
+    pdfDataSize:bounded(value.pdfDataSize, 14, 10, 16)
+  };
+}
+function eventPdfTicketDesign(event) { return normalizePdfTicketDesign(event?.pdfTicketDesign); }
+function pdfTicketDesignFromConfigForm() {
+  const form = $("ticketConfigForm");
+  return normalizePdfTicketDesign({
+    pdfLayout:form.elements.pdfLayout.value,
+    pdfLogoDataUrl:form.dataset.pdfLogoData || "",
+    pdfLogoSize:form.elements.pdfLogoSize.value,
+    pdfTitleSize:form.elements.pdfTitleSize.value,
+    pdfEventSize:form.elements.pdfEventSize.value,
+    pdfTextSize:form.elements.pdfTextSize.value,
+    pdfDataSize:form.elements.pdfDataSize.value
+  });
+}
+function applyPdfTicketDesignToConfigForm(designValue) {
+  const form = $("ticketConfigForm");
+  const design = normalizePdfTicketDesign(designValue);
+  form.dataset.pdfLogoData = design.pdfLogoDataUrl;
+  form.elements.pdfLayout.value = design.pdfLayout;
+  ["pdfLogoSize", "pdfTitleSize", "pdfEventSize", "pdfTextSize", "pdfDataSize"].forEach((name) => { form.elements[name].value = design[name]; });
+  updatePdfTicketConfigPreview(design);
+}
+function ticketDesignFromConfigForm(paperWidth) {
+  const form = $("ticketConfigForm");
+  const width = normalizeThermalPaperWidth(paperWidth ?? form.elements.paperWidth.value);
+  return normalizeTicketDesign({
+    title: form.elements.title.value, footer: form.elements.footer.value,
+    primaryColor: form.elements.primaryColor.value, accentColor: form.elements.accentColor.value,
+    logoDataUrl: form.dataset.logoData || "", paperWidth:width, ticketHeight: form.elements.ticketHeight.value,
+    logoSize: form.elements.logoSize.value, titleSize: form.elements.titleSize.value,
+    textSize: form.elements.textSize.value, dataSize: form.elements.dataSize.value,
+    spacing: form.elements.spacing.value, qrSize: form.elements.qrSize.value, qrSpacing: form.elements.qrSpacing.value, margin: form.elements.margin.value,
+    showEstablishment: form.elements.showEstablishment.checked, showEventMeta: form.elements.showEventMeta.checked,
+    showPayment: form.elements.showPayment.checked, showFooter: form.elements.showFooter.checked
+  });
+}
+function applyTicketDesignToConfigForm(designValue) {
+  const form = $("ticketConfigForm");
+  const design = normalizeTicketDesign(designValue);
+  form.dataset.paperWidth = String(design.paperWidth);
+  form.dataset.logoData = design.logoDataUrl;
+  ["title", "footer", "primaryColor", "accentColor", "paperWidth", "ticketHeight", "logoSize", "titleSize", "textSize", "dataSize", "spacing", "qrSize", "qrSpacing", "margin"].forEach((name) => { form.elements[name].value = design[name]; });
+  ["showEstablishment", "showEventMeta", "showPayment", "showFooter"].forEach((name) => { form.elements[name].checked = design[name]; });
+  renderTicketConfigPreview();
+}
+function setTicketConfigLocked(locked = true) {
+  const form = $("ticketConfigForm");
+  const button = $("ticketConfigLock");
+  form.dataset.locked = String(locked);
+  form.classList.toggle("is-locked", locked);
+  form.querySelectorAll("input,button,select").forEach((control) => { control.disabled = locked; });
+  form.elements.paperWidth.disabled = false;
+  button.disabled = !hasRole("admin");
+  button.setAttribute("aria-pressed", String(!locked));
+  button.setAttribute("aria-label", locked ? "Destrancar edição" : "Trancar edição");
+  button.querySelector("[data-lock-icon]").textContent = locked ? "🔒" : "🔓";
+  button.querySelector("[data-lock-label]").textContent = locked ? "Edição bloqueada" : "Edição liberada";
+}
+function switchTicketPaperConfig(nextWidth) {
+  const form = $("ticketConfigForm");
+  const previousWidth = normalizeThermalPaperWidth(form.dataset.paperWidth);
+  form.ticketDesignDrafts ||= {};
+  form.ticketDesignDrafts[String(previousWidth)] = ticketDesignFromConfigForm(previousWidth);
+  const width = normalizeThermalPaperWidth(nextWidth);
+  applyTicketDesignToConfigForm(form.ticketDesignDrafts[String(width)] || { ...DEFAULT_TICKET_DESIGN, paperWidth:width });
+  setTicketConfigLocked(form.dataset.locked !== "false");
+}
+function updateTicketConfigOutputs(design) {
+  const units = { ticketHeight: "mm", logoSize: "mm", titleSize: "pt", textSize: "pt", dataSize: "pt", spacing: "mm", qrSize: "mm", qrSpacing: "mm", margin: "mm" };
+  Object.entries(units).forEach(([name, unit]) => { const output = document.querySelector(`[data-ticket-output="${name}"]`); if (output) output.textContent = `${design[name]} ${unit}`; });
+  const image = $("ticketLogoPreview");
+  image.hidden = !design.logoDataUrl;
+  image.src = design.logoDataUrl || "";
+  $("ticketLogoPlaceholder").hidden = Boolean(design.logoDataUrl);
+  $("removeTicketLogo").disabled = !design.logoDataUrl;
+}
+function updatePdfTicketConfigPreview(designValue = pdfTicketDesignFromConfigForm()) {
+  const design = normalizePdfTicketDesign(designValue);
+  const image = $("pdfTicketLogoPreview");
+  image.hidden = !design.pdfLogoDataUrl;
+  image.src = design.pdfLogoDataUrl || "";
+  $("pdfTicketLogoPlaceholder").hidden = Boolean(design.pdfLogoDataUrl);
+  $("removePdfTicketLogo").disabled = !design.pdfLogoDataUrl;
+  const units = { pdfLogoSize:"mm", pdfTitleSize:"pt", pdfEventSize:"pt", pdfTextSize:"pt", pdfDataSize:"pt" };
+  Object.entries(units).forEach(([name, unit]) => {
+    const output = document.querySelector(`[data-pdf-ticket-output="${name}"]`);
+    if (output) output.textContent = `${design[name]} ${unit}`;
+  });
+  schedulePdfTicketConfigPreview(design);
+}
+let ticketPreviewQrPromise;
+let ticketPreviewRevision = 0;
+let pdfTicketPreviewRevision = 0;
+let pdfTicketPreviewTimer;
+function schedulePdfTicketConfigPreview(design) {
+  clearTimeout(pdfTicketPreviewTimer);
+  pdfTicketPreviewTimer = setTimeout(() => renderPdfTicketConfigPreview(design), 120);
+}
+function buildPdfTicketPreviewHtml({ design, event, type, qrCode }) {
+  const layout = PDF_TICKET_LAYOUTS.includes(design.pdfLayout) ? design.pdfLayout : "default";
+  const logo = design.pdfLogoDataUrl ? `<img src="${escapeHtml(design.pdfLogoDataUrl)}" alt="Logo do PDF">` : "";
+  const eventName = escapeHtml(event.name || "Nome do evento");
+  const eventMeta = escapeHtml(event.date ? `${eventDateTimeText(event)} | ${event.place || "Le Beef"}` : "30/09/2026 às 20:00 | Le Beef");
+  const title = escapeHtml($("ticketConfigForm").elements.title.value || "INGRESSO DIGITAL");
+  const footer = escapeHtml($("ticketConfigForm").elements.footer.value || "Apresente este QR Code na entrada.");
+  return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>
+    *{box-sizing:border-box}html,body{width:100%;height:100%;margin:0;overflow:hidden;background:#f4f7fb;font-family:Arial,Helvetica,sans-serif;color:${design.primaryColor}}
+    .ticket{--primary:${design.primaryColor};--accent:${design.accentColor};position:relative;width:100%;height:100%;overflow:hidden;background:var(--primary);container-type:inline-size}
+    .ticket.default,.ticket.double{border-radius:5cqw}.ticket.notched{border:1.4cqw solid var(--primary);border-radius:5cqw;background:#fff}.ticket.dashed{clip-path:polygon(4% 0,96% 0,100% 2.3%,100% 97.7%,96% 100%,4% 100%,0 97.7%,0 2.3%)}
+    .head{position:absolute;z-index:1;top:3.2%;right:5.5%;left:5.5%;height:23%;display:flex;align-items:center;flex-direction:column;justify-content:flex-start;padding:1.5% 3%;text-align:center;color:#fff;background:var(--accent)}
+    .double .head{border-radius:4cqw 4cqw 0 0}.notched .head{top:2%;right:2%;left:2%;height:27%;color:var(--primary);background:#fff}.dashed .head{right:5%;left:5%;height:18%;background:var(--primary)}
+    .head img{display:block;width:auto;max-width:78%;height:auto;max-height:${design.pdfLogoSize * 3.4}px;margin:0 auto 1%;object-fit:contain}.digital{font-size:${design.pdfTitleSize * 1.32}px;line-height:1.05}.head h1{width:100%;margin:2% 0 0;font-size:${design.pdfEventSize * 1.3}px;line-height:1.05;text-transform:uppercase}
+    .notched .head h1{margin-top:auto;padding:4% 2%;color:#fff;background:var(--accent)}.notched .head h1::after{display:block;position:absolute;right:0;bottom:-1px;left:0;border-bottom:2px dashed var(--primary);content:""}.dashed .head h1{position:absolute;top:100%;margin:0;padding:4% 2%;color:var(--primary);background:#fff;border-top:3px solid var(--accent)}
+    .body{position:absolute;right:7%;bottom:4.5%;left:7%;top:27%;display:flex;align-items:center;flex-direction:column;padding:7% 5% 3%;text-align:center;background:#fff;border-radius:4cqw}.default .body{top:27%;bottom:8%}.double .body{border:1px solid #d9e1ea}.notched .body{top:30%;right:2%;bottom:2%;left:2%;border-radius:0}.dashed .body{top:27%;right:5%;bottom:2%;left:5%;border-radius:0;clip-path:polygon(3% 0,97% 0,100% 2%,100% 98%,97% 100%,3% 100%,0 98%,0 2%)}
+    .notched::before,.notched::after{position:absolute;z-index:3;top:27%;width:6cqw;height:6cqw;border-radius:50%;background:#f4f7fb;content:""}.notched::before{left:-3cqw}.notched::after{right:-3cqw}
+    .label{display:block;font-size:${design.pdfTextSize * 1.22}px;font-weight:700;text-transform:uppercase}.participant{margin:1.5% 0 6%;font-size:${design.pdfDataSize * 1.3}px}.rule{width:88%;margin:0 0 5%;border-top:1px solid #d9e1ea}.type{margin:1.5% 0 2%;font-size:${Math.max(10, design.pdfDataSize * .95)}px}.meta{font-size:${Math.max(9, design.pdfTextSize * 1.12)}px;color:#526173}.values{width:88%;display:grid;grid-template-columns:1fr 1fr;gap:3%;margin:5% 0 3%;padding-top:4%;border-top:1px solid #d9e1ea}.values strong{display:block;margin-top:2%;font-size:${Math.max(11, design.pdfDataSize * 1.05)}px}.values small{font-size:${Math.max(8, design.pdfTextSize)}px}.qr{width:48%;aspect-ratio:1;margin:auto 0 1%;padding:2.5%;border:1px solid #d9e1ea;border-radius:3cqw;object-fit:contain}.dashed .qr{border:3px solid var(--accent)}.code{font:700 ${Math.max(10, design.pdfTextSize * 1.05)}px "Courier New",monospace}.message{margin:1% 0 2%;font-size:${Math.max(8, design.pdfTextSize)}px;color:#526173}.origin{width:88%;margin-top:auto;padding-top:2%;border-top:1px solid #d9e1ea;font-size:7px;line-height:1.3}
+  </style></head><body><article class="ticket ${layout}"><header class="head">${logo}<strong class="digital">${title}</strong><h1>${eventName}</h1></header><main class="body"><span class="label">Participante</span><strong class="participant">Alanda Silva</strong><div class="rule"></div><span class="label">Ingresso individual</span><strong class="type">${escapeHtml(type.name || "Ingresso")}</strong><span class="meta">${eventMeta}</span><div class="values"><div><span class="label">Valor</span><strong>${escapeHtml(money.format(Number(type.price || 29.9)))}</strong></div><div><span class="label">Pagamento</span><strong>PAGO</strong><small>Pix</small></div></div><img class="qr" src="${qrCode}" alt="QR Code"><strong class="code">2C4E26E9</strong><p class="message">${footer}</p><div class="origin">Gerado por: Administrador | 14/09/2026 às 12:04<br>LE BEEF | Ingresso 1/1</div></main></article></body></html>`;
+}
+async function renderPdfTicketConfigPreview(designValue = pdfTicketDesignFromConfigForm()) {
+  const form = $("ticketConfigForm");
+  const frame = $("pdfTicketPreviewFrame");
+  if (!form?.dataset.eventId || !frame) return;
+  const revision = ++pdfTicketPreviewRevision;
+  try {
+    const design = normalizePdfTicketDesign(designValue);
+    ticketPreviewQrPromise ||= createQrDataUrl(qrValidationUrl("PREVIEW-LE-BEEF-2026"), { width:480 });
+    const qrCode = await ticketPreviewQrPromise;
+    const event = state.events.find((item) => item.id === form.dataset.eventId) || {};
+    const type = ticketTypesFor(event)[0] || { name:"Ingresso", price:29.9 };
+    if (revision !== pdfTicketPreviewRevision) return;
+    frame.srcdoc = buildPdfTicketPreviewHtml({ design:{ ...ticketDesignFromConfigForm(), ...design }, event, type, qrCode });
+  } catch (error) {
+    console.error("Não foi possível atualizar a pré-visualização do PDF.", error);
+  }
+}
+async function renderTicketConfigPreview() {
+  const form = $("ticketConfigForm");
+  if (!form?.dataset.eventId) return;
+  const revision = ++ticketPreviewRevision;
+  const design = ticketDesignFromConfigForm();
+  updateTicketConfigOutputs(design);
+  ticketPreviewQrPromise ||= createQrDataUrl(qrValidationUrl("PREVIEW-LE-BEEF-2026"), { width: 480 });
+  const qrCode = await ticketPreviewQrPromise;
+  if (revision !== ticketPreviewRevision) return;
+  const event = state.events.find((item) => item.id === form.dataset.eventId) || {};
+  const type = ticketTypesFor(event)[0] || { name: "Ingresso", price: 29.9 };
+  const ticket = { admissionType: "Ingresso individual", participantName: "Alanda Silva", ticketTypeName: type.name, reservationLabel: "", ticketValue: money.format(Number(type.price || 29.9)), paymentStatus: "Pago", paymentDetail: "Pix em 14/09/2026", shortCode: "2C4E26E9", generatedByName:"Administrador", generatedAtText:"14/09/2026 às 12:04" };
+  const documentHtml = buildThermalPrintHtml({ event: { ...event, name: event.name || "Nome do evento", dateText:event.date ? eventDateTimeText(event) : "30/09/2026 às 20:00", place: event.place || "Le Beef" }, sale: { buyerName: ticket.participantName }, tickets: [ticket], qrCodes: [qrCode], paperWidth: design.paperWidth, ticketDesign: design });
+  const frame = $("ticketPreviewFrame");
+  frame.style.width = `${Math.round(design.paperWidth * 3.7795)}px`;
+  frame.style.height = `${Math.round(ticketHeightForDesign(design) * 3.7795)}px`;
+  frame.srcdoc = documentHtml;
+}
+function populateTicketConfigPage(event) {
+  const form = $("ticketConfigForm");
+  if (!form || !event) return;
+  const preferredWidth = normalizeThermalPaperWidth(event?.ticketDesign?.paperWidth);
+  form.dataset.eventId = event.id;
+  form.ticketDesignDrafts = Object.fromEntries(THERMAL_PAPER_WIDTHS.map((width) => [String(width), eventTicketDesign(event, width)]));
+  applyTicketDesignToConfigForm(form.ticketDesignDrafts[String(preferredWidth)]);
+  applyPdfTicketDesignToConfigForm(eventPdfTicketDesign(event));
+  setTicketConfigLocked(true);
+}
+function resizeTicketLogo(file) {
+  if (!file || !["image/png", "image/jpeg"].includes(file.type)) throw new Error("Selecione uma imagem PNG ou JPG.");
+  if (file.size > 5 * 1024 * 1024) throw new Error("A imagem deve ter no máximo 5 MB.");
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    const url = URL.createObjectURL(file);
+    image.onload = () => {
+      const scale = Math.min(1, 600 / image.naturalWidth, 240 / image.naturalHeight);
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.max(1, Math.round(image.naturalWidth * scale)); canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
+      canvas.getContext("2d").drawImage(image, 0, 0, canvas.width, canvas.height);
+      URL.revokeObjectURL(url);
+      resolve(canvas.toDataURL(file.type === "image/png" ? "image/png" : "image/jpeg", 0.86));
+    };
+    image.onerror = () => { URL.revokeObjectURL(url); reject(new Error("Não foi possível abrir essa imagem.")); };
+    image.src = url;
+  });
+}
+async function saveTicketDesignConfig() {
+  if (!hasRole("admin")) return toast("Somente administradores podem alterar o ingresso.");
+  const event = state.events.find((item) => item.id === selectedEventId);
+  if (!event) return toast("Selecione um evento.");
+  const design = ticketDesignFromConfigForm();
+  const pdfDesign = pdfTicketDesignFromConfigForm();
+  const widthKey = String(design.paperWidth);
+  try {
+    if (isDemo) { event.ticketDesign = design; event.ticketDesigns = { ...(event.ticketDesigns || {}), [widthKey]:design }; event.pdfTicketDesign = pdfDesign; persistDemo(); }
+    else {
+      await update(ref(db, `events/${event.id}`), { ticketDesign:design, [`ticketDesigns/${widthKey}`]:design, pdfTicketDesign:pdfDesign, updatedAt:Date.now() });
+      const [savedDesign, savedPdfDesign] = await Promise.all([get(ref(db, `events/${event.id}/ticketDesigns/${widthKey}`)), get(ref(db, `events/${event.id}/pdfTicketDesign`))]);
+      if (!savedDesign.exists() || !savedPdfDesign.exists()) throw new Error("A configuração não foi encontrada após salvar.");
+      const confirmedDesign = normalizeTicketDesign({ ...savedDesign.val(), paperWidth:design.paperWidth });
+      event.ticketDesign = confirmedDesign;
+      event.ticketDesigns = { ...(event.ticketDesigns || {}), [widthKey]:confirmedDesign };
+      event.pdfTicketDesign = normalizePdfTicketDesign(savedPdfDesign.val());
+    }
+    $("ticketConfigForm").ticketDesignDrafts[widthKey] = eventTicketDesign(event, design.paperWidth);
+    setTicketConfigLocked(true);
+    render();
+    toast(`Configurações do ingresso de ${design.paperWidth} mm e do PDF salvas neste evento.`);
+  } catch (error) { console.error(error); toast(error.message || "Não foi possível salvar a configuração."); }
+}
+function saleTypeQuantity(sale, ticketType, event) { return saleStockItems(sale, event).filter((item) => item.ticketTypeId === ticketType.id || item.ticketTypeName === ticketType.name).reduce((sum, item) => sum + Number(item.quantity || 0), 0); }
+function saleTypeCheckinQuantity(sale, ticketType, event) {
+  const tickets = qrTicketsFor(sale, event);
+  if (tickets.some((ticket) => ticket.token)) return tickets.filter((ticket) => ticket.checkedIn && (ticket.ticketTypeId === ticketType.id || ticket.ticketTypeName === ticketType.name)).length;
+  return sale.checkedIn ? saleTypeQuantity(sale, ticketType, event) : 0;
+}
+function saleTypeTotal(sale, ticketType, event) {
+  return saleItems(sale, event).reduce((sum, item) => {
+    if (item.kind !== "package") return sum + ((item.ticketTypeId === ticketType.id || item.ticketTypeName === ticketType.name) ? Number(item.subtotal || 0) : 0);
+    const regularTotal = item.components.reduce((componentSum, component) => componentSum + Number(component.unitPrice || 0) * Number(component.quantity || 0), 0);
+    if (!regularTotal) return sum;
+    const matchingRegular = item.components.filter((component) => component.ticketTypeId === ticketType.id || component.ticketTypeName === ticketType.name).reduce((componentSum, component) => componentSum + Number(component.unitPrice || 0) * Number(component.quantity || 0), 0);
+    return sum + Number(item.subtotal || 0) * (matchingRegular / regularTotal);
+  }, 0);
+}
+function saleTicketSummary(sale, event) { return saleItems(sale, event).map((item) => item.kind === "package" ? `${item.quantity}× ${item.packageKind === "courtesy" ? "Cortesia" : "Pacote"} ${item.packageName} (${item.components.map((component) => `${component.quantity}× ${component.ticketTypeName}`).join(" + ")})` : `${item.quantity}× ${item.ticketTypeName}`).join(" + ") || "Ingresso padrão"; }
+function saleTicketBreakdownHtml(sale, event) { return `<span class="sale-ticket-breakdown">${saleItems(sale, event).map((item) => item.kind === "package" ? `<span><b>${item.quantity}×</b><span class="package-item-name ${item.packageKind === "courtesy" ? "courtesy-item-name" : ""}">${item.packageKind === "courtesy" ? "Cortesia" : "Pacote"} ${escapeHtml(item.packageName)}</span><em>${money.format(item.subtotal)}</em></span><small class="package-composition">${escapeHtml(item.components.map((component) => `${component.quantity}× ${component.ticketTypeName}`).join(" + "))}</small>` : `<span><b>${item.quantity}×</b><span>${escapeHtml(item.ticketTypeName)}</span><em>${money.format(item.subtotal)}</em></span>`).join("")}</span>`; }
+function saleIsCourtesy(sale, event) { const items = saleItems(sale, event); return Boolean(items.length && items.every((item) => item.kind === "package" && item.packageKind === "courtesy") && saleTotal(sale, event) === 0); }
+function soldForTicket(eventId, ticketType, excludedSaleId = "") {
+  const event = state.events.find((item) => item.id === eventId);
+  return state.sales.filter((sale) => sale.eventId === eventId && sale.id !== excludedSaleId).reduce((sum, sale) => sum + saleTypeQuantity(sale, ticketType, event), 0);
+}
+function priceLabel(event) { const prices = ticketTypesFor(event).map((item) => Number(item.price)); return prices.length > 1 ? `a partir de ${money.format(Math.min(...prices))}` : money.format(prices[0]); }
+function persistDemo() { localStorage.setItem("ingressa-events", JSON.stringify(state.events)); localStorage.setItem("ingressa-sales", JSON.stringify(state.sales)); localStorage.setItem("ingressa-platform-settlements", JSON.stringify(state.platformSettlements)); localStorage.setItem("ingressa-audit-logs", JSON.stringify(state.auditLogs)); }
+function dateText(value) { return new Date(`${value}T12:00:00`).toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" }); }
+function eventTimeText(event) { return /^\d{2}:\d{2}/.test(String(event?.time || "")) ? String(event.time).slice(0, 5) : ""; }
+function eventDateTimeText(event) { const date = event?.date ? dateText(event.date) : "Data não informada"; const time = eventTimeText(event); return time ? `${date} às ${time}` : date; }
+function escapeHtml(value) { const node = document.createElement("span"); node.textContent = value || ""; return node.innerHTML; }
+function auditTimestampText(value) {
+  const timestamp = Number(value);
+  if (!Number.isFinite(timestamp)) return "Data em processamento";
+  return new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(new Date(timestamp));
+}
+function auditActor() {
+  return {
+    actorUid: currentUser?.uid || "unknown",
+    actorName: currentUserProfile?.name || currentUser?.email || "Usuário",
+    actorEmail: currentUser?.email || currentUserProfile?.email || "",
+    actorRole: currentUserProfile?.role || "unknown"
+  };
+}
+function auditLogData(action, sale, details, timestamp = isDemo ? Date.now() : serverTimestamp()) {
+  const event = state.events.find((item) => item.id === sale.eventId);
+  return {
+    eventId: sale.eventId,
+    eventName: event?.name || "Evento",
+    saleId: sale.id,
+    participantName: sale.buyerName || "Participante",
+    ticketTypeName: saleTicketSummary(sale, event).slice(0, 160),
+    quantity: saleQuantity(sale, event),
+    action,
+    details: String(details || "Alteração registrada.").slice(0, 500),
+    timestamp,
+    ...auditActor()
+  };
+}
+function appendDemoAudit(action, sale, details) {
+  state.auditLogs.push({ id: crypto.randomUUID(), ...auditLogData(action, sale, details) });
+}
+function auditChangeSummary(previous, next) {
+  const fields = [
+    ["buyerName", "nome"], ["buyerPhone", "telefone"], ["buyerEmail", "e-mail"],
+    ["items", "ingressos e quantidades"], ["participantNames", "nomes dos convidados"],
+    ["paid", "situação do pagamento"], ["paymentMethod", "forma de pagamento"], ["paymentDate", "data do pagamento"], ["notes", "observação"]
+  ];
+  const changed = fields.filter(([key]) => key === "items" ? JSON.stringify(saleItems(previous)) !== JSON.stringify(saleItems(next)) : String(previous?.[key] ?? "") !== String(next?.[key] ?? "")).map(([, label]) => label);
+  return changed.length ? `Atualizou: ${changed.join(", ")}.` : "Salvou a venda sem alterações nos dados.";
+}
+function renderAuditHistory() {
+  const list = $("auditLogList");
+  if (!list) return;
+  const event = state.events.find((item) => item.id === selectedEventId);
+  const logs = state.auditLogs.filter((item) => item.eventId === selectedEventId).sort((a, b) => Number(b.timestamp || 0) - Number(a.timestamp || 0));
+  $("auditLogTitle").textContent = event ? `Histórico — ${event.name}` : "Histórico de alterações";
+  $("auditLogCount").textContent = `${logs.length} ${logs.length === 1 ? "registro" : "registros"}`;
+  const actionLabels = { created: "Venda criada", edited: "Venda editada", deleted: "Venda excluída", payment: "Pagamento alterado", checkin: "Entrada alterada" };
+  const auditActionLabel = (log) => /^Gerou \d+ ingresso/i.test(log.details || "") ? "Ingresso gerado" : /^Excluiu \d+ ingresso/i.test(log.details || "") ? "Ingresso excluído" : actionLabels[log.action] || "Alteração";
+  list.innerHTML = logs.length ? logs.map((log) => `<article class="audit-entry audit-${escapeHtml(log.action)}"><div class="audit-entry-marker" aria-hidden="true"></div><div class="audit-entry-content"><div class="audit-entry-heading"><span class="audit-action">${escapeHtml(auditActionLabel(log))}</span><time>${escapeHtml(auditTimestampText(log.timestamp))}</time></div><strong>${escapeHtml(log.participantName || "Participante")}</strong><p>${escapeHtml(log.details || "Alteração registrada.")}</p><div class="audit-entry-meta"><span>Por <b>${escapeHtml(log.actorName || log.actorEmail || "Usuário")}</b></span><span>${escapeHtml(roleLabel(log.actorRole))}</span></div></div></article>`).join("") : `<div class="audit-empty"><span aria-hidden="true">◷</span><strong>Nenhuma alteração registrada</strong><p>As próximas ações realizadas nas vendas deste evento aparecerão aqui.</p></div>`;
+}
+function openAuditHistory(eventId) {
+  if (!requireRole(["admin", "event_manager"], "O histórico é exclusivo para administradores e gerentes do evento.")) return;
+  if (!canAdministerEvent(eventId)) return toast("Você não administra este evento.");
+  rememberSelectedEvent(eventId);
+  renderAuditHistory();
+  location.hash = "historico";
+}
+function normalizedSearch(value) { return String(value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("pt-BR").replace(/\s+/g, " ").trim(); }
+function matchesParticipantSearch(sale) {
+  const query = participantSearchQuery.trim();
+  if (!query) return true;
+  const textMatch = normalizedSearch(sale.buyerName).includes(normalizedSearch(query));
+  const queryDigits = query.replace(/\D/g, "");
+  const phoneMatch = queryDigits && String(sale.buyerPhone || "").replace(/\D/g, "").includes(queryDigits);
+  return textMatch || Boolean(phoneMatch);
+}
+function matchesTableReservationSearch(sale) {
+  const query = tableReservationSearchQuery.trim();
+  if (!query) return true;
+  const occupants = Array.isArray(sale.occupants) ? sale.occupants : Object.values(sale.occupants || {});
+  const text = [sale.reservationLabel, sale.buyerName, ...occupants].map(normalizedSearch).join(" ");
+  const queryDigits = query.replace(/\D/g, "");
+  return text.includes(normalizedSearch(query)) || Boolean(queryDigits && String(sale.buyerPhone || "").replace(/\D/g, "").includes(queryDigits));
+}
+function matchesTableReservationFilters(sale) {
+  const matchesArea = tableReservationAreaFilter === "all" || sale.reservationArea === tableReservationAreaFilter;
+  const matchesPayment = tableReservationPaymentFilter === "all" || (tableReservationPaymentFilter === "paid" ? sale.paid : !sale.paid);
+  return matchesArea && matchesPayment && matchesTableReservationSearch(sale);
+}
+function resetTableReservationFilters() {
+  tableReservationSearchQuery = "";
+  tableReservationAreaFilter = "all";
+  tableReservationPaymentFilter = "all";
+}
+function resetParticipantFilters() {
+  selectedTicketTypeFilter = "all";
+  selectedPaymentFilter = "all";
+  selectedEntryFilter = "all";
+  participantSearchQuery = "";
+}
+function whatsappNumber(phone) {
+  const digits = String(phone || "").replace(/\D/g, "");
+  if (!digits) return "";
+  return digits.length === 10 || digits.length === 11 ? `55${digits}` : digits;
+}
+function formatPhoneDisplay(phone) {
+  const original = String(phone || "").trim();
+  let digits = original.replace(/\D/g, "");
+  if ((digits.length === 12 || digits.length === 13) && digits.startsWith("55")) digits = digits.slice(2);
+  if (digits.length === 11) return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
+  if (digits.length === 10) return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`;
+  return original;
+}
+function whatsappButtonHtml(sale, eventName) {
+  const number = whatsappNumber(sale.buyerPhone);
+  if (!number) return "";
+  const message = `Olá, ${sale.buyerName || "participante"}! Tudo bem? Estou entrando em contato sobre o seu ingresso para ${eventName || "o evento"}.`;
+  return `<button class="whatsapp-button" type="button" data-whatsapp data-whatsapp-number="${number}" data-whatsapp-message="${encodeURIComponent(message)}" data-whatsapp-name="${escapeHtml(sale.buyerName || "Participante")}" data-whatsapp-phone="${escapeHtml(formatPhoneDisplay(sale.buyerPhone) || number)}" aria-label="Escolher o WhatsApp para conversar com ${escapeHtml(sale.buyerName || "participante")}"><img class="whatsapp-icon-asset" src="whatsapp-icon.png" alt="" aria-hidden="true" /><span class="whatsapp-button-label">WhatsApp</span></button>`;
+}
+function participantContactHtml(sale, eventName) {
+  if (!sale.buyerPhone) return "";
+  return `<span class="participant-contact"><span>${escapeHtml(formatPhoneDisplay(sale.buyerPhone))}</span>${whatsappButtonHtml(sale, eventName)}</span>`;
+}
+function openWhatsappChooser(trigger) {
+  const modal = $("whatsappModal");
+  modal.dataset.number = trigger.dataset.whatsappNumber || "";
+  modal.dataset.message = trigger.dataset.whatsappMessage || "";
+  $("whatsappContactName").textContent = trigger.dataset.whatsappName || "Participante";
+  $("whatsappContactPhone").textContent = trigger.dataset.whatsappPhone || modal.dataset.number;
+  $("whatsappPlatformHint").textContent = /Android/i.test(navigator.userAgent) ? "No Android, o painel tentará abrir diretamente o aplicativo escolhido." : "Neste aparelho, o sistema pode usar o WhatsApp definido como padrão.";
+  if (!modal.open) modal.showModal();
+}
+function launchWhatsapp(appType) {
+  const modal = $("whatsappModal");
+  const number = modal.dataset.number;
+  const message = modal.dataset.message;
+  if (!number) return;
+  const fallbackUrl = `https://wa.me/${number}?text=${message}`;
+  modal.close();
+  if (/Android/i.test(navigator.userAgent)) {
+    const packageName = appType === "business" ? "com.whatsapp.w4b" : "com.whatsapp";
+    const intentUrl = `intent://send?phone=${number}&text=${message}#Intent;scheme=whatsapp;package=${packageName};S.browser_fallback_url=${encodeURIComponent(fallbackUrl)};end`;
+    window.location.assign(intentUrl);
+    return;
+  }
+  window.open(fallbackUrl, "_blank", "noopener,noreferrer");
+}
+async function ensureQrTickets(sale) {
+  if (!sale || !isCommercialSale(sale)) throw new Error("Esta ocupação não gera ingresso.");
+  if (!hasRole("admin", "event_manager", "seller")) throw new Error("Seu perfil não permite gerar ingressos.");
+  if (!sale.paid) throw new Error("Confirme o pagamento antes de gerar os ingressos.");
+  const event = state.events.find((item) => item.id === sale.eventId);
+  const existing = qrTicketsFor(sale, event);
+  const generatedAt = Date.now();
+  const generatedByUid = currentUser?.uid || "unknown";
+  const generatedByName = currentUserProfile?.name || currentUser?.email || "Usuário";
+  const generatedByEmail = currentUser?.email || currentUserProfile?.email || "";
+  const tickets = existing.map((ticket) => ticket.token ? ticket : { ...ticket, token:qrToken(), generatedAt, generatedByUid, generatedByName, generatedByEmail });
+  if (!tickets.length) throw new Error("Esta venda não possui participantes para gerar ingressos.");
+  const serialized = tickets.map((ticket) => ({ sourceKey: ticket.sourceKey, participantName: ticket.participantName, ticketTypeId: ticket.ticketTypeId, ticketTypeName: ticket.ticketTypeName, occupantIndex: ticket.occupantIndex, token: ticket.token, checkedIn: Boolean(ticket.checkedIn), ...(ticket.checkedInAt ? { checkedInAt: ticket.checkedInAt } : {}), ...(ticket.generatedAt ? { generatedAt:ticket.generatedAt } : {}), ...(ticket.generatedByUid ? { generatedByUid:ticket.generatedByUid } : {}), ...(ticket.generatedByName ? { generatedByName:ticket.generatedByName } : {}), ...(ticket.generatedByEmail ? { generatedByEmail:ticket.generatedByEmail } : {}) }));
+  const details = `Gerou ${tickets.length} ingresso${tickets.length === 1 ? "" : "s"} em PDF com QR Code (${isTableReservation(sale) ? "mesa/bistrô" : "individual"}).`;
+  if (isDemo) { sale.qrTickets = serialized; appendDemoAudit("edited", sale, details); persistDemo(); }
+  else {
+    const logId = push(ref(db, "auditLogs")).key;
+    await update(ref(db), { [`sales/${sale.id}/qrTickets`]: serialized, [`auditLogs/${logId}`]: auditLogData("edited", sale, details) });
+  }
+  sale.qrTickets = serialized;
+  return tickets;
+}
+function ticketPdfName(event, sale) {
+  const clean = (value) => normalizedSearch(value).replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+  return `ingressos-${clean(event?.name || "evento")}-${clean(sale?.buyerName || "participante")}.pdf`;
+}
+function ticketGenerationOrigin(sale, ticket) {
+  const generationLog = state.auditLogs
+    .filter((log) => log.saleId === sale.id && /gerou .*ingresso/i.test(String(log.details || "")))
+    .sort((a, b) => Number(b.timestamp || 0) - Number(a.timestamp || 0))[0];
+  const timestamp = Number(ticket.generatedAt || generationLog?.timestamp);
+  const generatedAtText = Number.isFinite(timestamp) && timestamp > 0
+    ? `${new Date(timestamp).toLocaleDateString("pt-BR", { day:"2-digit", month:"2-digit", year:"numeric" })} às ${new Date(timestamp).toLocaleTimeString("pt-BR", { hour:"2-digit", minute:"2-digit" })}`
+    : "Data e hora não registradas";
+  return { generatedByName:ticket.generatedByName || generationLog?.actorName || "Usuário não identificado", generatedAtText };
+}
+function hasGeneratedTicket(sale, event) {
+  const tickets = qrTicketsFor(sale, event);
+  return Boolean(tickets.length && tickets.every((ticket) => ticket.token));
+}
+async function buildTicketPdf(saleId, generate = false) {
+  const sale = state.sales.find((item) => item.id === saleId);
+  if (!sale) throw new Error("Venda não encontrada.");
+  const event = state.events.find((item) => item.id === sale.eventId);
+  const tickets = generate ? await ensureQrTickets(sale) : qrTicketsFor(sale, event);
+  if (!tickets.length || tickets.some((ticket) => !ticket.token)) throw new Error("Gere o ingresso antes de visualizar ou enviar.");
+  const paymentStatus = sale.courtesy || sale.paymentMethod === "courtesy" ? "Cortesia" : sale.paid ? "Pago" : "Pendente";
+  const paymentDetail = sale.paid && !sale.courtesy ? paymentMethodLabel(sale.paymentMethod) : sale.courtesy ? "Sem cobrança" : "Aguardando pagamento";
+  const printable = tickets.map((ticket) => ({ ...ticket, admissionType: isTableReservation(sale) ? `${furnitureKindLabel(sale.furnitureKind)} / reserva` : "Ingresso individual", eventName: event?.name || "Evento", eventDate:event?.date ? eventDateTimeText(event) : "", eventPlace: event?.place || "", validationUrl: qrValidationUrl(ticket.token), shortCode: ticket.token.slice(-8).toUpperCase(), ticketValue: money.format(Number(ticket.value || 0)), paymentStatus, paymentDetail, ...ticketGenerationOrigin(sale, ticket) }));
+  const blob = await createTicketPdf(printable, { ...eventTicketDesign(event), ...eventPdfTicketDesign(event) });
+  return { blob, filename: ticketPdfName(event, sale), sale, event, count: tickets.length };
+}
+function downloadBlob(blob, filename) { const url = URL.createObjectURL(blob); const link = document.createElement("a"); link.href = url; link.download = filename; document.body.append(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 1500); }
+function preserveParticipantDetails(saleId) {
+  const row = [...document.querySelectorAll("#salesList [data-sale-row]")].find((item) => item.dataset.saleRow === saleId);
+  if (!row?.classList.contains("is-expanded")) return;
+  expandedParticipantSaleIds.add(saleId);
+  participantViewportAnchor = { saleId, top: row.getBoundingClientRect().top, expiresAt: Date.now() + 5000 };
+}
+function restoreParticipantViewport() {
+  if (!participantViewportAnchor || participantViewportAnchor.expiresAt < Date.now()) { participantViewportAnchor = null; return; }
+  const anchor = participantViewportAnchor;
+  requestAnimationFrame(() => {
+    const row = [...document.querySelectorAll("#salesList [data-sale-row]")].find((item) => item.dataset.saleRow === anchor.saleId);
+    if (!row) return;
+    window.scrollBy(0, row.getBoundingClientRect().top - anchor.top);
+    participantViewportAnchor = null;
+  });
+}
+function preserveTableReservationDetails(saleId) {
+  const card = [...document.querySelectorAll("#tableReservationsList [data-table-sale-id]")].find((item) => item.dataset.tableSaleId === saleId);
+  if (!card?.classList.contains("is-expanded")) return;
+  expandedTableReservationSaleIds.add(saleId);
+  tableReservationViewportAnchor = { saleId, top: card.getBoundingClientRect().top, expiresAt: Date.now() + 5000 };
+}
+function restoreTableReservationViewport() {
+  if (!tableReservationViewportAnchor || tableReservationViewportAnchor.expiresAt < Date.now()) { tableReservationViewportAnchor = null; return; }
+  const anchor = tableReservationViewportAnchor;
+  requestAnimationFrame(() => {
+    const card = [...document.querySelectorAll("#tableReservationsList [data-table-sale-id]")].find((item) => item.dataset.tableSaleId === anchor.saleId);
+    if (!card) return;
+    window.scrollBy(0, card.getBoundingClientRect().top - anchor.top);
+    tableReservationViewportAnchor = null;
+  });
+}
+function preserveSaleDetails(saleId) {
+  const sale = state.sales.find((item) => item.id === saleId);
+  if (isTableReservation(sale)) preserveTableReservationDetails(saleId);
+  else preserveParticipantDetails(saleId);
+}
+async function generateTicketPdf(saleId) {
+  preserveSaleDetails(saleId);
+  try {
+    const sale = state.sales.find((item) => item.id === saleId);
+    if (!sale) throw new Error("Venda não encontrada.");
+    const tickets = await ensureQrTickets(sale);
+    render();
+    toast(`${tickets.length} ingresso(s) gerado(s) com sucesso.`);
+  }
+  catch (error) { console.error(error); toast(error.message || "Não foi possível gerar os ingressos."); }
+}
+async function viewTicketPdf(saleId) {
+  const preview = window.open("", "_blank");
+  try {
+    const result = await buildTicketPdf(saleId);
+    const url = URL.createObjectURL(result.blob);
+    if (preview) preview.location.href = url;
+    else downloadBlob(result.blob, result.filename);
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+  } catch (error) { preview?.close(); console.error(error); toast(error.message || "Não foi possível abrir o ingresso."); }
+}
+function openThermalPrintSettings(saleId) {
+  const sale = state.sales.find((item) => item.id === saleId);
+  const event = state.events.find((item) => item.id === sale?.eventId);
+  if (!sale || !sale.paid || !hasGeneratedTicket(sale, event)) return toast("Confirme o pagamento e gere o ingresso antes de imprimir.");
+  const modal = $("thermalPrintModal");
+  const preferredWidth = normalizeThermalPaperWidth(localStorage.getItem("le-beef-thermal-paper-width") || event?.ticketDesign?.paperWidth);
+  $("thermalPaperWidth").value = String(preferredWidth);
+  modal.dataset.saleId = saleId;
+  modal.showModal();
+}
+async function thermalPrintData(sale, paperWidth) {
+  const event = state.events.find((item) => item.id === sale.eventId);
+  const tickets = qrTicketsFor(sale, event);
+  if (!tickets.length || tickets.some((ticket) => !ticket.token)) throw new Error("Gere o ingresso antes de imprimir.");
+  const paymentStatus = sale.courtesy || sale.paymentMethod === "courtesy" ? "Cortesia" : sale.paid ? "Pago" : "Pendente";
+  const paymentDetail = sale.paid && !sale.courtesy ? `${paymentMethodLabel(sale.paymentMethod)}${sale.paymentDate ? ` em ${paymentDateLabel(sale.paymentDate)}` : ""}` : sale.courtesy ? "Sem cobrança" : "Aguardando pagamento";
+  const printableTickets = tickets.map((ticket) => ({ ...ticket, admissionType: isTableReservation(sale) ? `${furnitureKindLabel(sale.furnitureKind)} / reserva` : "Ingresso individual", reservationLabel: isTableReservation(sale) ? sale.reservationLabel || "Mesa/bistrô" : "", ticketValue: money.format(Number(ticket.value || 0)), paymentStatus, paymentDetail, shortCode: ticket.token.slice(-8).toUpperCase(), ...ticketGenerationOrigin(sale, ticket) }));
+  const qrCodes = await Promise.all(tickets.map((ticket) => createQrDataUrl(qrValidationUrl(ticket.token), { width: 480 })));
+  return { event: { ...event, dateText:event?.date ? eventDateTimeText(event) : "" }, sale, tickets: printableTickets, qrCodes, ticketDesign:eventTicketDesign(event, paperWidth) };
+}
+async function sendThermalPrintToBrowser(printWindow, documentHtml) {
+  printWindow.document.open();
+  printWindow.document.write(documentHtml);
+  printWindow.document.close();
+  await new Promise((resolve) => {
+    if (printWindow.document.readyState === "complete") resolve();
+    else printWindow.addEventListener("load", resolve, { once: true });
+  });
+  await Promise.all([...printWindow.document.images].map((image) => image.decode?.().catch(() => {}) || Promise.resolve()));
+  printWindow.addEventListener("afterprint", () => printWindow.close(), { once: true });
+  printWindow.focus();
+  printWindow.print();
+}
+async function printGeneratedTicket() {
+  const modal = $("thermalPrintModal");
+  const sale = state.sales.find((item) => item.id === modal.dataset.saleId);
+  if (!sale || !sale.paid) return toast("Confirme o pagamento antes de imprimir.");
+  const paperWidth = normalizeThermalPaperWidth($("thermalPaperWidth").value);
+  if (!THERMAL_PAPER_WIDTHS.includes(paperWidth)) return toast("Selecione uma largura de papel válida.");
+  const printBridge = typeof window.leBeefPrintBridge?.printHtml === "function" ? window.leBeefPrintBridge : null;
+  const printWindow = printBridge ? null : window.open("", "_blank", "popup,width=560,height=760");
+  if (!printBridge && !printWindow) return toast("O navegador bloqueou a janela de impressão. Autorize pop-ups e tente novamente.");
+  const button = $("confirmThermalPrint");
+  const originalLabel = button.textContent;
+  button.disabled = true;
+  button.textContent = "Preparando...";
+  try {
+    localStorage.setItem("le-beef-thermal-paper-width", String(paperWidth));
+    const printData = await thermalPrintData(sale, paperWidth);
+    const paperHeight = ticketHeightForDesign(printData.ticketDesign, paperWidth);
+    const documentHtml = buildThermalPrintHtml({ ...printData, paperWidth, paperHeight });
+    modal.close();
+    if (printBridge) await printBridge.printHtml({ html: documentHtml, paperWidth, paperHeight, jobName: `Ingressos - ${printData.event.name || "Le Beef"}` });
+    else await sendThermalPrintToBrowser(printWindow, documentHtml);
+  } catch (error) {
+    printWindow?.close();
+    console.error(error);
+    toast(error.message || "Não foi possível preparar a impressão.");
+  } finally {
+    button.disabled = false;
+    button.textContent = originalLabel;
+  }
+}
+function openTicketSendOptions(saleId) {
+  const sale = state.sales.find((item) => item.id === saleId);
+  const event = state.events.find((item) => item.id === sale?.eventId);
+  if (!sale || !hasGeneratedTicket(sale, event)) return toast("Gere o ingresso antes de enviar.");
+  const modal = $("ticketSendModal");
+  modal.dataset.saleId = saleId;
+  $("ticketSendName").textContent = sale.buyerName || "Participante";
+  $("ticketSendPhone").textContent = formatPhoneDisplay(sale.buyerPhone) || "Telefone não informado";
+  $("ticketSendRegisteredOptions").hidden = !whatsappNumber(sale.buyerPhone);
+  if (!modal.open) modal.showModal();
+}
+async function shareGeneratedTicketPdf(saleId) {
+  try {
+    const result = await buildTicketPdf(saleId);
+    const file = new File([result.blob], result.filename, { type: "application/pdf" });
+    const message = `Ingresso(s) de ${result.sale.buyerName || "participante"} para ${result.event?.name || "o evento"}.`;
+    if (navigator.share && (!navigator.canShare || navigator.canShare({ files: [file] }))) { await navigator.share({ files: [file], title: `Ingressos - ${result.event?.name || "Le Beef"}`, text: message }); return; }
+    downloadBlob(result.blob, result.filename);
+    toast("O compartilhamento de arquivos não está disponível. O PDF foi baixado.");
+  } catch (error) { if (error?.name !== "AbortError") { console.error(error); toast(error.message || "Não foi possível compartilhar os ingressos."); } }
+}
+async function sendTicketToRegisteredWhatsapp(saleId, appType) {
+  try {
+    const result = await buildTicketPdf(saleId);
+    const number = whatsappNumber(result.sale.buyerPhone);
+    if (!number) throw new Error("Esta venda não possui telefone cadastrado.");
+    downloadBlob(result.blob, result.filename);
+    $("ticketSendModal").close();
+    const message = encodeURIComponent(`Olá, ${result.sale.buyerName || "participante"}! O PDF do seu ingresso para ${result.event?.name || "o evento"} foi baixado neste aparelho. Anexe o arquivo “${result.filename}” nesta conversa.`);
+    const fallbackUrl = `https://wa.me/${number}?text=${message}`;
+    if (/Android/i.test(navigator.userAgent)) {
+      const packageName = appType === "business" ? "com.whatsapp.w4b" : "com.whatsapp";
+      window.location.assign(`intent://send?phone=${number}&text=${message}#Intent;scheme=whatsapp;package=${packageName};S.browser_fallback_url=${encodeURIComponent(fallbackUrl)};end`);
+    } else window.open(fallbackUrl, "_blank", "noopener,noreferrer");
+  } catch (error) { console.error(error); toast(error.message || "Não foi possível abrir o WhatsApp."); }
+}
+function openDeleteGeneratedTicket(saleId) {
+  const sale = state.sales.find((item) => item.id === saleId);
+  if (!sale) return;
+  $("ticketDeleteModal").dataset.saleId = saleId;
+  $("ticketDeleteParticipant").textContent = sale.buyerName || "Participante";
+  if (!$("ticketDeleteModal").open) $("ticketDeleteModal").showModal();
+}
+async function deleteGeneratedTicket(saleId) {
+  if (!requireRole(["admin", "event_manager", "seller"])) return;
+  const sale = state.sales.find((item) => item.id === saleId);
+  const event = state.events.find((item) => item.id === sale?.eventId);
+  if (!sale) return;
+  if (qrTicketsFor(sale, event).some((ticket) => ticket.checkedIn)) return toast("Não é possível excluir um ingresso que já teve check-in.");
+  preserveSaleDetails(saleId);
+  try {
+    const ticketCount = storedQrTickets(sale).length;
+    const details = `Excluiu ${ticketCount} ingresso${ticketCount === 1 ? "" : "s"} com QR Code (${isTableReservation(sale) ? "mesa/bistrô" : "individual"}).`;
+    if (isDemo) { delete sale.qrTickets; appendDemoAudit("edited", sale, details); persistDemo(); }
+    else {
+      const logId = push(ref(db, "auditLogs")).key;
+      await update(ref(db), { [`sales/${saleId}/qrTickets`]: null, [`auditLogs/${logId}`]: auditLogData("edited", sale, details) });
+      delete sale.qrTickets;
+    }
+    $("ticketDeleteModal").close();
+    render();
+    toast("Ingresso excluído. O QR Code antigo não é mais válido e um novo pode ser gerado.");
+  } catch (error) { console.error(error); toast("Não foi possível excluir o ingresso."); }
+}
+function locateQrTicket(token) {
+  for (const sale of state.sales) {
+    const event = state.events.find((item) => item.id === sale.eventId);
+    const index = qrTicketsFor(sale, event).findIndex((ticket) => ticket.token === token);
+    if (index >= 0) return { sale, event, ticket: qrTicketsFor(sale, event)[index], index };
+  }
+  return null;
+}
+function qrCheckinDateTime(value) {
+  const timestamp = Number(value);
+  if (!Number.isFinite(timestamp) || timestamp <= 0) return "Horário não registrado";
+  return new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "medium" }).format(new Date(timestamp));
+}
+async function showQrValidation(token) {
+  const modal = $("qrValidationModal");
+  const found = locateQrTicket(token);
+  modal.dataset.token = token;
+  if (!found) {
+    $("qrValidationState").className = "qr-validation-state is-invalid";
+    $("qrValidationState").innerHTML = `<span class="qr-validation-icon">!</span><h3>QR Code inválido</h3><p>Este ingresso não foi encontrado ou você não tem acesso ao evento.</p>`;
+    $("confirmQrCheckin").hidden = true;
+    $("nextQrScan").hidden = false;
+    $("qrValidationImage").removeAttribute("src");
+  } else {
+    const { sale, event, ticket } = found;
+    rememberSelectedEvent(sale.eventId);
+    const used = Boolean(ticket.checkedIn);
+    $("qrValidationState").className = `qr-validation-state ${used ? "is-used" : "is-valid"}`;
+    $("qrValidationState").innerHTML = `<span class="qr-validation-icon">${used ? "✓" : "QR"}</span><p class="eyebrow">${used ? "INGRESSO JÁ UTILIZADO" : "INGRESSO VÁLIDO"}</p><h3>${escapeHtml(ticket.participantName || sale.buyerName || "Participante")}</h3><dl><div><dt>Evento</dt><dd>${escapeHtml(event?.name || "Evento")}</dd></div><div><dt>Modalidade</dt><dd>${isTableReservation(sale) ? escapeHtml(`${furnitureKindLabel(sale.furnitureKind)} / reserva`) : "Ingresso individual"}</dd></div><div><dt>Ingresso</dt><dd>${escapeHtml(ticket.ticketTypeName || "Ingresso")}</dd></div>${isTableReservation(sale) ? `<div><dt>Reserva</dt><dd>${escapeHtml(sale.reservationLabel || "Mesa/bistrô")}</dd></div>` : ""}<div><dt>Código</dt><dd>${escapeHtml(token.slice(-8).toUpperCase())}</dd></div>${used ? `<div class="qr-used-at"><dt>Utilizado em</dt><dd>${escapeHtml(qrCheckinDateTime(ticket.checkedInAt))}</dd></div>` : ""}</dl>${used ? `<p class="qr-used-message">Entrada já registrada. Não confirme novamente.</p>` : ""}`;
+    $("confirmQrCheckin").hidden = used;
+    $("nextQrScan").hidden = !used;
+    $("qrValidationImage").src = await createQrDataUrl(qrValidationUrl(token), { width: 320 });
+  }
+  if (!modal.open) modal.showModal();
+}
+async function toggleQrTicketCheckin(token) {
+  if (!requireRole(["admin", "event_manager", "seller", "door"])) return;
+  const found = locateQrTicket(token);
+  if (!found || found.ticket.checkedIn) return toast(found ? "Este ingresso já teve a entrada confirmada." : "QR Code inválido.");
+  const { sale, event, ticket, index } = found;
+  const resumeScanner = $("qrValidationModal").dataset.source === "scanner";
+  const scannedAt = Number($("qrValidationModal").dataset.scannedAt);
+  const now = Number.isFinite(scannedAt) && scannedAt > 0 ? scannedAt : Date.now();
+  const nextTickets = qrTicketsFor(sale, event).map((item, itemIndex) => itemIndex === index ? { ...item, checkedIn: true, checkedInAt: now } : item);
+  const details = `Realizou o check-in por QR Code de ${ticket.participantName || sale.buyerName || "participante"}.`;
+  if (isDemo) {
+    sale.qrTickets = nextTickets;
+    if (isTableReservation(sale)) { const checkins = reservationOccupantCheckins(sale); checkins[ticket.occupantIndex] = true; sale.occupantCheckins = checkins; }
+    else sale.checkedIn = nextTickets.every((item) => item.checkedIn);
+    appendDemoAudit("checkin", sale, details); persistDemo(); render();
+    $("qrValidationModal").close(); location.hash = "portaria"; toast("Check-in confirmado. Câmera pronta para o próximo ingresso.");
+    if (resumeScanner) await openQrScanner();
+    return;
+  }
+  const updates = { [`sales/${sale.id}/qrTickets/${index}/checkedIn`]: true, [`sales/${sale.id}/qrTickets/${index}/checkedInAt`]: now };
+  if (isTableReservation(sale)) updates[`sales/${sale.id}/occupantCheckins/${ticket.occupantIndex}`] = true;
+  else updates[`sales/${sale.id}/checkedIn`] = nextTickets.every((item) => item.checkedIn);
+  const logId = push(ref(db, "auditLogs")).key;
+  updates[`auditLogs/${logId}`] = auditLogData("checkin", sale, details);
+  await update(ref(db), updates);
+  $("qrValidationModal").close();
+  location.hash = "portaria";
+  toast(resumeScanner ? "Check-in confirmado. Câmera pronta para o próximo ingresso." : "Check-in confirmado pelo QR Code.");
+  if (resumeScanner) await openQrScanner();
+}
+function syncQrValidationFromHash() {
+  const match = location.hash.match(/^#validar=([a-f0-9]{20,})$/i);
+  if (match && currentUserProfile && state.sales.length) { $("qrValidationModal").dataset.source = "link"; $("qrValidationModal").dataset.scannedAt = String(Date.now()); showQrValidation(match[1]).catch((error) => { console.error(error); toast("Não foi possível validar o QR Code."); }); }
+}
+
+let qrScannerStream = null;
+let qrScannerFrame = 0;
+let qrScannerBusy = false;
+let qrBarcodeDetector = null;
+const qrScannerCanvas = document.createElement("canvas");
+const qrScannerContext = qrScannerCanvas.getContext("2d", { willReadFrequently: true });
+let qrAudioContext = null;
+
+function prepareQrAudio() {
+  try {
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContextClass) return null;
+    qrAudioContext ||= new AudioContextClass();
+    if (qrAudioContext.state === "suspended") qrAudioContext.resume().catch(() => {});
+    return qrAudioContext;
+  } catch { return null; }
+}
+
+function playQrFeedback(type) {
+  const context = prepareQrAudio();
+  if (!context) return;
+  const success = type === "valid";
+  const notes = success ? [[659, 0, .1], [880, .11, .16]] : [[220, 0, .14], [165, .16, .24]];
+  notes.forEach(([frequency, delay, duration]) => {
+    const oscillator = context.createOscillator();
+    const gain = context.createGain();
+    oscillator.type = success ? "sine" : "square";
+    oscillator.frequency.setValueAtTime(frequency, context.currentTime + delay);
+    gain.gain.setValueAtTime(.0001, context.currentTime + delay);
+    gain.gain.exponentialRampToValueAtTime(success ? .18 : .12, context.currentTime + delay + .015);
+    gain.gain.exponentialRampToValueAtTime(.0001, context.currentTime + delay + duration);
+    oscillator.connect(gain); gain.connect(context.destination);
+    oscillator.start(context.currentTime + delay); oscillator.stop(context.currentTime + delay + duration + .02);
+  });
+  if (navigator.vibrate) navigator.vibrate(success ? 70 : [110, 70, 110]);
+}
+
+function qrTokenFromScan(value) {
+  const scanned = String(value || "").trim();
+  const urlMatch = scanned.match(/[#?&]validar=([a-f0-9]{20,})/i);
+  if (urlMatch) return urlMatch[1];
+  return /^[a-f0-9]{20,}$/i.test(scanned) ? scanned : "";
+}
+
+async function getQrBarcodeDetector() {
+  if (!("BarcodeDetector" in window)) return null;
+  try {
+    if (BarcodeDetector.getSupportedFormats) {
+      const formats = await BarcodeDetector.getSupportedFormats();
+      if (!formats.includes("qr_code")) return null;
+    }
+    return new BarcodeDetector({ formats: ["qr_code"] });
+  } catch { return null; }
+}
+
+function stopQrScanner() {
+  cancelAnimationFrame(qrScannerFrame);
+  qrScannerFrame = 0;
+  qrScannerBusy = false;
+  qrScannerStream?.getTracks().forEach((track) => track.stop());
+  qrScannerStream = null;
+  const video = $("qrScannerVideo");
+  if (video) { video.pause(); video.srcObject = null; }
+}
+
+async function finishQrScan(value) {
+  const token = qrTokenFromScan(value);
+  const found = token ? locateQrTicket(token) : null;
+  stopQrScanner();
+  if ($("qrScannerModal").open) $("qrScannerModal").close();
+  $("qrValidationModal").dataset.source = "scanner";
+  $("qrValidationModal").dataset.scannedAt = String(Date.now());
+  playQrFeedback(found && !found.ticket.checkedIn ? "valid" : "rejected");
+  await showQrValidation(token);
+}
+
+async function openCameraPermissionDialog(message = "") {
+  if (!requireRole(["admin", "event_manager", "seller", "door"])) return;
+  prepareQrAudio();
+  const modal = $("cameraPermissionModal");
+  const status = $("cameraPermissionStatus");
+  modal.classList.remove("is-denied");
+  status.textContent = message;
+  if (message) { modal.classList.add("is-denied"); $("grantCameraPermission").textContent = "Tentar novamente"; }
+  try {
+    const permission = await navigator.permissions?.query?.({ name: "camera" });
+    if (!message && permission?.state === "granted") {
+      status.textContent = "A câmera já está autorizada. Toque abaixo para abrir o leitor.";
+      $("grantCameraPermission").textContent = "Abrir câmera";
+    } else if (!message) {
+      $("grantCameraPermission").textContent = permission?.state === "denied" ? "Tentar novamente" : "Autorizar câmera";
+      if (permission?.state === "denied") {
+        modal.classList.add("is-denied");
+        status.textContent = "A permissão está bloqueada. Abra as informações deste aplicativo ou site nas configurações do Android, permita a câmera e tente novamente.";
+      }
+    }
+  } catch { if (!message) $("grantCameraPermission").textContent = "Autorizar câmera"; }
+  if (!modal.open) modal.showModal();
+}
+
+async function scanQrVideoFrame() {
+  const modal = $("qrScannerModal");
+  const video = $("qrScannerVideo");
+  if (!modal.open || !qrScannerStream) return;
+  if (!qrScannerBusy && video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
+    qrScannerBusy = true;
+    try {
+      let value = "";
+      if (qrBarcodeDetector) {
+        const codes = await qrBarcodeDetector.detect(video);
+        value = codes[0]?.rawValue || "";
+      } else if (qrScannerContext) {
+        const maxWidth = 720;
+        const scale = Math.min(1, maxWidth / video.videoWidth);
+        qrScannerCanvas.width = Math.max(1, Math.round(video.videoWidth * scale));
+        qrScannerCanvas.height = Math.max(1, Math.round(video.videoHeight * scale));
+        qrScannerContext.drawImage(video, 0, 0, qrScannerCanvas.width, qrScannerCanvas.height);
+        value = decodeQrImageData(qrScannerContext.getImageData(0, 0, qrScannerCanvas.width, qrScannerCanvas.height));
+      }
+      if (value) return finishQrScan(value);
+    } catch (error) { console.debug("Leitura de QR Code:", error); qrBarcodeDetector = null; }
+    finally { qrScannerBusy = false; }
+  }
+  qrScannerFrame = requestAnimationFrame(scanQrVideoFrame);
+}
+
+async function openQrScanner() {
+  if (!requireRole(["admin", "event_manager", "seller", "door"])) return;
+  const modal = $("qrScannerModal");
+  const status = $("qrScannerStatus");
+  stopQrScanner();
+  status.textContent = "Solicitando acesso à câmera...";
+  if (!modal.open) modal.showModal();
+  if (!navigator.mediaDevices?.getUserMedia) {
+    status.textContent = "Este navegador não permite abrir a câmera aqui. Use “Escolher foto do QR Code”.";
+    return;
+  }
+  try {
+    qrScannerStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false });
+    const video = $("qrScannerVideo");
+    video.srcObject = qrScannerStream;
+    await video.play();
+    qrBarcodeDetector = await getQrBarcodeDetector();
+    status.textContent = "Câmera ativa. Centralize o QR Code dentro do quadrado.";
+    qrScannerFrame = requestAnimationFrame(scanQrVideoFrame);
+  } catch (error) {
+    stopQrScanner();
+    if ($("qrScannerModal").open) $("qrScannerModal").close();
+    if (error?.name === "NotAllowedError") {
+      openCameraPermissionDialog("A câmera foi recusada. Nas configurações do Android, abra as permissões deste aplicativo, libere a câmera e toque em “Tentar novamente”.");
+    } else {
+      openCameraPermissionDialog("Não foi possível abrir a câmera. Tente novamente ou use uma foto do QR Code.");
+    }
+  }
+}
+
+async function scanQrImageFile(file) {
+  if (!file) return;
+  const status = $("qrScannerStatus");
+  status.textContent = "Lendo a imagem...";
+  try {
+    const image = await createImageBitmap(file);
+    const maxSize = 1600;
+    const scale = Math.min(1, maxSize / Math.max(image.width, image.height));
+    qrScannerCanvas.width = Math.max(1, Math.round(image.width * scale));
+    qrScannerCanvas.height = Math.max(1, Math.round(image.height * scale));
+    qrScannerContext.drawImage(image, 0, 0, qrScannerCanvas.width, qrScannerCanvas.height);
+    image.close?.();
+    const value = decodeQrImageData(qrScannerContext.getImageData(0, 0, qrScannerCanvas.width, qrScannerCanvas.height));
+    if (!value) { status.textContent = "Não encontrei um QR Code nessa imagem. Tente outra foto mais próxima e bem iluminada."; return; }
+    await finishQrScan(value);
+  } catch (error) {
+    console.error(error);
+    status.textContent = "Não foi possível ler essa imagem. Tente tirar outra foto.";
+  }
+}
+function newEntityId(prefix) { return `${prefix}-${crypto.randomUUID()}`; }
+function draftTicketTypes() { return [...document.querySelectorAll(".ticket-type-row")].map((row) => ({ id: row.dataset.ticketId, name: row.querySelector(".ticket-name").value.trim(), price: Number(row.querySelector(".ticket-price").value || 0), capacity: Number(row.querySelector(".ticket-capacity").value || 0) })); }
+function addTicketTypeRow(name = "", price = "", capacity = "", id = "") { const row = document.createElement("div"); row.className = "ticket-type-row"; row.dataset.ticketId = id || newEntityId("tipo"); row.innerHTML = `<input class="ticket-name" required aria-label="Nome do tipo ou lote" placeholder="Ex.: 1º lote" value="${escapeHtml(name)}" /><input class="ticket-price" type="number" min="0" step="0.01" required aria-label="Valor do ingresso" placeholder="Valor" value="${price}" /><input class="ticket-capacity" type="number" min="1" step="1" required aria-label="Quantidade disponível" placeholder="Quantidade" value="${capacity}" /><button class="close" type="button" data-remove-ticket aria-label="Remover tipo">×</button>`; $("ticketTypesList").append(row); refreshPackageTicketOptions(); }
+function resetTicketTypes() { $("ticketTypesList").innerHTML = ""; addTicketTypeRow("Ingresso padrão", "", ""); }
+function getTicketTypes() { return draftTicketTypes().filter((item) => item.name && Number.isFinite(item.price) && Number.isInteger(item.capacity) && item.capacity > 0); }
+function renderPackagesEmptyState() { if (!document.querySelector(".package-row")) $("packagesList").innerHTML = `<div class="packages-empty">Nenhum pacote ou cortesia criado. Use “+ Pacote” ou “+ Cortesia” para começar.</div>`; }
+function addPackageComponentRow(packageRow, ticketTypeId = "", quantity = 1) {
+  const row = document.createElement("div");
+  row.className = "package-component-row";
+  row.innerHTML = `<label>Ingresso<select class="package-component-type" required></select></label><label>Quantidade<input class="package-component-quantity" type="number" min="1" step="1" value="${Math.max(1, Number(quantity || 1))}" required /></label><button class="close" type="button" data-remove-package-component aria-label="Remover ingresso do pacote">×</button>`;
+  row.querySelector(".package-component-type").dataset.selectedValue = ticketTypeId;
+  packageRow.querySelector(".package-components").append(row);
+}
+function addPackageRow(packageData = {}, requestedKind = "package") {
+  if (!document.querySelector(".package-row")) $("packagesList").innerHTML = "";
+  const row = document.createElement("div");
+  const packageKind = packageData.packageKind === "courtesy" || packageData.kind === "courtesy" || requestedKind === "courtesy" ? "courtesy" : "package";
+  row.className = `package-row${packageKind === "courtesy" ? " is-courtesy" : ""}`;
+  row.dataset.packageKind = packageKind;
+  row.dataset.packageId = packageData.id || newEntityId("pacote");
+  const discountType = packageKind === "courtesy" ? "percent" : packageData.discountType === "fixed" ? "fixed" : "percent";
+  const discountValue = packageKind === "courtesy" ? 100 : Number(packageData.discountValue ?? (discountType === "fixed" ? packageData.discountAmount : packageData.discountPercent) ?? 0);
+  row.dataset.discountType = discountType;
+  const kindLabel = packageKind === "courtesy" ? "cortesia" : "pacote";
+  row.innerHTML = `<div class="package-kind-badge">${packageKind === "courtesy" ? "CORTESIA" : "PACOTE PROMOCIONAL"}</div><div class="package-row-heading"><label>Nome da ${kindLabel}<input class="package-name" required placeholder="${packageKind === "courtesy" ? "Ex.: Cortesia imprensa" : "Ex.: Combo casal"}" value="${escapeHtml(packageData.name || "")}" /></label><label class="package-discount-label"><span>Desconto <button class="package-discount-toggle" type="button" data-toggle-package-discount title="Alternar entre porcentagem e reais" aria-label="Alterar desconto para ${discountType === "fixed" ? "porcentagem" : "valor em reais"}">${discountType === "fixed" ? "R$" : "%"}</button></span><input class="package-discount" type="number" min="0" step="0.01" value="${discountValue}" required /></label><button class="close" type="button" data-remove-package aria-label="Remover ${kindLabel}">×</button></div><div class="package-components"></div><div class="package-actions"><button class="package-add-component" type="button" data-add-package-component>+ Adicionar ingresso à ${kindLabel}</button><div class="package-summary"><span>Normal: <strong data-package-regular>R$ 0,00</strong></span><span>${packageKind === "courtesy" ? "Cortesia" : "Pacote"}: <strong data-package-price>R$ 0,00</strong></span><span class="package-saving" data-package-saving>${packageKind === "courtesy" ? "Valor liberado" : "Economia"} R$ 0,00</span></div></div>`;
+  $("packagesList").append(row);
+  const packageItems = Array.isArray(packageData.items) ? packageData.items : Object.values(packageData.items || {});
+  (packageItems.length ? packageItems : [{ ticketTypeId: "", quantity: 1 }]).forEach((component) => addPackageComponentRow(row, component.ticketTypeId, component.quantity));
+  refreshPackageTicketOptions();
+  return row;
+}
+function packageDraftDetails(packageRow) {
+  const ticketTypes = draftTicketTypes();
+  const components = [...packageRow.querySelectorAll(".package-component-row")].map((row) => { const type = ticketTypes.find((item) => item.id === row.querySelector(".package-component-type").value); const quantity = Math.max(0, Number(row.querySelector(".package-component-quantity").value || 0)); return { type, quantity }; });
+  const regularPrice = components.reduce((sum, component) => sum + Number(component.type?.price || 0) * component.quantity, 0);
+  return { components, regularPrice };
+}
+function syncPackageDiscountControl(packageRow) {
+  const isCourtesy = packageRow.dataset.packageKind === "courtesy";
+  const isFixed = packageRow.dataset.discountType === "fixed";
+  const input = packageRow.querySelector(".package-discount");
+  const toggle = packageRow.querySelector("[data-toggle-package-discount]");
+  const { regularPrice } = packageDraftDetails(packageRow);
+  if (isCourtesy) { packageRow.dataset.discountType = "percent"; input.value = "100"; input.max = "100"; toggle.textContent = "%"; toggle.disabled = true; return; }
+  input.max = isFixed ? String(Math.max(0, regularPrice)) : "100";
+  toggle.textContent = isFixed ? "R$" : "%";
+  toggle.setAttribute("aria-label", `Alterar desconto para ${isFixed ? "porcentagem" : "valor em reais"}`);
+}
+function togglePackageDiscountType(packageRow) {
+  if (packageRow.dataset.packageKind === "courtesy") return;
+  const input = packageRow.querySelector(".package-discount");
+  const { regularPrice } = packageDraftDetails(packageRow);
+  const currentValue = Math.max(0, Number(input.value || 0));
+  const isFixed = packageRow.dataset.discountType === "fixed";
+  packageRow.dataset.discountType = isFixed ? "percent" : "fixed";
+  const converted = isFixed ? (regularPrice > 0 ? currentValue / regularPrice * 100 : 0) : regularPrice * Math.min(100, currentValue) / 100;
+  input.value = String(Math.round(converted * 100) / 100);
+  syncPackageDiscountControl(packageRow);
+  updatePackageSummary(packageRow);
+}
+function updatePackageSummary(packageRow) {
+  const { regularPrice } = packageDraftDetails(packageRow);
+  const isCourtesy = packageRow.dataset.packageKind === "courtesy";
+  const discountValue = isCourtesy ? 100 : Math.max(0, Number(packageRow.querySelector(".package-discount").value || 0));
+  const isFixed = packageRow.dataset.discountType === "fixed";
+  const discountAmount = isCourtesy ? regularPrice : isFixed ? Math.min(regularPrice, discountValue) : regularPrice * Math.min(100, discountValue) / 100;
+  const price = Math.round(Math.max(0, regularPrice - discountAmount) * 100) / 100;
+  syncPackageDiscountControl(packageRow);
+  packageRow.querySelector("[data-package-regular]").textContent = money.format(regularPrice);
+  packageRow.querySelector("[data-package-price]").textContent = money.format(price);
+  packageRow.querySelector("[data-package-saving]").textContent = `${isCourtesy ? "Valor liberado" : "Economia"} ${money.format(regularPrice - price)}`;
+}
+function refreshPackageTicketOptions() {
+  if (!$("packagesList")) return;
+  const ticketTypes = draftTicketTypes().filter((item) => item.name);
+  document.querySelectorAll(".package-row").forEach((packageRow) => {
+    const rows = [...packageRow.querySelectorAll(".package-component-row")];
+    const selectedValues = rows.map((row) => row.querySelector(".package-component-type").value || row.querySelector(".package-component-type").dataset.selectedValue || "");
+    rows.forEach((row, rowIndex) => {
+      const select = row.querySelector(".package-component-type");
+      const selectedValue = selectedValues[rowIndex];
+      select.innerHTML = `<option value="">Selecione o ingresso</option>${ticketTypes.map((type) => `<option value="${type.id}" ${selectedValues.some((value, index) => index !== rowIndex && value === type.id) ? "disabled" : ""}>${escapeHtml(type.name)} — ${money.format(type.price)}</option>`).join("")}`;
+      if (ticketTypes.some((type) => type.id === selectedValue)) select.value = selectedValue;
+      delete select.dataset.selectedValue;
+      row.querySelector("[data-remove-package-component]").disabled = rows.length === 1;
+    });
+    packageRow.querySelector("[data-add-package-component]").disabled = !ticketTypes.length || rows.length >= ticketTypes.length;
+    updatePackageSummary(packageRow);
+  });
+  renderPackagesEmptyState();
+}
+function resetPackages() { $("packagesList").innerHTML = ""; renderPackagesEmptyState(); }
+function getPackages(ticketTypes) {
+  const packageNames = new Set();
+  return [...document.querySelectorAll(".package-row")].map((row) => {
+    const name = row.querySelector(".package-name").value.trim();
+    const packageKind = row.dataset.packageKind === "courtesy" ? "courtesy" : "package";
+    const discountType = packageKind === "courtesy" ? "percent" : row.dataset.discountType === "fixed" ? "fixed" : "percent";
+    const discountValue = packageKind === "courtesy" ? 100 : Number(row.querySelector(".package-discount").value);
+    if (!name) throw new Error("Informe o nome de todos os pacotes e cortesias.");
+    const normalizedName = normalizedSearch(name);
+    if (packageNames.has(normalizedName)) throw new Error(`O nome “${name}” foi cadastrado mais de uma vez entre os pacotes e cortesias.`);
+    packageNames.add(normalizedName);
+    if (!Number.isFinite(discountValue) || discountValue < 0) throw new Error(`Informe um desconto válido para “${name}”.`);
+    if (discountType === "percent" && discountValue > 100) throw new Error(`Informe um desconto entre 0% e 100% para “${name}”.`);
+    const usedTypes = new Set();
+    const items = [...row.querySelectorAll(".package-component-row")].map((componentRow) => {
+      const ticketTypeId = componentRow.querySelector(".package-component-type").value;
+      const type = ticketTypes.find((item) => item.id === ticketTypeId);
+      if (!type) throw new Error(`Selecione todos os ingressos de “${name}”.`);
+      if (usedTypes.has(type.id)) throw new Error(`O ingresso “${type.name}” está repetido em “${name}”.`);
+      usedTypes.add(type.id);
+      const quantity = Number(componentRow.querySelector(".package-component-quantity").value);
+      if (!Number.isInteger(quantity) || quantity < 1) throw new Error(`Informe uma quantidade válida para “${type.name}” em “${name}”.`);
+      if (quantity > Number(type.capacity || 0)) throw new Error(`“${name}” usa ${quantity} ingressos “${type.name}”, mas somente ${type.capacity} estão disponíveis no evento.`);
+      return { ticketTypeId: type.id, quantity };
+    });
+    const regularPrice = items.reduce((sum, component) => sum + Number(ticketTypes.find((type) => type.id === component.ticketTypeId)?.price || 0) * component.quantity, 0);
+    if (packageKind !== "courtesy" && discountType === "fixed" && discountValue > regularPrice) throw new Error(`O desconto em reais do pacote “${name}” não pode ser maior que ${money.format(regularPrice)}.`);
+    const discountAmount = packageKind === "courtesy" ? regularPrice : discountType === "fixed" ? discountValue : regularPrice * discountValue / 100;
+    const discountPercent = regularPrice > 0 ? discountAmount / regularPrice * 100 : 0;
+    const price = packageKind === "courtesy" ? 0 : Math.round(Math.max(0, regularPrice - discountAmount) * 100) / 100;
+    return { id: row.dataset.packageId, name, packageKind, discountType, discountValue, discountAmount, discountPercent, regularPrice, price, items };
+  });
+}
+function saleItemOptionKey(item) { return item?.kind === "package" || item?.packageId ? `package:${item.packageId}` : item?.ticketTypeId ? `ticket:${item.ticketTypeId}` : ""; }
+function packageAvailability(event, packageItem, excludedSaleId = "") {
+  if (!packageItem?.items?.length) return 0;
+  return Math.max(0, Math.min(...packageItem.items.map((component) => { const type = ticketTypesFor(event).find((item) => item.id === component.ticketTypeId); if (!type) return 0; const remaining = Math.max(0, Number(type.capacity) - soldForTicket(event.id, type, excludedSaleId)); return Math.floor(remaining / Number(component.quantity || 1)); })));
+}
+function saleOptionsFor(event, excludedSaleId = "") {
+  if (!event) return [];
+  const ticketOptions = ticketTypesFor(event).map((item) => ({ key: `ticket:${item.id}`, kind: "ticket", item, available: Math.max(0, Number(item.capacity) - soldForTicket(event.id, item, excludedSaleId)) }));
+  const packageOptions = packagesFor(event).map((item) => ({ key: `package:${item.id}`, kind: "package", item, available: packageAvailability(event, item, excludedSaleId) }));
+  return [...ticketOptions, ...packageOptions];
+}
+function addSaleTicketItemRow(selectedOption = "", quantity = 1) {
+  const row = document.createElement("div");
+  row.className = "sale-ticket-item-row";
+  row.innerHTML = `<label>Ingresso ou pacote<select class="sale-item-type" required></select></label><label>Quantidade<input class="sale-item-quantity" type="number" min="1" step="1" value="${Math.max(1, Number(quantity || 1))}" required /></label><button class="close" type="button" data-remove-sale-ticket aria-label="Remover item">×</button>`;
+  row.querySelector(".sale-item-type").dataset.selectedValue = selectedOption;
+  $("saleTicketItemsList").append(row);
+  return row;
+}
+function responsibleFirstName(value) { return String(value || "").trim().split(/\s+/)[0] || ""; }
+function guestDefaultName(responsibleName, position) {
+  const firstName = responsibleFirstName(responsibleName);
+  return `${firstName ? `${firstName}/` : ""}Convidado-${position}`;
+}
+function saleDraftTicketQuantity() {
+  const event = state.events.find((item) => item.id === $("saleEvent").value);
+  const options = saleOptionsFor(event, $("saleForm").dataset.editId || "");
+  return [...document.querySelectorAll(".sale-ticket-item-row")].reduce((sum, row) => {
+    const option = options.find((item) => item.key === row.querySelector(".sale-item-type").value);
+    const quantity = Math.max(0, Number(row.querySelector(".sale-item-quantity").value || 0));
+    return sum + (option && Number.isInteger(quantity) ? (option.kind === "package" ? packageTicketCount(option.item) : 1) * quantity : 0);
+  }, 0);
+}
+function syncSaleGuestNames(storedNames = null) {
+  const list = $("saleGuestNamesList");
+  const total = saleDraftTicketQuantity();
+  const previous = new Map([...list.querySelectorAll(".sale-guest-name")].map((input) => [Number(input.dataset.position), { value: input.value, automatic: input.dataset.automatic === "true" }]));
+  const responsible = $("saleForm").elements.buyerName.value;
+  list.innerHTML = "";
+  for (let position = 2; position <= total; position += 1) {
+    const stored = Array.isArray(storedNames) ? storedNames[position - 1] : null;
+    const prior = previous.get(position);
+    const automatic = stored == null ? (prior?.automatic ?? true) : false;
+    const value = stored != null ? stored : prior && !prior.automatic ? prior.value : guestDefaultName(responsible, position);
+    const label = document.createElement("label");
+    label.innerHTML = `Ingresso ${position}<input class="sale-guest-name" data-position="${position}" data-automatic="${automatic}" required value="${escapeHtml(value)}" />`;
+    list.append(label);
+  }
+  $("saleGuestNamesField").hidden = total <= 1;
+}
+function saleParticipantNames() {
+  const responsible = String($("saleForm").elements.buyerName.value || "").trim();
+  return [responsible, ...[...$("saleGuestNamesList").querySelectorAll(".sale-guest-name")].map((input) => input.value.trim())];
+}
+function syncManualFeeOption(form, event, subtotal, previewSelector, current = null) {
+  const option = form.querySelector(".manual-fee-option");
+  if (!option) return;
+  const configured = buyerFeeSettings(event, "manual");
+  const available = configured.mode !== "none" || Boolean(current?.applyBuyerFee && current?.buyerFeeMode !== "none");
+  option.hidden = !available;
+  const checkbox = form.elements.applyBuyerFee;
+  if (!available) checkbox.checked = false;
+  const snapshot = checkbox.checked && current?.applyBuyerFee ? { mode:normalizeBuyerFeeMode(current.buyerFeeMode), value:Number(current.buyerFeeValue || 0) } : configured;
+  const amount = checkbox.checked ? calculateBuyerFee(subtotal, snapshot) : 0;
+  const preview = option.querySelector(previewSelector);
+  if (preview) preview.textContent = `+ ${money.format(amount)}`;
+  option.title = snapshot.mode === "percent" ? `${snapshot.value}% sobre os ingressos` : snapshot.mode === "fixed" ? `${money.format(snapshot.value)} por venda` : "Sem taxa configurada";
+  return amount;
+}
+function updateSaleItemsSummary() {
+  const event = state.events.find((item) => item.id === $("saleEvent").value);
+  const options = saleOptionsFor(event, $("saleForm").dataset.editId || "");
+  let quantity = 0;
+  let total = 0;
+  const selectedOptions = [];
+  document.querySelectorAll(".sale-ticket-item-row").forEach((row) => {
+    const option = options.find((item) => item.key === row.querySelector(".sale-item-type").value);
+    const itemQuantity = Math.max(0, Number(row.querySelector(".sale-item-quantity").value || 0));
+    if (option && Number.isInteger(itemQuantity)) { selectedOptions.push(option); quantity += (option.kind === "package" ? packageTicketCount(option.item) : 1) * itemQuantity; total += Number(option.item.price || 0) * itemQuantity; }
+  });
+  const courtesyOnly = Boolean(selectedOptions.length && selectedOptions.length === document.querySelectorAll(".sale-ticket-item-row").length && selectedOptions.every((option) => option.kind === "package" && option.item.packageKind === "courtesy"));
+  $("saleForm").classList.toggle("sale-is-courtesy", courtesyOnly);
+  syncSalePaymentFields(false);
+  $("saleItemsQuantity").textContent = quantity;
+  const current = state.sales.find((sale) => sale.id === $("saleForm").dataset.editId);
+  const fee = syncManualFeeOption($("saleForm"), event, total, "[data-manual-fee-preview]", current) || 0;
+  $("saleItemsTotal").textContent = money.format(total + fee);
+  syncSaleGuestNames();
+}
+function populateSaleTicketItemOptions(eventId = $("saleEvent").value) {
+  const event = state.events.find((item) => item.id === eventId);
+  const rows = [...document.querySelectorAll(".sale-ticket-item-row")];
+  const selectedValues = rows.map((row) => row.querySelector(".sale-item-type").value || row.querySelector(".sale-item-type").dataset.selectedValue || "");
+  const excludedSaleId = $("saleForm").dataset.editId || "";
+  const options = saleOptionsFor(event, excludedSaleId);
+  rows.forEach((row, rowIndex) => {
+    const select = row.querySelector(".sale-item-type");
+    const selectedValue = selectedValues[rowIndex];
+    const ticketOptions = options.filter((option) => option.kind === "ticket").map((option) => { const disabled = selectedValues.some((value, index) => index !== rowIndex && value === option.key) || (option.available === 0 && selectedValue !== option.key); return `<option value="${option.key}" ${disabled ? "disabled" : ""}>${escapeHtml(option.item.name)} — ${money.format(option.item.price)} — ${option.available} disponíveis</option>`; }).join("");
+    const packageOptions = options.filter((option) => option.kind === "package" && option.item.packageKind !== "courtesy").map((option) => { const disabled = selectedValues.some((value, index) => index !== rowIndex && value === option.key) || (option.available === 0 && selectedValue !== option.key); return `<option value="${option.key}" ${disabled ? "disabled" : ""}>PACOTE · ${escapeHtml(option.item.name)} — ${money.format(option.item.price)} — ${packageTicketCount(option.item)} ingressos — ${option.available} pacotes disponíveis</option>`; }).join("");
+    const courtesyOptions = options.filter((option) => option.kind === "package" && option.item.packageKind === "courtesy").map((option) => { const disabled = selectedValues.some((value, index) => index !== rowIndex && value === option.key) || (option.available === 0 && selectedValue !== option.key); return `<option value="${option.key}" ${disabled ? "disabled" : ""}>CORTESIA · ${escapeHtml(option.item.name)} — R$ 0,00 — ${packageTicketCount(option.item)} ingressos — ${option.available} disponíveis</option>`; }).join("");
+    select.innerHTML = event ? `<option value="">Selecione o item</option><optgroup label="Ingressos avulsos">${ticketOptions}</optgroup>${packageOptions ? `<optgroup label="Pacotes promocionais">${packageOptions}</optgroup>` : ""}${courtesyOptions ? `<optgroup label="Cortesias">${courtesyOptions}</optgroup>` : ""}` : `<option value="">Selecione primeiro o evento</option>`;
+    if (event && options.some((option) => option.key === selectedValue)) select.value = selectedValue;
+    delete select.dataset.selectedValue;
+    row.querySelector("[data-remove-sale-ticket]").disabled = rows.length === 1;
+  });
+  $("addSaleTicketItem").disabled = !event || rows.length >= options.length;
+  updateSaleItemsSummary();
+}
+function setSaleTicketItems(eventId, items = []) {
+  $("saleTicketItemsList").innerHTML = "";
+  const configuredItems = items.length ? items : [{ ticketTypeId: "", quantity: 1 }];
+  configuredItems.forEach((item) => addSaleTicketItemRow(saleItemOptionKey(item), item.quantity || 1));
+  populateSaleTicketItemOptions(eventId);
+}
+function getSaleTicketItems() {
+  const event = state.events.find((item) => item.id === $("saleEvent").value);
+  if (!event) throw new Error("Selecione um evento.");
+  const rows = [...document.querySelectorAll(".sale-ticket-item-row")];
+  if (!rows.length) throw new Error("Adicione pelo menos um ingresso.");
+  const options = saleOptionsFor(event, $("saleForm").dataset.editId || "");
+  const usedOptions = new Set();
+  return rows.map((row) => {
+    const optionKey = row.querySelector(".sale-item-type").value;
+    const option = options.find((item) => item.key === optionKey);
+    if (!option) throw new Error("Selecione todos os ingressos ou pacotes da venda.");
+    if (usedOptions.has(option.key)) throw new Error(`O item “${option.item.name}” foi adicionado mais de uma vez.`);
+    usedOptions.add(option.key);
+    const quantity = Number(row.querySelector(".sale-item-quantity").value);
+    if (!Number.isInteger(quantity) || quantity < 1) throw new Error(`Informe uma quantidade válida para “${option.item.name}”.`);
+    if (option.kind === "ticket") return { kind: "ticket", ticketTypeId: option.item.id, ticketTypeName: option.item.name, unitPrice: Number(option.item.price || 0), quantity, subtotal: Number(option.item.price || 0) * quantity };
+    const components = option.item.items.map((component) => { const type = ticketTypesFor(event).find((item) => item.id === component.ticketTypeId); return { ticketTypeId: type.id, ticketTypeName: type.name, unitPrice: Number(type.price || 0), quantity: Number(component.quantity || 0) }; });
+    return { kind: "package", packageKind: option.item.packageKind || "package", packageId: option.item.id, packageName: option.item.name, ticketTypeId: `package:${option.item.id}`, ticketTypeName: `${option.item.packageKind === "courtesy" ? "Cortesia" : "Pacote"}: ${option.item.name}`, unitPrice: Number(option.item.price || 0), quantity, subtotal: Number(option.item.price || 0) * quantity, components };
+  });
+}
+function toggleParticipantCard(row) { if (!row) return; const expanded = row.classList.toggle("is-expanded"); const saleId = row.dataset.saleRow; if (saleId) { if (expanded) expandedParticipantSaleIds.add(saleId); else expandedParticipantSaleIds.delete(saleId); } row.setAttribute("aria-expanded", String(expanded)); const button = row.querySelector("[data-toggle-sale-details]"); if (button) button.textContent = expanded ? "Ocultar detalhes" : "Detalhar"; }
+function toggleTableReservationCard(card) { if (!card) return; const expanded = card.classList.toggle("is-expanded"); const saleId = card.dataset.tableSaleId; if (saleId) { if (expanded) expandedTableReservationSaleIds.add(saleId); else expandedTableReservationSaleIds.delete(saleId); } card.setAttribute("aria-expanded", String(expanded)); const button = card.querySelector("[data-toggle-table-reservation-details]"); if (button) button.textContent = expanded ? "Ocultar detalhes" : "Detalhar"; }
+function ticketFileActionsHtml(sale) {
+  if (!hasRole("admin", "event_manager", "seller") || !isCommercialSale(sale)) return "";
+  const event = state.events.find((item) => item.id === sale.eventId);
+  if (!hasGeneratedTicket(sale, event)) return sale.paid ? `<div class="ticket-file-actions is-not-generated"><button class="ticket-file-button ticket-generate-button" type="button" data-ticket-generate="${sale.id}">Gerar ingresso em PDF</button></div>` : `<div class="ticket-generation-locked"><strong>Ingresso aguardando pagamento</strong><span>Confirme o pagamento para liberar a geração do PDF e QR Code.</span></div>`;
+  return `<div class="ticket-file-actions is-generated"><button class="ticket-file-button" type="button" data-ticket-view="${sale.id}">Ver ingresso</button><button class="ticket-file-button ticket-share-button" type="button" data-ticket-send="${sale.id}">Enviar ingresso</button><button class="ticket-file-button ticket-print-button" type="button" data-ticket-print="${sale.id}">IMPRIMIR</button><button class="ticket-file-button ticket-delete-button" type="button" data-ticket-delete="${sale.id}">Excluir ingresso</button></div>`;
+}
+function tableReservationCheckinsHtml(sale) {
+  const occupants = reservationOccupants(sale);
+  const checkins = reservationOccupantCheckins(sale);
+  if (!occupants.length) return `<span class="table-checkin-empty">Nenhum ocupante informado.</span>`;
+  return `<div class="table-occupant-checkin-list">${occupants.map((name, index) => {
+    const checked = checkins[index];
+    return `<div class="table-occupant-checkin-row"><span>${escapeHtml(name)}</span><button class="status ${checked ? "checked" : ""}" type="button" data-table-occupant-checkin="${sale.id}" data-occupant-index="${index}">${checked ? "✓ Check-in" : "Fazer check-in"}</button></div>`;
+  }).join("")}</div>`;
+}
+function tableReservationDiscountHtml(sale) {
+  const discount = Math.max(0, Number(sale?.discountTotal || 0));
+  if (!discount) return "";
+  const names = reservationOccupants(sale);
+  const details = reservationOccupantPricing(sale).map((item, index) => item.discountValue ? `${escapeHtml(names[index] || `Pessoa ${index + 1}`)}: ${item.discountType === "fixed" ? money.format(item.discountValue) : `${item.discountValue}%`}` : "").filter(Boolean).join(" · ");
+  return `<div><small>Desconto nas cadeiras</small><strong>${money.format(discount)}</strong>${details ? `<span>${details}</span>` : ""}</div>`;
+}
+function toggleMetricDetails(button) { const details = $(button.dataset.toggleMetricDetails); if (!details) return; const expanded = details.hidden; details.hidden = !expanded; button.setAttribute("aria-expanded", String(expanded)); button.textContent = expanded ? "Ocultar" : "Detalhar"; }
+function toggleSellerTicketReport() { const report = $("sellerTicketReport"); const button = $("sellerDetailsToggle"); const expanded = report.hidden; report.hidden = !expanded; button.setAttribute("aria-expanded", String(expanded)); button.textContent = expanded ? "Ocultar" : "Detalhar"; }
+
+function presetSlotsFor(area) {
+  const slots = [];
+  const add = (x, y, width = 6.4, height = 6.4) => slots.push({ id: `slot-${area}-${String(slots.length + 1).padStart(2, "0")}`, area, x, y, width, height });
+  if (area === "salao") {
+    const topColumns = [12.3, 21.9, 31.4, 41, 50.5, 60.1];
+    const mainColumns = [21.9, 31.4, 41, 50.5, 60.1];
+    [13.6, 22.4].forEach((y) => topColumns.forEach((x) => add(x, y)));
+    [30.6, 39.1, 47.8, 56.4, 65.1].forEach((y) => mainColumns.forEach((x) => add(x, y)));
+    [31.4, 41, 50.5].forEach((x) => add(x, 73.7));
+  } else {
+    [15.2, 25.8, 36.4, 47.1, 57.8, 68.5].forEach((y) => add(56.5, y, 7, 7));
+    [28.8, 38.9, 48.4].forEach((x) => add(x, 77.6, 7, 7));
+    [36.2, 45.9, 56.5].forEach((x) => add(x, 88.4, 7, 7));
+  }
+  return slots;
+}
+
+function migrateFurnitureToPreset(tableMap) {
+  const normalized = normalizeTableMap(tableMap);
+  const used = new Set();
+  const furniture = [...normalized.furniture].sort((a, b) => Number(a.number || 0) - Number(b.number || 0)).map((item) => {
+    const presets = presetSlotsFor(item.area);
+    let preset = presets.find((slot) => slot.id === item.id && !used.has(slot.id));
+    if (!preset) preset = presets.filter((slot) => !used.has(slot.id)).sort((a, b) => Math.hypot(a.x - Number(item.x || 0), a.y - Number(item.y || 0)) - Math.hypot(b.x - Number(item.x || 0), b.y - Number(item.y || 0)))[0];
+    if (!preset) return item;
+    used.add(preset.id);
+    return { ...preset, id: item.id, slotId: preset.id, kind: item.kind === "bistro" ? "bistro" : "table", number: Number(item.number || 0) };
+  });
+  return { areas: normalized.areas, furniture };
+}
+
+function mapFurnitureHtml(item, editor = false, reservation = null) {
+  const label = `${furnitureKindLabel(item.kind)} ${String(item.number).padStart(2, "0")} — ${mapAreaLabel(item.area)}`;
+  const status = reservation ? (reservation.paid && !isTableBlock(reservation) ? "is-paid" : "is-pending") : "is-free";
+  const occupancy = reservation && !isTableBlock(reservation) ? `<span class="map-furniture-occupancy">${reservation.occupants?.length || reservation.quantity || 1}</span>` : "";
+  const content = `<img src="${item.kind === "bistro" ? "bistro-icon.png" : "mesa-icon.png"}" alt="" /><span class="map-furniture-number">${String(item.number).padStart(2, "0")}</span>${occupancy}`;
+  const style = `left:${item.x}%;top:${item.y}%;width:${item.width}%;height:${item.height}%`;
+  return editor
+    ? `<button class="map-furniture map-preset-slot kind-${item.kind} is-active" type="button" data-map-slot="${item.slotId || item.id}" style="${style}" aria-label="${escapeHtml(label)}">${content}</button>`
+    : `<button class="map-furniture kind-${item.kind} ${status}" type="button" data-reserve-furniture="${item.id}" style="${style}" aria-label="${escapeHtml(`${label}${reservation ? isTableBlock(reservation) ? ", ocupada sem venda" : `, reservada para ${reservation.buyerName}` : ", livre"}`)}">${content}</button>`;
+}
+
+function updateMapEditorTabs() {
+  const tabs = $("mapEditorAreaTabs");
+  if (!eventMapDraft.areas.includes(activeMapEditorArea)) activeMapEditorArea = eventMapDraft.areas[0] || "";
+  tabs.innerHTML = eventMapDraft.areas.map((area) => `<button class="${area === activeMapEditorArea ? "is-active" : ""}" type="button" data-editor-map-area="${area}" role="tab" aria-selected="${area === activeMapEditorArea}">${mapAreaLabel(area)}</button>`).join("");
+}
+
+function renderMapEditor() {
+  updateMapEditorTabs();
+  const stage = $("tableMapEditor");
+  document.querySelectorAll("[data-map-tool]").forEach((button) => button.classList.toggle("is-active", button.dataset.mapTool === activeMapTool));
+  if (!activeMapEditorArea) {
+    stage.removeAttribute("data-area");
+    stage.innerHTML = `<div class="map-empty-hint">Selecione Salão ou Mezanino para começar.</div>`;
+    return;
+  }
+  stage.dataset.area = activeMapEditorArea;
+  const furniture = eventMapDraft.furniture.filter((item) => item.area === activeMapEditorArea);
+  stage.innerHTML = presetSlotsFor(activeMapEditorArea).map((slot) => {
+    const active = furniture.find((item) => (item.slotId || item.id) === slot.id);
+    if (active) return mapFurnitureHtml(active, true);
+    const style = `left:${slot.x}%;top:${slot.y}%;width:${slot.width}%;height:${slot.height}%`;
+    return `<button class="map-furniture map-preset-slot is-inactive" type="button" data-map-slot="${slot.id}" style="${style}" aria-label="Ativar esta posição"><span class="map-slot-plus">+</span></button>`;
+  }).join("");
+}
+
+function inactiveMapPositionsHtml(tableMap, area) {
+  const activeSlots = new Set(tableMap.furniture.filter((item) => item.area === area).map((item) => item.slotId || item.id));
+  return presetSlotsFor(area).filter((slot) => !activeSlots.has(slot.id)).map((slot) => {
+    const style = `left:${slot.x}%;top:${slot.y}%;width:${slot.width}%;height:${slot.height}%`;
+    return `<span class="map-inactive-position-mask" style="${style}" aria-hidden="true"></span>`;
+  }).join("");
+}
+
+function syncEventMapSettings() {
+  const mixed = $("eventMode").value === "mixed";
+  $("eventMapSettings").hidden = !mixed;
+  $("chairPrice").required = mixed;
+  if (mixed && !eventMapDraft.areas.length) {
+    const salon = document.querySelector('#eventForm [name="mapArea"][value="salao"]');
+    if (salon) salon.checked = true;
+    eventMapDraft.areas = ["salao"];
+    activeMapEditorArea = "salao";
+  }
+  if (mixed && !activeMapTool) activeMapTool = "table";
+  renderMapEditor();
+}
+
+function resetEventMapDraft(event = null) {
+  eventMapDraft = migrateFurnitureToPreset(event?.tableMap);
+  activeMapEditorArea = eventMapDraft.areas[0] || "";
+  activeMapTool = "table";
+  document.querySelectorAll('#eventForm [name="mapArea"]').forEach((input) => { input.checked = eventMapDraft.areas.includes(input.value); });
+  renderMapEditor();
+}
+
+function togglePresetSlot(slotId) {
+  if (!activeMapTool) return toast("Selecione primeiro Mesa ou Bistrô.");
+  const slot = presetSlotsFor(activeMapEditorArea).find((item) => item.id === slotId);
+  if (!slot) return;
+  const existingIndex = eventMapDraft.furniture.findIndex((item) => (item.slotId || item.id) === slotId);
+  if (existingIndex >= 0) {
+    const existing = eventMapDraft.furniture[existingIndex];
+    if (existing.kind !== activeMapTool) existing.kind = activeMapTool;
+    else {
+      eventMapDraft.furniture.splice(existingIndex, 1);
+      eventMapDraft.furniture.sort((a, b) => Number(a.number || 0) - Number(b.number || 0)).forEach((item, index) => { item.number = index + 1; });
+    }
+  } else {
+    const number = Math.max(0, ...eventMapDraft.furniture.map((item) => Number(item.number || 0))) + 1;
+    eventMapDraft.furniture.push({ ...slot, kind: activeMapTool, number });
+  }
+  renderMapEditor();
+}
+
+function tableReservationsFor(eventId) { return state.sales.filter((sale) => sale.eventId === eventId && isTableReservation(sale)); }
+function tableOccupanciesFor(eventId) { return state.sales.filter((sale) => sale.eventId === eventId && (isTableReservation(sale) || isTableBlock(sale))); }
+
+function renderTableMapPanel(event, eventSales) {
+  const panel = $("tableMapPanel");
+  const tableMap = migrateFurnitureToPreset(event?.tableMap);
+  const visible = Boolean(event && eventUsesTableMap(event));
+  panel.hidden = !visible;
+  if (!visible) return;
+  if (!tableMap.areas.includes(activeMapViewerArea)) activeMapViewerArea = tableMap.areas[0];
+  $("tableMapAreaTabs").innerHTML = tableMap.areas.map((area) => `<button class="${area === activeMapViewerArea ? "is-active" : ""}" type="button" data-view-map-area="${area}" role="tab" aria-selected="${area === activeMapViewerArea}">${mapAreaLabel(area)}</button>`).join("");
+  const reservations = eventSales.filter((sale) => isTableReservation(sale) || isTableBlock(sale));
+  const stage = $("tableMapViewer");
+  stage.dataset.area = activeMapViewerArea;
+  const furniture = tableMap.furniture.filter((item) => item.area === activeMapViewerArea);
+  stage.innerHTML = `${inactiveMapPositionsHtml(tableMap, activeMapViewerArea)}${furniture.map((item) => mapFurnitureHtml(item, false, reservations.find((sale) => sale.furnitureId === item.id))).join("")}` || `<div class="map-empty-hint">Nenhuma mesa ou bistrô configurado nesta área.</div>`;
+  const occupied = furniture.filter((item) => reservations.some((sale) => sale.furnitureId === item.id)).length;
+  const paid = furniture.filter((item) => reservations.some((sale) => sale.furnitureId === item.id && isTableReservation(sale) && sale.paid)).length;
+  const blocked = furniture.filter((item) => reservations.some((sale) => sale.furnitureId === item.id && isTableBlock(sale))).length;
+  const reserved = occupied - blocked;
+  $("tableMapSummary").innerHTML = `<span>${furniture.length} móveis</span><span>${reserved} reservados</span><span>${blocked} ocupados sem venda</span><span>${Math.max(0, furniture.length - occupied)} livres</span><span>${paid} pagos</span>`;
+  renderMapZoom(event, eventSales);
+}
+
+function renderMapZoom(event, eventSales) {
+  if (!event || !eventUsesTableMap(event)) return;
+  const tableMap = migrateFurnitureToPreset(event.tableMap);
+  if (!tableMap.areas.includes(activeMapViewerArea)) activeMapViewerArea = tableMap.areas[0];
+  $("mapZoomTitle").textContent = `Mapa de ${event.name}`;
+  $("tableMapZoomAreaTabs").innerHTML = tableMap.areas.map((area) => `<button class="${area === activeMapViewerArea ? "is-active" : ""}" type="button" data-zoom-map-area="${area}" role="tab" aria-selected="${area === activeMapViewerArea}">${mapAreaLabel(area)}</button>`).join("");
+  const reservations = eventSales.filter((sale) => isTableReservation(sale) || isTableBlock(sale));
+  const stage = $("tableMapZoomViewer");
+  stage.dataset.area = activeMapViewerArea;
+  const furniture = tableMap.furniture.filter((item) => item.area === activeMapViewerArea);
+  stage.innerHTML = `${inactiveMapPositionsHtml(tableMap, activeMapViewerArea)}${furniture.map((item) => mapFurnitureHtml(item, false, reservations.find((sale) => sale.furnitureId === item.id))).join("")}` || `<div class="map-empty-hint">Nenhuma mesa ou bistrô configurado nesta área.</div>`;
+}
+
+function renderTableReservationsList(event, eventSales) {
+  const panel = $("tableReservationsPanel");
+  const visible = Boolean(event && eventUsesTableMap(event));
+  panel.hidden = !visible;
+  if (!visible) return;
+  $("tableReservationSearch").value = tableReservationSearchQuery;
+  $("tableReservationAreaFilter").value = tableReservationAreaFilter;
+  $("tableReservationPaymentFilter").value = tableReservationPaymentFilter;
+  const allReservations = eventSales.filter(isTableReservation).sort((a, b) => String(a.reservationLabel || "").localeCompare(String(b.reservationLabel || ""), "pt-BR", { numeric: true }));
+  const reservations = allReservations.filter(matchesTableReservationFilters);
+  const filteredPeople = reservations.reduce((sum, sale) => sum + saleQuantity(sale, event), 0);
+  const filterCount = Number(tableReservationAreaFilter !== "all") + Number(tableReservationPaymentFilter !== "all");
+  const filterLabel = tableReservationPaymentFilter === "paid" ? "Pago" : tableReservationPaymentFilter === "pending" ? "Pendente" : tableReservationAreaFilter === "salao" ? "Salão" : tableReservationAreaFilter === "mezanino" ? "Mezanino" : "Todos";
+  $("tableReservationFilterLabel").textContent = filterCount > 1 ? `${filterCount} filtros` : filterLabel;
+  $("tableReservationCount").textContent = `${reservations.length} ${reservations.length === 1 ? "reservada" : "reservadas"} • ${filteredPeople} ${filteredPeople === 1 ? "pessoa" : "pessoas"}`;
+  $("clearTableReservationSearch").hidden = !tableReservationSearchQuery;
+  const canManage = hasRole("admin", "event_manager", "seller");
+  const paymentForTableReservation = (sale) => {
+    const courtesy = saleIsCourtesy(sale, event) || sale.courtesy;
+    const control = courtesy ? `<span class="payment paid courtesy-payment">Cortesia</span>` : canManage ? `<button class="payment ${sale.paid ? "paid" : ""}" type="button" data-paid="${sale.id}">${sale.paid ? "✓ Pago" : "Pendente"}</button>` : `<span class="payment ${sale.paid ? "paid" : ""}">${sale.paid ? "✓ Pago" : "Pendente"}</span>`;
+    return `${control}${paymentDetailsHtml(sale)}`;
+  };
+  $("tableReservationsList").innerHTML = reservations.length ? reservations.map((sale) => {
+    const occupants = Array.isArray(sale.occupants) ? sale.occupants : Object.values(sale.occupants || {});
+    const payment = paymentForTableReservation(sale);
+    const actions = canManage ? `<button class="delete-button table-reservation-delete" type="button" data-delete-sale="${sale.id}">Excluir venda</button>` : "";
+    const peopleCount = occupants.length || sale.quantity || 1;
+    const expanded = expandedTableReservationSaleIds.has(sale.id);
+    const details = `<div class="table-reservation-expanded"><div><small>Mesa / bistrô</small><strong>${escapeHtml(sale.reservationLabel || "Reserva")}</strong></div><div><small>Responsável</small><strong>${escapeHtml(sale.buyerName || "Sem responsável")}</strong></div><div><small>Quantidade de pessoas</small><strong>${peopleCount} ${peopleCount === 1 ? "pessoa" : "pessoas"}</strong></div>${tableReservationDiscountHtml(sale)}<div class="table-reservation-expanded-contact"><small>Contato</small><span>${escapeHtml(formatPhoneDisplay(sale.buyerPhone) || "Não informado")}</span>${whatsappButtonHtml(sale, event.name)}</div><div><small>Ocupantes</small><span>${escapeHtml(occupants.join(", ") || "Nenhum ocupante informado")}</span></div><div class="table-reservation-expanded-checkins"><small>Entradas (${reservationCheckinCount(sale)}/${peopleCount})</small>${tableReservationCheckinsHtml(sale)}</div><div><small>Pagamento</small>${payment}</div>${ticketFileActionsHtml(sale)}<div class="table-reservation-expanded-actions"><button class="edit-button" type="button" data-open-table-reservation="${sale.furnitureId}">Editar venda</button>${actions}</div></div>`;
+    return `<article class="table-reservation-card${expanded ? " is-expanded" : ""}" data-table-sale-id="${sale.id}" aria-expanded="${expanded}"><div class="table-reservation-main"><strong>${escapeHtml(sale.buyerName || "Sem responsável")}</strong><small>${escapeHtml(sale.reservationLabel || "Reserva")} · ${peopleCount} ${peopleCount === 1 ? "pessoa" : "pessoas"} · ${reservationCheckinCount(sale)}/${peopleCount} check-ins</small></div><div class="table-reservation-total"><strong>${money.format(saleTotal(sale, event))}</strong></div><div class="table-reservation-contact">${whatsappButtonHtml(sale, event.name)}</div><div class="table-reservation-payment">${payment}</div><button class="participant-detail-toggle" type="button" data-toggle-table-reservation-details>${expanded ? "Ocultar detalhes" : "Detalhar"}</button>${details}</article>`;
+  }).join("") : `<div class="empty">${tableReservationSearchQuery ? "Nenhuma reserva encontrada." : "Nenhuma reserva registrada neste evento."}</div>`;
+  const totalAllReservations = allReservations.reduce((sum, sale) => sum + saleTotal(sale, event), 0);
+  $("allTableReservationsTitle").textContent = `Reservas — ${event.name}`;
+  $("allTableReservationsTotal").textContent = money.format(totalAllReservations);
+  $("allTableReservationsList").innerHTML = allReservations.length ? allReservations.map((sale) => { const occupants = reservationOccupants(sale); const peopleCount = occupants.length || sale.quantity || 1; return `<tr class="sales-row table-reservation-all-row"><td data-label="Responsável"><strong>${escapeHtml(sale.buyerName || "Sem responsável")}</strong><small>${peopleCount} pessoas · ${reservationCheckinCount(sale)}/${peopleCount} check-ins</small></td><td data-label="Mesa / bistrô"><strong>${escapeHtml(sale.reservationLabel || "Reserva")}</strong><small>${escapeHtml(mapAreaLabel(sale.reservationArea || ""))}</small></td><td class="sale-note" data-label="Contato / ocupantes"><span class="phone-line"><strong>${escapeHtml(formatPhoneDisplay(sale.buyerPhone) || "Não informado")}</strong>${whatsappButtonHtml(sale, event.name)}</span><small>${escapeHtml(occupants.join(", "))}</small><div class="table-reservation-all-checkins"><small>Entradas (${reservationCheckinCount(sale)}/${peopleCount})</small>${tableReservationCheckinsHtml(sale)}</div></td><td data-label="Evento">${escapeHtml(event.name)}</td><td class="financial-column" data-label="Valor">${money.format(saleTotal(sale, event))}</td><td class="financial-column" data-label="Pagamento">${paymentForTableReservation(sale)}</td><td data-label="Ações"><div class="table-all-actions"><button class="edit-button" type="button" data-open-table-reservation="${sale.furnitureId}">Editar venda</button>${canManage ? `<button class="delete-button" data-delete-sale="${sale.id}">Excluir venda</button>` : ""}</div>${ticketFileActionsHtml(sale)}</td></tr>`; }).join("") : `<tr><td colspan="7" class="empty">Nenhuma reserva neste evento.</td></tr>`;
+}
+
+function chairDiscountControlHtml(pricing = {}, label = "Desconto desta cadeira") {
+  const type = pricing.discountType === "fixed" ? "fixed" : "percent";
+  const value = Math.max(0, Number(pricing.discountValue || 0));
+  const active = value > 0;
+  const symbol = type === "fixed" ? "R$" : "%";
+  return `<div class="chair-discount-control${active ? " is-active" : ""}" data-chair-discount data-discount-type="${type}"><button class="chair-discount-toggle" type="button" data-toggle-chair-discount aria-expanded="${active}" title="${active ? "Alterar tipo do desconto" : "Adicionar desconto"}">${symbol}</button><label ${active ? "" : "hidden"}><span class="chair-discount-prefix">${symbol}</span><input class="chair-discount-value" type="number" min="0" max="${type === "percent" ? "100" : "999999"}" step="0.01" value="${value}" inputmode="decimal" aria-label="${label}" /></label></div>`;
+}
+
+function setChairDiscountControl(control, pricing = {}) {
+  if (!control) return;
+  const type = pricing.discountType === "fixed" ? "fixed" : "percent";
+  const value = Math.max(0, Number(pricing.discountValue || 0));
+  const active = value > 0;
+  const symbol = type === "fixed" ? "R$" : "%";
+  control.dataset.discountType = type;
+  control.classList.toggle("is-active", active);
+  const button = control.querySelector("[data-toggle-chair-discount]");
+  const label = control.querySelector("label");
+  const prefix = control.querySelector(".chair-discount-prefix");
+  const input = control.querySelector(".chair-discount-value");
+  button.textContent = symbol;
+  button.setAttribute("aria-expanded", String(active));
+  button.title = active ? "Alterar tipo do desconto" : "Adicionar desconto";
+  label.hidden = !active;
+  prefix.textContent = symbol;
+  input.value = String(value);
+  input.max = type === "percent" ? "100" : "999999";
+}
+
+function addTableOccupantRow(name = null, pricing = {}) {
+  const position = document.querySelectorAll(".table-occupant-row").length + 2;
+  const automatic = name == null;
+  const resolvedName = automatic ? guestDefaultName($("tableReservationForm").elements.buyerName.value, position) : name;
+  const row = document.createElement("div");
+  row.className = "table-occupant-row";
+  row.innerHTML = `<input class="table-occupant-name" data-automatic="${automatic}" data-position="${position}" required placeholder="Nome do participante" value="${escapeHtml(resolvedName)}" />${chairDiscountControlHtml(pricing, "Desconto da cadeira deste participante")}<button class="close" type="button" data-remove-table-occupant aria-label="Remover participante">×</button>`;
+  $("tableOccupantsList").append(row);
+  updateTableReservationTotal();
+}
+function syncTableGuestPositions() {
+  $("tableOccupantsList").querySelectorAll(".table-occupant-name").forEach((input, index) => {
+    const position = index + 2;
+    input.dataset.position = String(position);
+    if (input.dataset.automatic === "true") input.value = guestDefaultName($("tableReservationForm").elements.buyerName.value, position);
+  });
+}
+
+function tableReservationNames() {
+  const responsible = String($("tableReservationForm").elements.buyerName.value || "").trim();
+  const others = [...document.querySelectorAll(".table-occupant-name")].map((input) => input.value.trim()).filter(Boolean);
+  return [responsible, ...others].filter(Boolean);
+}
+
+function tableReservationPricing(chairPrice) {
+  return [...document.querySelectorAll("#tableReservationForm [data-chair-discount]")].map((control) => {
+    const discountType = control.dataset.discountType === "fixed" ? "fixed" : "percent";
+    const rawValue = control.classList.contains("is-active") ? Math.max(0, Number(control.querySelector(".chair-discount-value")?.value || 0)) : 0;
+    const discountValue = discountType === "percent" ? Math.min(100, rawValue) : Math.min(chairPrice, rawValue);
+    const discountAmount = discountType === "percent" ? chairPrice * discountValue / 100 : discountValue;
+    return { discountType, discountValue, regularPrice: chairPrice, discountAmount: Math.round(discountAmount * 100) / 100, finalPrice: Math.round(Math.max(0, chairPrice - discountAmount) * 100) / 100 };
+  });
+}
+
+function updateTableReservationTotal() {
+  const form = $("tableReservationForm");
+  const event = state.events.find((item) => item.id === form.elements.eventId.value);
+  const people = Math.max(1, 1 + document.querySelectorAll(".table-occupant-row").length);
+  const chairPrice = Math.max(0, Number(event?.chairPrice || 0));
+  const pricing = tableReservationPricing(chairPrice);
+  const total = pricing.reduce((sum, item) => sum + item.finalPrice, 0);
+  const discount = Math.max(0, people * chairPrice - total);
+  $("tableReservationPeople").textContent = people;
+  $("tableReservationUnitPrice").textContent = money.format(chairPrice);
+  $("tableReservationDiscount").textContent = money.format(discount);
+  const current = state.sales.find((sale) => sale.id === form.elements.saleId.value);
+  const fee = syncManualFeeOption(form, event, total, "[data-table-manual-fee-preview]", current) || 0;
+  $("tableReservationTotal").textContent = money.format(total + fee);
+}
+
+function syncTableReservationPaymentFields(useToday = false) {
+  const form = $("tableReservationForm");
+  const paid = form.elements.paymentStatus.value === "paid";
+  form.elements.paymentMethod.disabled = !paid;
+  form.elements.paymentDate.disabled = !paid;
+  form.elements.paymentMethod.required = paid;
+  form.elements.paymentDate.required = paid;
+  form.classList.toggle("payment-is-pending", !paid);
+  if (!paid) { form.elements.paymentMethod.value = ""; form.elements.paymentDate.value = ""; }
+  else if (useToday && !form.elements.paymentDate.value) form.elements.paymentDate.value = todayInputValue();
+}
+
+function openTableReservation(furnitureId) {
+  if ($("allSalesModal").open) $("allSalesModal").close();
+  if ($("allTableReservationsModal").open) $("allTableReservationsModal").close();
+  if (!requireRole(["admin", "event_manager", "seller"], "Seu perfil permite consultar o mapa, mas não alterar reservas.")) return;
+  const event = state.events.find((item) => item.id === selectedEventId);
+  const furniture = normalizeTableMap(event?.tableMap).furniture.find((item) => item.id === furnitureId);
+  if (!event || !furniture) return toast("Mesa ou bistrô não encontrado.");
+  const block = state.sales.find((sale) => sale.eventId === event.id && sale.furnitureId === furnitureId && isTableBlock(sale));
+  if (block) {
+    $("tableOccupancyModal").dataset.blockId = block.id;
+    $("tableOccupancyTitle").textContent = `${furnitureKindLabel(furniture.kind)} ${String(furniture.number).padStart(2, "0")}`;
+    $("tableOccupancyArea").textContent = mapAreaLabel(furniture.area);
+    $("tableOccupancyModal").showModal();
+    return;
+  }
+  const reservation = tableReservationsFor(event.id).find((sale) => sale.furnitureId === furnitureId);
+  const form = $("tableReservationForm");
+  form.reset();
+  form.elements.eventId.value = event.id;
+  form.elements.furnitureId.value = furniture.id;
+  form.elements.saleId.value = reservation?.id || "";
+  form.elements.buyerName.value = reservation?.buyerName || "";
+  form.elements.buyerPhone.value = reservation?.buyerPhone || "";
+  form.elements.buyerEmail.value = reservation?.buyerEmail || "";
+  form.elements.paymentStatus.value = reservation?.paid ? "paid" : "pending";
+  form.elements.paymentMethod.value = reservation?.paymentMethod || "";
+  form.elements.paymentDate.value = reservation?.paymentDate || "";
+  form.elements.applyBuyerFee.checked = reservation ? Boolean(reservation.applyBuyerFee) : Boolean(event.manualBuyerFeeDefault);
+  form.elements.notes.value = reservation?.notes || "";
+  $("tableOccupantsList").innerHTML = "";
+  const storedPricing = reservationOccupantPricing(reservation);
+  setChairDiscountControl($("responsibleChairDiscount"), storedPricing[0]);
+  reservationOccupants(reservation).slice(1).forEach((name, index) => addTableOccupantRow(name, storedPricing[index + 1]));
+  $("tableReservationTitle").textContent = `${furnitureKindLabel(furniture.kind)} ${String(furniture.number).padStart(2, "0")}`;
+  $("tableReservationArea").textContent = `${mapAreaLabel(furniture.area)} · ${money.format(Number(event.chairPrice || 0))} por pessoa`;
+  $("deleteTableReservation").hidden = !reservation;
+  $("occupyTableWithoutSale").hidden = Boolean(reservation);
+  syncTableReservationPaymentFields(!reservation);
+  updateTableReservationTotal();
+  $("tableReservationModal").showModal();
+}
+
+async function occupyTableWithoutSale() {
+  if (!requireRole(["admin", "event_manager", "seller"], "Seu perfil não permite ocupar mesas.")) return;
+  const form = $("tableReservationForm");
+  const event = state.events.find((item) => item.id === form.elements.eventId.value);
+  const furniture = normalizeTableMap(event?.tableMap).furniture.find((item) => item.id === form.elements.furnitureId.value);
+  if (!event || !furniture) return toast("Mesa ou bistrô não encontrado.");
+  if (tableOccupanciesFor(event.id).some((item) => item.furnitureId === furniture.id)) return toast("Esta mesa já está ocupada.");
+  const label = `${furnitureKindLabel(furniture.kind)} ${String(furniture.number).padStart(2, "0")} — ${mapAreaLabel(furniture.area)}`;
+  if (!confirm(`Marcar ${label} como ocupada sem venda? Ela ficará indisponível no mapa e não será contabilizada.`)) return;
+  const timestamp = Date.now();
+  const blockData = { eventId:event.id, reservationType:"table_block", nonRevenue:true, furnitureId:furniture.id, furnitureKind:furniture.kind, furnitureNumber:furniture.number, mapArea:furniture.area, reservationLabel:label, buyerName:"Ocupada sem venda", buyerPhone:"", occupants:[], items:[], quantity:0, total:0, paid:false, checkedIn:false, createdByUid:currentUser.uid, createdByName:currentUserProfile.name || currentUser.email || "Usuário", createdByEmail:currentUser.email || currentUserProfile.email || "", createdAt:timestamp, updatedAt:timestamp };
+  try {
+    if (isDemo) { state.sales.push({ id:crypto.randomUUID(), ...blockData }); persistDemo(); render(); }
+    else { const blockRef = push(ref(db, "sales")); await set(blockRef, blockData); }
+    $("tableReservationModal").close();
+    toast("Mesa ocupada sem registrar venda.");
+  } catch(error) { toast(`Não foi possível ocupar a mesa: ${error.message}`); }
+}
+
+async function releaseTableOccupancy() {
+  const modal = $("tableOccupancyModal");
+  const block = state.sales.find((sale) => sale.id === modal.dataset.blockId && isTableBlock(sale));
+  if (!block || !requireRole(["admin", "event_manager", "seller"], "Seu perfil não permite liberar mesas.")) return;
+  if (!confirm(`Liberar ${block.reservationLabel || "esta mesa"}?`)) return;
+  try {
+    if (isDemo) { state.sales = state.sales.filter((sale) => sale.id !== block.id); persistDemo(); render(); }
+    else await set(ref(db, `sales/${block.id}`), null);
+    modal.close();
+    toast("Mesa liberada.");
+  } catch(error) { toast(`Não foi possível liberar a mesa: ${error.message}`); }
+}
+
+async function saveTableReservation(data) {
+  if (!hasRole("admin", "event_manager", "seller")) throw new Error("Seu perfil não permite criar ou editar reservas.");
+  const event = state.events.find((item) => item.id === data.eventId);
+  const furniture = normalizeTableMap(event?.tableMap).furniture.find((item) => item.id === data.furnitureId);
+  if (!event || !furniture) throw new Error("Mesa ou bistrô não encontrado.");
+  const names = tableReservationNames();
+  if (!names[0]) throw new Error("Informe o nome do responsável.");
+  const current = state.sales.find((sale) => sale.id === data.saleId);
+  const occupiedByAnother = tableOccupanciesFor(event.id).find((sale) => sale.furnitureId === furniture.id && sale.id !== data.saleId);
+  if (occupiedByAnother) throw new Error("Esta mesa já possui uma reserva.");
+  const chairPrice = Math.max(0, Number(event.chairPrice || 0));
+  const quantity = names.length;
+  const occupantPricing = tableReservationPricing(chairPrice).slice(0, quantity);
+  const regularTotal = chairPrice * quantity;
+  const subtotal = occupantPricing.reduce((sum, item) => sum + item.finalPrice, 0);
+  const discountTotal = Math.round((regularTotal - subtotal) * 100) / 100;
+  const paid = data.paymentStatus === "paid";
+  const paymentMethod = paid ? String(data.paymentMethod || "") : "";
+  const paymentDate = paid ? String(data.paymentDate || "") : "";
+  if (paid && !PAYMENT_METHOD_LABELS[paymentMethod]) throw new Error("Selecione a forma de pagamento.");
+  if (paid && !paymentDate) throw new Error("Informe a data do pagamento.");
+  const timestamp = isDemo ? Date.now() : serverTimestamp();
+  const label = `${furnitureKindLabel(furniture.kind)} ${String(furniture.number).padStart(2, "0")} — ${mapAreaLabel(furniture.area)}`;
+  const items = [{ kind: "ticket", ticketTypeId: `chair:${furniture.area}`, ticketTypeName: `Cadeira — ${mapAreaLabel(furniture.area)}`, unitPrice: chairPrice, quantity, regularSubtotal: regularTotal, discountTotal, subtotal }];
+  const previousCheckins = reservationOccupantCheckins(current);
+  const promoterId = current ? String(current.promoterId || "") : (hasRole("promoter") ? currentUser.uid : "");
+  const promoter = promoterId ? promoterForSale(event.id, promoterId) : null;
+  if (!current && hasRole("promoter") && (!promoter || promoter.active === false)) throw new Error("Seu cadastro de promoter não está ativo neste evento.");
+  const feeSnapshot = manualBuyerFeeFor(event, subtotal, data.applyBuyerFee === "on", current);
+  const total = Math.round((subtotal + feeSnapshot.buyerFeeAmount) * 100) / 100;
+  const financialSnapshot = saleFinancialSnapshot(event, subtotal, current, "manual");
+  const promoterSnapshot = promoterFinancialSnapshot(promoter, subtotal, current, "manual");
+  const saleData = { eventId: event.id, reservationType: "table", furnitureId: furniture.id, furnitureKind: furniture.kind, furnitureNumber: furniture.number, mapArea: furniture.area, reservationLabel: label, occupants: names, occupantPricing, occupantCheckins: names.map((_, index) => Boolean(previousCheckins[index])), ticketTypeId: `chair:${furniture.area}`, ticketTypeName: `Cadeira — ${mapAreaLabel(furniture.area)}`, items, buyerName: names[0], buyerPhone: String(data.buyerPhone || "").trim(), buyerEmail: String(data.buyerEmail || "").trim(), notes: String(data.notes || "").trim(), courtesy: false, paid, paymentMethod, paymentDate, quantity, regularTotal, discountTotal, total, ...feeSnapshot, ...financialSnapshot, ...promoterSnapshot, checkedIn: current?.checkedIn || false, updatedAt: timestamp };
+  if (isDemo) {
+    if (current) {
+      const updated = { ...current, ...saleData };
+      state.sales = state.sales.map((sale) => sale.id === current.id ? updated : sale);
+      appendDemoAudit("edited", updated, `Atualizou a reserva da ${label} para ${quantity} pessoas${discountTotal ? `, com ${money.format(discountTotal)} de desconto` : ""}.`);
+    } else {
+      const created = { id: crypto.randomUUID(), ...saleData, createdByUid: currentUser.uid, createdByName: currentUserProfile.name || currentUser.email, createdByEmail: currentUser.email || currentUserProfile.email || "", createdAt: timestamp };
+      state.sales.push(created);
+      appendDemoAudit("created", created, `Criou a reserva da ${label} para ${quantity} pessoas${discountTotal ? `, com ${money.format(discountTotal)} de desconto` : ""}.`);
+    }
+    persistDemo();
+    render();
+  } else {
+    const saleId = current?.id || push(ref(db, "sales")).key;
+    const stored = { ...current, id: saleId, ...saleData };
+    if (!current) Object.assign(stored, { createdByUid: currentUser.uid, createdByName: currentUserProfile.name || currentUser.email, createdByEmail: currentUser.email || currentUserProfile.email || "", createdAt: timestamp });
+    const logId = push(ref(db, "auditLogs")).key;
+    const action = current ? "edited" : "created";
+    await update(ref(db), { [`sales/${saleId}`]: Object.fromEntries(Object.entries(stored).filter(([key]) => key !== "id")), [`auditLogs/${logId}`]: auditLogData(action, stored, `${current ? "Atualizou" : "Criou"} a reserva da ${label} para ${quantity} pessoas${discountTotal ? `, com ${money.format(discountTotal)} de desconto` : ""}.`, timestamp) });
+  }
+  toast(current ? "Reserva atualizada." : "Reserva criada.");
+}
+
+function eventAccessCheckboxes(selectedIds = []) {
+  const selected = new Set(selectedIds);
+  if (!state.events.length) return `<p class="user-events-empty">Nenhum evento cadastrado.</p>`;
+  return [...state.events].sort((a, b) => String(a.name).localeCompare(String(b.name), "pt-BR")).map((event) => `<label class="user-event-option"><input type="checkbox" value="${event.id}" ${selected.has(event.id) ? "checked" : ""} /><span><strong>${escapeHtml(event.name)}</strong><small>${escapeHtml(event.place || "Local não informado")} · ${eventDateTimeText(event)}</small></span></label>`).join("");
+}
+function promotersForEvent(eventId, includeInactive = false) {
+  return state.promoters
+    .filter((promoter) => promoter.eventId === eventId && (includeInactive || promoter.active !== false))
+    .sort((a, b) => String(a.name || a.email).localeCompare(String(b.name || b.email), "pt-BR"));
+}
+function promoterForSale(eventId, promoterId) { return promotersForEvent(eventId, true).find((promoter) => promoter.id === promoterId); }
+function renderPromoters() {
+  const list = $("promotersList");
+  if (!list) return;
+  const promoters = promotersForEvent(selectedEventId, true);
+  $("promotersCount").textContent = `${promoters.length} ${promoters.length === 1 ? "promoter" : "promoters"}`;
+  list.innerHTML = promoters.length ? promoters.map((promoter) => {
+    return `<article class="promoter-card ${promoter.active === false ? "is-inactive" : ""}" data-promoter-card="${escapeHtml(promoter.id)}"><div class="promoter-identity"><span class="promoter-avatar">${escapeHtml(userInitials(promoter.name, promoter.email))}</span><div class="promoter-copy"><strong>${escapeHtml(promoter.name || "Sem nome")}</strong><small>${escapeHtml(promoter.email || "E-mail não informado")}</small><small>${promoter.active === false ? "Desativado neste evento" : "Ativo neste evento"}</small></div></div><div class="promoter-financial"><span>${normalizePercentage(promoter.commissionPercent)}% de comissão</span><span>${escapeHtml(PLATFORM_COMMISSION_SCOPES[normalizeCommissionScope(promoter.commissionScope)])}</span><button class="deactivate" type="button" data-toggle-promoter="${escapeHtml(promoter.id)}">${promoter.active === false ? "Ativar" : "Desativar"}</button></div><div class="promoter-editor"><label>Porcentagem<input name="commissionPercent" type="number" min="0" max="100" step="0.01" value="${normalizePercentage(promoter.commissionPercent)}" /></label><label>Aplicar comissão em<select name="commissionScope"><option value="both" ${promoter.commissionScope === "both" ? "selected" : ""}>Online e manuais</option><option value="online" ${promoter.commissionScope === "online" ? "selected" : ""}>Somente online</option><option value="manual" ${promoter.commissionScope === "manual" ? "selected" : ""}>Somente manuais</option><option value="none" ${promoter.commissionScope === "none" ? "selected" : ""}>Não pagar comissão</option></select></label><button class="button secondary" type="button" data-save-promoter="${escapeHtml(promoter.id)}">Salvar comissão</button></div></article>`;
+  }).join("") : '<div class="empty">Nenhum promoter cadastrado neste evento.</div>';
+}
+async function createPromoter(data) {
+  if (!hasRole("admin", "event_manager") || !canAdministerEvent(selectedEventId)) throw new Error("Você não pode cadastrar promoters neste evento.");
+  if (isDemo) throw new Error("A criação de contas funciona somente no site conectado ao Firebase.");
+  const event = state.events.find((item) => item.id === selectedEventId);
+  if (!event) throw new Error("Selecione um evento.");
+  const commissionPercent = normalizePercentage(data.commissionPercent);
+  const commissionScope = normalizeCommissionScope(data.commissionScope);
+  const secondaryApp = initializeApp(firebaseConfig, `create-promoter-${Date.now()}`);
+  const secondaryAuth = getAuth(secondaryApp);
+  try {
+    await setPersistence(secondaryAuth, inMemoryPersistence);
+    const credential = await createUserWithEmailAndPassword(secondaryAuth, data.email.trim(), data.password);
+    const timestamp = Date.now();
+    const name = data.name.trim();
+    const email = data.email.trim().toLocaleLowerCase("pt-BR");
+    const profile = { name, email, role: "promoter", active: true, eventIds: { [event.id]: true }, createdAt: timestamp, createdBy: currentUser.uid };
+    const promoter = { name, email, active: true, commissionPercent, commissionScope, createdAt: timestamp, createdBy: currentUser.uid };
+    await update(ref(db), { [`users/${credential.user.uid}`]: profile, [`promoters/${event.id}/${credential.user.uid}`]: promoter });
+  } finally { try { await signOut(secondaryAuth); } catch {} await deleteApp(secondaryApp); }
+}
+async function updatePromoterSettings(uid, card) {
+  if (!canAdministerEvent(selectedEventId)) throw new Error("Você não administra este evento.");
+  const commissionPercent = normalizePercentage(card.querySelector('[name="commissionPercent"]').value);
+  const commissionScope = normalizeCommissionScope(card.querySelector('[name="commissionScope"]').value);
+  await update(ref(db, `promoters/${selectedEventId}/${uid}`), { commissionPercent, commissionScope, updatedAt: Date.now(), updatedBy: currentUser.uid });
+  toast("Comissão do promoter atualizada.");
+}
+async function togglePromoter(uid) {
+  if (!canAdministerEvent(selectedEventId)) throw new Error("Você não administra este evento.");
+  const promoter = promoterForSale(selectedEventId, uid);
+  if (!promoter) return;
+  const active = promoter.active === false;
+  await update(ref(db, `promoters/${selectedEventId}/${uid}`), { active, updatedAt: Date.now(), updatedBy: currentUser.uid });
+  toast(active ? "Promoter ativado neste evento." : "Promoter desativado neste evento.");
+}
+function renderCreateUserEventOptions() {
+  const container = $("createUserEvents");
+  if (!container) return;
+  container.innerHTML = eventAccessCheckboxes();
+  container.querySelectorAll("input").forEach((input) => { input.name = "eventIds"; });
+  syncCreateUserEventAccess();
+}
+function syncCreateUserEventAccess() {
+  const field = $("createUserEventAccess");
+  if (!field) return;
+  const isAdmin = document.querySelector('#createUserForm [name="role"]').value === "admin";
+  field.classList.toggle("is-admin", isAdmin);
+  field.querySelectorAll("input").forEach((input) => { input.disabled = isAdmin; });
+  $("createUserEventHint").textContent = isAdmin ? "Administradores visualizam todos os eventos." : "Marque um ou mais eventos que esta pessoa poderá acessar.";
+}
+function renderUsers() {
+  renderCreateUserEventOptions();
+  const users = [...state.users].sort((a, b) => String(a.name || a.email).localeCompare(String(b.name || b.email), "pt-BR"));
+  $("usersCount").textContent = `${users.length} ${users.length === 1 ? "usuário" : "usuários"}`;
+  $("usersList").innerHTML = users.length ? users.map((user) => {
+    const isCurrent = user.id === currentUser?.uid;
+    const selectedIds = allowedEventIds(user).filter((eventId) => state.events.some((event) => event.id === eventId));
+    const eventSummary = user.role === "admin" ? "Todos os eventos" : `${selectedIds.length} ${selectedIds.length === 1 ? "evento permitido" : "eventos permitidos"}`;
+    const accessEditor = user.role === "admin" ? `<div class="user-event-access admin-access"><strong>Acesso aos eventos</strong><span>Administrador visualiza todos.</span></div>` : `<details class="user-event-access" data-event-access-user="${user.id}"><summary><span>Acesso aos eventos</span><strong>${eventSummary}</strong></summary><div class="user-event-options">${eventAccessCheckboxes(selectedIds)}</div><button class="save-user-events" type="button" data-save-user-events="${user.id}">Salvar eventos permitidos</button></details>`;
+    const accountActions = isCurrent ? `<button type="button" disabled>Conta atual</button>` : `<button class="deactivate" type="button" data-toggle-user="${user.id}">${user.active ? "Bloquear" : "Ativar"}</button><button class="delete-user" type="button" data-delete-user="${user.id}">Excluir</button>`;
+    return `<article class="managed-user ${user.active ? "" : "is-inactive"}"><div class="managed-user-main"><span class="managed-user-avatar">${escapeHtml(userInitials(user.name, user.email))}</span><div class="managed-user-copy"><strong>${escapeHtml(user.name || "Sem nome")}${isCurrent ? " (você)" : ""}</strong><small>${escapeHtml(user.email || "E-mail não informado")}</small><em>${user.active ? "Acesso ativo" : "Acesso bloqueado"}</em></div></div><select data-user-role="${user.id}" aria-label="Perfil de ${escapeHtml(user.name || user.email)}" ${isCurrent ? "disabled" : ""}><option value="admin" ${user.role === "admin" ? "selected" : ""}>Administrador</option><option value="event_manager" ${user.role === "event_manager" ? "selected" : ""}>Gerente do evento</option><option value="seller" ${user.role === "seller" ? "selected" : ""}>Vendedor</option><option value="promoter" ${user.role === "promoter" ? "selected" : ""}>Promoter</option><option value="door" ${user.role === "door" ? "selected" : ""}>Portaria</option></select><div class="managed-user-actions"><button type="button" data-reset-user="${user.id}">Redefinir senha</button>${accountActions}</div>${accessEditor}</article>`;
+  }).join("") : `<div class="empty">Nenhum usuário cadastrado.</div>`;
+}
+async function createManagedUser(data) {
+  if (!requireRole(["admin"])) return;
+  const selectedEventIds = [...document.querySelectorAll("#createUserEvents input:checked")].map((input) => input.value);
+  if (data.role !== "admin" && !selectedEventIds.length) throw new Error("Selecione pelo menos um evento para este usuário.");
+  if (isDemo) throw new Error("A criação de contas funciona somente no site conectado ao Firebase.");
+  const secondaryApp = initializeApp(firebaseConfig, `create-user-${Date.now()}`);
+  const secondaryAuth = getAuth(secondaryApp);
+  try {
+    await setPersistence(secondaryAuth, inMemoryPersistence);
+    const credential = await createUserWithEmailAndPassword(secondaryAuth, data.email.trim(), data.password);
+    const profile = { name: data.name.trim(), email: data.email.trim().toLocaleLowerCase("pt-BR"), role: data.role, active: true, createdAt: Date.now(), createdBy: currentUser.uid };
+    if (data.role !== "admin") profile.eventIds = Object.fromEntries(selectedEventIds.map((eventId) => [eventId, true]));
+    await set(ref(db, `users/${credential.user.uid}`), profile);
+  } finally { try { await signOut(secondaryAuth); } catch {} await deleteApp(secondaryApp); }
+}
+async function updateManagedUserRole(uid, role) { if (!requireRole(["admin"]) || uid === currentUser?.uid) return; await update(ref(db, `users/${uid}`), { role, updatedAt: Date.now(), updatedBy: currentUser.uid }); toast("Perfil atualizado."); }
+async function updateManagedUserEvents(uid, eventIds) {
+  if (!requireRole(["admin"])) return;
+  const user = state.users.find((item) => item.id === uid);
+  if (!user || user.role === "admin") return;
+  if (!eventIds.length && state.events.length) throw new Error("Selecione pelo menos um evento.");
+  const eventAccess = eventIds.length ? Object.fromEntries(eventIds.map((eventId) => [eventId, true])) : null;
+  await update(ref(db, `users/${uid}`), { eventIds: eventAccess, updatedAt: Date.now(), updatedBy: currentUser.uid });
+  toast("Eventos permitidos atualizados.");
+}
+async function toggleManagedUser(uid) { if (!requireRole(["admin"]) || uid === currentUser?.uid) return; const user = state.users.find((item) => item.id === uid); if (!user) return; const active = !user.active; if (!confirm(`${active ? "Ativar" : "Bloquear"} o acesso de ${user.name || user.email}?`)) return; await update(ref(db, `users/${uid}`), { active, updatedAt: Date.now(), updatedBy: currentUser.uid }); toast(active ? "Acesso ativado." : "Acesso bloqueado."); }
+async function resetManagedUserPassword(uid) { if (!requireRole(["admin"])) return; const user = state.users.find((item) => item.id === uid); if (!user?.email) return; await sendPasswordResetEmail(auth, user.email); toast("E-mail para redefinição de senha enviado."); }
+async function deleteManagedUser(uid) {
+  if (!requireRole(["admin"]) || uid === currentUser?.uid) return;
+  const user = state.users.find((item) => item.id === uid);
+  if (!user) return;
+  if (!confirm(`Excluir o usuário “${user.name || user.email}” do painel? Ele perderá o acesso imediatamente. As vendas e os históricos feitos por ele serão mantidos.`)) return;
+  if (isDemo) throw new Error("A exclusão de usuários funciona somente no site conectado ao Firebase.");
+  await update(ref(db), { [`users/${uid}`]: null });
+  toast("Usuário excluído do painel.");
+}
+
+function sellerForSale(sale) {
+  const creationLog = state.auditLogs.find((log) => log.saleId === sale.id && log.action === "created");
+  const creatorId = sale.createdByUid || creationLog?.actorUid || "legacy-sales";
+  const profile = state.users.find((user) => user.id === creatorId);
+  return {
+    id: creatorId,
+    name: profile?.name || sale.createdByName || creationLog?.actorName || "Vendas anteriores",
+    email: profile?.email || sale.createdByEmail || creationLog?.actorEmail || "Sem vendedor identificado"
+  };
+}
+function saleCreatedDate(sale) {
+  const timestamp = Number(sale.createdAt);
+  if (!Number.isFinite(timestamp)) return "";
+  const date = new Date(timestamp);
+  date.setMinutes(date.getMinutes() - date.getTimezoneOffset());
+  return date.toISOString().slice(0, 10);
+}
+function renderSellerClosing(eventSales, event) {
+  const start = $("sellerClosingStart").value;
+  const end = $("sellerClosingEnd").value;
+  const periodSales = eventSales.filter((sale) => { const date = saleCreatedDate(sale); return (!start || (date && date >= start)) && (!end || (date && date <= end)); });
+  const groups = new Map();
+  const sellerTicketGroups = new Map();
+  const ticketTypes = event ? ticketTypesFor(event) : [];
+  periodSales.forEach((sale) => {
+    const seller = sellerForSale(sale);
+    const current = groups.get(seller.id) || { ...seller, sales: 0, tickets: 0, total: 0, received: 0, pending: 0 };
+    current.sales += 1;
+    current.tickets += saleQuantity(sale);
+    current.total += saleTotal(sale);
+    if (sale.paid) current.received += saleTotal(sale); else current.pending += saleTotal(sale);
+    groups.set(seller.id, current);
+    ticketTypes.forEach((type) => {
+      const quantity = saleTypeQuantity(sale, type, event);
+      if (!quantity) return;
+      const total = saleTypeTotal(sale, type, event);
+      const key = `${seller.id}::${type.id}`;
+      const typeRow = sellerTicketGroups.get(key) || { ...seller, ticketTypeId: type.id, ticketTypeName: type.name, sales: 0, tickets: 0, total: 0, received: 0, pending: 0 };
+      typeRow.sales += 1;
+      typeRow.tickets += quantity;
+      typeRow.total += total;
+      if (sale.paid) typeRow.received += total; else typeRow.pending += total;
+      sellerTicketGroups.set(key, typeRow);
+    });
+    if (isTableReservation(sale)) {
+      const quantity = saleQuantity(sale, event);
+      const total = saleTotal(sale, event);
+      const typeId = `chair:${sale.mapArea || "salao"}`;
+      const typeName = `Cadeira — ${mapAreaLabel(sale.mapArea)}`;
+      const key = `${seller.id}::${typeId}`;
+      const typeRow = sellerTicketGroups.get(key) || { ...seller, ticketTypeId: typeId, ticketTypeName: typeName, sales: 0, tickets: 0, total: 0, received: 0, pending: 0 };
+      typeRow.sales += 1;
+      typeRow.tickets += quantity;
+      typeRow.total += total;
+      if (sale.paid) typeRow.received += total; else typeRow.pending += total;
+      sellerTicketGroups.set(key, typeRow);
+    }
+  });
+  const rows = [...groups.values()].sort((a, b) => b.total - a.total || a.name.localeCompare(b.name, "pt-BR"));
+  const totals = rows.reduce((sum, row) => ({ sales: sum.sales + row.sales, tickets: sum.tickets + row.tickets, total: sum.total + row.total, received: sum.received + row.received, pending: sum.pending + row.pending }), { sales: 0, tickets: 0, total: 0, received: 0, pending: 0 });
+  $("sellerClosingPeriodLabel").textContent = start || end ? `${start ? paymentDateLabel(start) : "Início"} até ${end ? paymentDateLabel(end) : "hoje"}` : "Todo o evento";
+  $("sellerClosingBreakdown").innerHTML = rows.length ? `${rows.map((row) => `<tr><td data-label="Vendedor"><strong>${escapeHtml(row.name)}</strong><small>${escapeHtml(row.email)}</small></td><td data-label="Vendas">${row.sales}</td><td data-label="Ingressos">${row.tickets}</td><td data-label="Total vendido">${money.format(row.total)}</td><td data-label="Recebido">${money.format(row.received)}</td><td data-label="Pendente">${money.format(row.pending)}</td></tr>`).join("")}<tr class="seller-closing-total"><td data-label="Vendedor"><strong>Total do período</strong></td><td data-label="Vendas">${totals.sales}</td><td data-label="Ingressos">${totals.tickets}</td><td data-label="Total vendido">${money.format(totals.total)}</td><td data-label="Recebido">${money.format(totals.received)}</td><td data-label="Pendente">${money.format(totals.pending)}</td></tr>` : `<tr><td class="financial-empty" colspan="6">Nenhuma venda registrada neste período.</td></tr>`;
+  const sellerTicketRows = [...sellerTicketGroups.values()].sort((a, b) => a.name.localeCompare(b.name, "pt-BR") || b.tickets - a.tickets || a.ticketTypeName.localeCompare(b.ticketTypeName, "pt-BR"));
+  $("sellerTicketBreakdown").innerHTML = sellerTicketRows.length ? sellerTicketRows.map((row) => `<tr><td data-label="Vendedor"><strong>${escapeHtml(row.name)}</strong><small>${escapeHtml(row.email)}</small></td><td data-label="Tipo de ingresso">${escapeHtml(row.ticketTypeName)}</td><td data-label="Vendas">${row.sales}</td><td data-label="Ingressos">${row.tickets}</td><td data-label="Total">${money.format(row.total)}</td><td data-label="Recebido">${money.format(row.received)}</td><td data-label="Pendente">${money.format(row.pending)}</td></tr>`).join("") : `<tr><td class="financial-empty" colspan="7">Nenhum ingresso vendido por vendedores neste período.</td></tr>`;
+}
+
+function renderPromoterCommissionReport(eventSales) {
+  const groups = new Map();
+  eventSales.filter((sale) => sale.paid && sale.promoterId && sale.promoterCommissionApplied === true).forEach((sale) => {
+    const current = groups.get(sale.promoterId) || { name: sale.promoterName || "Promoter", sales: 0, base: 0, amount: 0, rates: new Set() };
+    current.sales += 1;
+    current.base += Number(sale.promoterCommissionBase || 0);
+    current.amount += Number(sale.promoterCommissionAmount || 0);
+    current.rates.add(normalizePercentage(sale.promoterCommissionPercent));
+    groups.set(sale.promoterId, current);
+  });
+  const rows = [...groups.values()].sort((a, b) => b.amount - a.amount || a.name.localeCompare(b.name, "pt-BR"));
+  $("promoterCommissionBreakdown").innerHTML = rows.length ? rows.map((row) => `<tr><td data-label="Promoter">${escapeHtml(row.name)}</td><td data-label="Vendas">${row.sales}</td><td data-label="Base">${money.format(row.base)}</td><td data-label="Porcentagem">${row.rates.size === 1 ? `${[...row.rates][0]}%` : "Variável"}</td><td data-label="Comissão">${money.format(row.amount)}</td></tr>`).join("") : '<tr><td class="financial-empty" colspan="5">Nenhuma comissão de promoter registrada.</td></tr>';
+}
+
+function settlementPayments(settlement) {
+  return objectToArray(settlement?.payments).sort((a, b) => Number(a.createdAt || 0) - Number(b.createdAt || 0));
+}
+function settlementPaidAmount(settlement) { return settlementPayments(settlement).reduce((sum, payment) => sum + Number(payment.amount || 0), 0); }
+function settledPlatformSaleIds(eventId) {
+  const ids = new Set();
+  state.platformSettlements.filter((item) => item.eventId === eventId).forEach((settlement) => Object.entries(settlement.saleIds || {}).forEach(([saleId, included]) => { if (included) ids.add(saleId); }));
+  return ids;
+}
+function availablePlatformSettlementSales(eventId) {
+  const settled = settledPlatformSaleIds(eventId);
+  return state.sales.filter((sale) => sale.eventId === eventId && sale.paid && sale.platformCommissionApplied === true && Number(sale.platformCommissionAmount || 0) > 0 && !settled.has(sale.id));
+}
+function renderPlatformSettlements(eventSales) {
+  const openSales = availablePlatformSettlementSales(selectedEventId);
+  const openAmount = openSales.reduce((sum, sale) => sum + Number(sale.platformCommissionAmount || 0), 0);
+  $("unsettledCommissionAmount").textContent = money.format(openAmount);
+  $("unsettledCommissionSales").textContent = `${openSales.length} ${openSales.length === 1 ? "venda disponível" : "vendas disponíveis"}`;
+  $("openPlatformSettlement").disabled = !openSales.length;
+  const settlements = state.platformSettlements.filter((item) => item.eventId === selectedEventId).sort((a, b) => Number(b.createdAt || 0) - Number(a.createdAt || 0));
+  $("platformSettlementsList").innerHTML = settlements.length ? settlements.map((settlement) => {
+    const totalDue = Number(settlement.totalDue || 0);
+    const paidAmount = settlementPaidAmount(settlement);
+    const remaining = Math.max(0, totalDue - paidAmount);
+    const payments = settlementPayments(settlement);
+    const paymentHistory = payments.length ? `<ul class="settlement-payments">${payments.map((payment) => `<li><span>${escapeHtml(paymentDateLabel(payment.paymentDate || ""))} · ${escapeHtml(payment.recordedByName || "Administrador")}</span><strong>${money.format(Number(payment.amount || 0))}</strong></li>`).join("")}</ul>` : '<small>Nenhum pagamento registrado.</small>';
+    const paymentForm = hasRole("admin") && remaining > 0 ? `<form class="settlement-payment-form" data-settlement-payment="${escapeHtml(settlement.id)}"><label>Valor recebido<input name="amount" type="number" min="0.01" max="${remaining.toFixed(2)}" step="0.01" required inputmode="decimal"></label><label>Data<input name="paymentDate" type="date" required value="${todayInputValue()}"></label><button class="button secondary" type="submit">Dar baixa</button></form>` : "";
+    return `<article class="settlement-card"><div class="settlement-card-heading"><div><strong>Fechamento ${escapeHtml(new Date(Number(settlement.createdAt || 0)).toLocaleString("pt-BR"))}</strong><small>${Number(settlement.saleCount || Object.keys(settlement.saleIds || {}).length)} vendas · por ${escapeHtml(settlement.createdByName || "Administrador")}</small></div><span class="settlement-status ${remaining <= 0.009 ? "is-paid" : ""}">${remaining <= 0.009 ? "QUITADO" : "EM ABERTO"}</span></div><div class="settlement-values"><span><small>Valor devido</small><strong>${money.format(totalDue)}</strong></span><span><small>Já recebido</small><strong>${money.format(paidAmount)}</strong></span><span><small>Saldo</small><strong>${money.format(remaining)}</strong></span></div>${settlement.notes ? `<small>${escapeHtml(settlement.notes)}</small>` : ""}${paymentHistory}${paymentForm}</article>`;
+  }).join("") : '<div class="empty">Nenhum fechamento realizado.</div>';
+}
+function openPlatformSettlementModal() {
+  if (!requireRole(["admin"])) return;
+  const sales = availablePlatformSettlementSales(selectedEventId);
+  if (!sales.length) { toast("Não há vendas com comissão disponíveis para um novo fechamento."); return; }
+  const amount = sales.reduce((sum, sale) => sum + Number(sale.platformCommissionAmount || 0), 0);
+  const form = $("platformSettlementForm");
+  form.reset();
+  form.elements.initialPayment.max = amount.toFixed(2);
+  form.elements.paymentDate.value = todayInputValue();
+  $("settlementPreviewSales").textContent = String(sales.length);
+  $("settlementPreviewAmount").textContent = money.format(amount);
+  $("platformSettlementModal").showModal();
+}
+async function createPlatformSettlement(data) {
+  if (!hasRole("admin")) throw new Error("Somente administradores podem criar fechamentos.");
+  const sales = availablePlatformSettlementSales(selectedEventId);
+  if (!sales.length) throw new Error("Não há vendas disponíveis para este fechamento.");
+  const totalBase = sales.reduce((sum, sale) => sum + Number(sale.platformCommissionBase || 0), 0);
+  const totalDue = Math.round(sales.reduce((sum, sale) => sum + Number(sale.platformCommissionAmount || 0), 0) * 100) / 100;
+  const initialPayment = Math.round(Number(data.initialPayment || 0) * 100) / 100;
+  if (initialPayment < 0 || initialPayment > totalDue) throw new Error("O valor pago precisa ficar entre zero e o total do fechamento.");
+  if (initialPayment > 0 && !data.paymentDate) throw new Error("Informe a data do pagamento recebido.");
+  const timestamp = Date.now();
+  const settlement = { eventId: selectedEventId, saleIds: Object.fromEntries(sales.map((sale) => [sale.id, true])), saleCount: sales.length, totalBase: Math.round(totalBase * 100) / 100, totalDue, notes: String(data.notes || "").trim(), createdAt: timestamp, createdByUid: currentUser.uid, createdByName: currentUserProfile.name || currentUser.email || "Administrador" };
+  if (initialPayment > 0) settlement.payments = { [crypto.randomUUID()]: { amount: initialPayment, paymentDate: data.paymentDate, createdAt: timestamp, recordedByUid: currentUser.uid, recordedByName: currentUserProfile.name || currentUser.email || "Administrador" } };
+  if (isDemo) { state.platformSettlements.push({ id: crypto.randomUUID(), ...settlement }); persistDemo(); render(); }
+  else {
+    const settlementsRef = ref(db, `platformSettlements/${selectedEventId}`);
+    const settlementId = push(settlementsRef).key;
+    const saleIds = new Set(Object.keys(settlement.saleIds));
+    const result = await runTransaction(settlementsRef, (current) => {
+      const existing = current || {};
+      const alreadyClosed = Object.values(existing).some((item) => Object.keys(item?.saleIds || {}).some((saleId) => saleIds.has(saleId)));
+      if (alreadyClosed) return;
+      return { ...existing, [settlementId]: settlement };
+    });
+    if (!result.committed) throw new Error("Outro fechamento utilizou uma destas vendas. Atualize e tente novamente.");
+  }
+}
+async function recordPlatformSettlementPayment(settlementId, data) {
+  if (!hasRole("admin")) throw new Error("Somente administradores podem registrar pagamentos.");
+  const settlement = state.platformSettlements.find((item) => item.id === settlementId && item.eventId === selectedEventId);
+  if (!settlement) throw new Error("Fechamento não encontrado.");
+  const remaining = Math.max(0, Number(settlement.totalDue || 0) - settlementPaidAmount(settlement));
+  const amount = Math.round(Number(data.amount || 0) * 100) / 100;
+  if (!(amount > 0) || amount > remaining + 0.001) throw new Error("Informe um valor válido, sem ultrapassar o saldo do fechamento.");
+  if (!data.paymentDate) throw new Error("Informe a data do pagamento.");
+  const payment = { amount, paymentDate: data.paymentDate, createdAt: Date.now(), recordedByUid: currentUser.uid, recordedByName: currentUserProfile.name || currentUser.email || "Administrador" };
+  if (isDemo) { settlement.payments = { ...(settlement.payments || {}), [crypto.randomUUID()]: payment }; persistDemo(); render(); }
+  else { const paymentId = push(ref(db, `platformSettlements/${selectedEventId}/${settlementId}/payments`)).key; await set(ref(db, `platformSettlements/${selectedEventId}/${settlementId}/payments/${paymentId}`), payment); }
+}
+
+function renderFinancialReport(event, eventSales) {
+  const totalSold = eventSales.reduce((sum, sale) => sum + saleTotal(sale, event), 0);
+  const totalReceived = eventSales.filter((sale) => sale.paid).reduce((sum, sale) => sum + saleTotal(sale, event), 0);
+  const totalPending = totalSold - totalReceived;
+  const salesCount = eventSales.length;
+  const ticketsCount = eventSales.reduce((sum, sale) => sum + saleQuantity(sale, event), 0);
+  const averageOrder = salesCount ? totalSold / salesCount : 0;
+  const averageTicket = ticketsCount ? totalSold / ticketsCount : 0;
+  const receiptRate = totalSold ? Math.round((totalReceived / totalSold) * 100) : 0;
+  const paidSalesCount = eventSales.filter((sale) => sale.paid).length;
+
+  $("financialReportEventMeta").textContent = event ? `${event.name} · ${event.place} · ${eventDateTimeText(event)}` : "Selecione um evento para visualizar o relatório.";
+  $("financialTotalSold").textContent = money.format(totalSold);
+  $("financialTotalReceived").textContent = money.format(totalReceived);
+  $("financialTotalPending").textContent = money.format(totalPending);
+  $("financialAverageOrder").textContent = money.format(averageOrder);
+  $("financialSalesCount").textContent = salesCount;
+  $("financialTicketsCount").textContent = ticketsCount;
+  $("financialAverageTicket").textContent = money.format(averageTicket);
+  $("financialReceiptRate").textContent = `${receiptRate}%`;
+  $("financialReceiptProgress").style.width = `${receiptRate}%`;
+  $("financialReceiptProgress").parentElement.setAttribute("aria-valuenow", String(receiptRate));
+  $("financialReceiptCaption").textContent = salesCount ? `${paidSalesCount} de ${salesCount} ${salesCount === 1 ? "venda está confirmada" : "vendas estão confirmadas"}.` : "Nenhuma venda registrada.";
+
+  const commissionSales = eventSales.filter((sale) => sale.paid && sale.platformCommissionApplied === true && Number(sale.platformCommissionAmount || 0) > 0);
+  const commissionBase = commissionSales.reduce((sum, sale) => sum + Number(sale.platformCommissionBase || 0), 0);
+  const commissionAmount = commissionSales.reduce((sum, sale) => sum + Number(sale.platformCommissionAmount || 0), 0);
+  const financialRules = eventFinancialRules(event || {});
+  $("financialCommissionScope").textContent = `${financialRules.platformCommissionPercent}% · ${PLATFORM_COMMISSION_SCOPES[financialRules.platformCommissionScope]}`;
+  $("financialCommissionBase").textContent = money.format(commissionBase);
+  $("financialCommissionAmount").textContent = money.format(commissionAmount);
+  $("financialCommissionSales").textContent = String(commissionSales.length);
+  const paidEventSales = eventSales.filter((sale) => sale.paid);
+  $("financialBuyerFees").textContent = money.format(paidEventSales.reduce((sum, sale) => sum + Number(sale.buyerFeeAmount || 0), 0));
+  $("financialOnlineSales").textContent = String(paidEventSales.filter((sale) => sale.channel === "online").length);
+  $("financialManualSales").textContent = String(paidEventSales.filter((sale) => sale.channel !== "online").length);
+
+  const ticketTypes = event ? ticketTypesFor(event) : [];
+  $("financialTicketBreakdown").innerHTML = ticketTypes.length ? ticketTypes.map((type) => {
+    const typeSales = eventSales.filter((sale) => saleTypeQuantity(sale, type, event) > 0);
+    const quantity = typeSales.reduce((sum, sale) => sum + saleTypeQuantity(sale, type, event), 0);
+    const total = typeSales.reduce((sum, sale) => sum + saleTypeTotal(sale, type, event), 0);
+    const received = typeSales.filter((sale) => sale.paid).reduce((sum, sale) => sum + saleTypeTotal(sale, type, event), 0);
+    const capacity = Number(type.capacity || 0);
+    const available = Math.max(0, capacity - quantity);
+    const occupancy = capacity ? Math.min(100, Math.round(quantity / capacity * 100)) : 0;
+    return `<tr><td data-label="Tipo de ingresso">${escapeHtml(type.name)}</td><td data-label="Vendas">${typeSales.length}</td><td data-label="Vendidos">${quantity}</td><td data-label="Disponíveis">${available}</td><td data-label="Ocupação"><span class="occupancy-value">${occupancy}%</span></td><td data-label="Total">${money.format(total)}</td><td data-label="Recebido">${money.format(received)}</td><td data-label="Pendente">${money.format(total - received)}</td></tr>`;
+  }).join("") : `<tr><td class="financial-empty" colspan="8">Nenhum tipo de ingresso disponível.</td></tr>`;
+  const tableReservations = eventSales.filter(isTableReservation);
+  if (tableReservations.length) {
+    const reservationPeople = tableReservations.reduce((sum, sale) => sum + saleQuantity(sale, event), 0);
+    const reservationTotal = tableReservations.reduce((sum, sale) => sum + saleTotal(sale, event), 0);
+    const reservationReceived = tableReservations.filter((sale) => sale.paid).reduce((sum, sale) => sum + saleTotal(sale, event), 0);
+    $("financialTicketBreakdown").insertAdjacentHTML("beforeend", `<tr><td data-label="Tipo de ingresso">Reservas de mesas/bistrôs</td><td data-label="Vendas">${tableReservations.length}</td><td data-label="Vendidos">${reservationPeople}</td><td data-label="Disponíveis">—</td><td data-label="Ocupação"><span class="occupancy-value">Mapa</span></td><td data-label="Total">${money.format(reservationTotal)}</td><td data-label="Recebido">${money.format(reservationReceived)}</td><td data-label="Pendente">${money.format(reservationTotal - reservationReceived)}</td></tr>`);
+  }
+  renderSellerClosing(eventSales, event);
+  renderPromoterCommissionReport(eventSales);
+  renderPlatformSettlements(eventSales);
+}
+
+function syncApplicationPage() {
+  if (selectedEventId && state.events.some((event) => event.id === selectedEventId)) rememberSelectedEvent(selectedEventId);
+  const selectedEvent = state.events.find((event) => event.id === selectedEventId);
+  syncEventPages({event:selectedEvent, events:state.events, sales:state.sales.filter(sale => sale.eventId === selectedEventId && isCommercialSale(sale)), admin:hasRole("admin"), manager:hasRole("admin", "event_manager"), seller:hasRole("admin", "event_manager", "seller"), promoter:currentUserProfile?.role === "promoter", tables:eventUsesTableMap(selectedEvent)});
+  if (location.hash === "#gerenciar-usuarios" && hasRole("admin")) renderUsers();
+  if (location.hash === "#promoters" && hasRole("admin", "event_manager")) renderPromoters();
+  syncQrValidationFromHash();
+}
+
+function render() {
+  const events = [...state.events].sort((a, b) => a.date.localeCompare(b.date));
+  const sales = [...state.sales].sort((a, b) => b.createdAt - a.createdAt);
+  if (pendingSelectedEventId) {
+    if (events.some((event) => event.id === pendingSelectedEventId)) {
+      selectedEventId = pendingSelectedEventId;
+      pendingSelectedEventId = "";
+    }
+  } else if (!events.some((event) => event.id === selectedEventId)) rememberSelectedEvent("");
+  const selectedEvent = events.find((event) => event.id === selectedEventId);
+  const selectedSales = sales.filter((sale) => sale.eventId === selectedEventId);
+  const commercialSales = selectedSales.filter(isCommercialSale);
+  const unitSales = commercialSales.filter((sale) => !isTableReservation(sale));
+  const tableReservations = commercialSales.filter(isTableReservation);
+  const tablePeople = tableReservations.reduce((sum, sale) => sum + saleQuantity(sale, selectedEvent), 0);
+  const availableTicketTypes = selectedEvent ? ticketTypesFor(selectedEvent) : [];
+  if (selectedTicketTypeFilter !== "all" && !availableTicketTypes.some((type) => type.id === selectedTicketTypeFilter)) selectedTicketTypeFilter = "all";
+  const selectedTypeName = availableTicketTypes.find((type) => type.id === selectedTicketTypeFilter)?.name;
+  const visibleSales = unitSales.filter((sale) => {
+    const matchesTicketType = selectedTicketTypeFilter === "all" || saleItems(sale, selectedEvent).some((item) => item.ticketTypeId === selectedTicketTypeFilter || item.ticketTypeName === selectedTypeName);
+    const matchesPayment = selectedPaymentFilter === "all" || (selectedPaymentFilter === "paid" ? sale.paid : !sale.paid);
+    const matchesEntry = selectedEntryFilter === "all" || (selectedEntryFilter === "checked" ? saleFullyCheckedIn(sale, selectedEvent) : !saleFullyCheckedIn(sale, selectedEvent));
+    return matchesTicketType && matchesPayment && matchesEntry && matchesParticipantSearch(sale);
+  });
+  const filteredTicketType = availableTicketTypes.find((type) => type.id === selectedTicketTypeFilter);
+  const visibleSold = visibleSales.reduce((sum, sale) => sum + (filteredTicketType ? saleTypeQuantity(sale, filteredTicketType, selectedEvent) : saleQuantity(sale, selectedEvent)), 0);
+  const visibleSalesTotal = visibleSales.reduce((sum, sale) => sum + (filteredTicketType ? saleTypeTotal(sale, filteredTicketType, selectedEvent) : saleTotal(sale, selectedEvent)), 0);
+  const sold = availableTicketTypes.reduce((total, type) => total + unitSales.reduce((sum, sale) => sum + saleTypeQuantity(sale, type, selectedEvent), 0), 0);
+  const visibleAvailable = filteredTicketType ? Math.max(0, Number(filteredTicketType.capacity || 0) - soldForTicket(selectedEventId, filteredTicketType)) : Math.max(0, eventCapacity(selectedEvent) - sold);
+  const revenuePaid = commercialSales.filter((sale) => sale.paid).reduce((sum, sale) => sum + saleTotal(sale, selectedEvent), 0);
+  const revenuePending = commercialSales.filter((sale) => !sale.paid).reduce((sum, sale) => sum + saleTotal(sale, selectedEvent), 0);
+  const revenueTotal = revenuePaid + revenuePending;
+  const unitCheckins = unitSales.reduce((sum, sale) => sum + saleCheckinCount(sale, selectedEvent), 0);
+  const tableCheckins = tableReservations.reduce((sum, sale) => sum + reservationCheckinCount(sale), 0);
+  const checkins = unitCheckins + tableCheckins;
+  $("selectedEventArea").hidden = !selectedEvent;
+  $("ticketTypeFilter").innerHTML = `<option value="all">Todos</option>${availableTicketTypes.map((type) => `<option value="${type.id}">${escapeHtml(type.name)}</option>`).join("")}`;
+  $("ticketTypeFilter").value = selectedTicketTypeFilter;
+  $("paymentStatusFilter").value = selectedPaymentFilter;
+  $("entryStatusFilter").value = selectedEntryFilter;
+  $("participantSearch").value = participantSearchQuery;
+  const activeFilterCount = Number(selectedTicketTypeFilter !== "all") + Number(selectedPaymentFilter !== "all") + Number(selectedEntryFilter !== "all");
+  const singleFilterLabel = selectedPaymentFilter === "paid" ? "Pago" : selectedPaymentFilter === "pending" ? "Pendente" : selectedEntryFilter === "checked" ? "Entrada feita" : selectedEntryFilter === "waiting" ? "Aguardando" : selectedTicketTypeFilter === "all" ? "Todos" : selectedTypeName || "Todos";
+  $("filterLabel").textContent = activeFilterCount > 1 ? `${activeFilterCount} filtros` : singleFilterLabel;
+  const hasActiveParticipantFilters = Boolean(participantSearchQuery) || activeFilterCount > 0;
+  $("clearParticipantFilters").hidden = !hasActiveParticipantFilters;
+  $("clearParticipantFilters").disabled = !hasActiveParticipantFilters;
+  $("clearParticipantFiltersMenu").disabled = false;
+  $("filterCount").textContent = `${visibleSold} ${visibleSold === 1 ? "vendido" : "vendidos"} • ${visibleAvailable} ${visibleAvailable === 1 ? "disponível" : "disponíveis"}`;
+  const allSalesModalTotal = visibleSalesTotal;
+  $("allSalesTotalLabel").textContent = participantSearchQuery || activeFilterCount ? "Total vendido — participantes filtrados" : "Total vendido — participantes";
+  $("allSalesTotal").textContent = money.format(allSalesModalTotal);
+  $("revenue").textContent = money.format(revenueTotal); $("revenuePaid").textContent = money.format(revenuePaid); $("revenuePending").textContent = money.format(revenuePending); $("sold").textContent = sold; $("available").textContent = Math.max(0, eventCapacity(selectedEvent) - sold); $("checkins").textContent = checkins;
+  $("tableSalesMetric").hidden = !tableReservations.length;
+  $("tableSalesMetric").textContent = tableReservations.length ? `+ ${tablePeople} em ${tableReservations.length} ${tableReservations.length === 1 ? "mesa/bistrô" : "mesas/bistrôs"}` : "";
+  $("ticketStockBreakdown").innerHTML = `${availableTicketTypes.map((type) => {
+    const typeSold = commercialSales.reduce((sum, sale) => sum + saleTypeQuantity(sale, type, selectedEvent), 0);
+    const typeAvailable = Math.max(0, Number(type.capacity || 0) - typeSold);
+    return `<div class="ticket-stock-row"><strong title="${escapeHtml(type.name)}">${escapeHtml(type.name)}</strong><span><b>${typeSold}</b> ${typeSold === 1 ? "vendido" : "vendidos"} <i aria-hidden="true">•</i> <b>${typeAvailable}</b> ${typeAvailable === 1 ? "disponível" : "disponíveis"}</span></div>`;
+  }).join("")}${tableReservations.length ? `<div class="ticket-stock-row table-stock-row"><strong>Mesas/bistrôs</strong><span><b>${tableReservations.length}</b> reservas <i aria-hidden="true">•</i> <b>${tablePeople}</b> pessoas</span></div>` : ""}`;
+  $("ticketCheckinBreakdown").innerHTML = `${availableTicketTypes.map((type) => {
+    const typeSold = commercialSales.reduce((sum, sale) => sum + saleTypeQuantity(sale, type, selectedEvent), 0);
+    const typeCheckins = commercialSales.reduce((sum, sale) => sum + saleTypeCheckinQuantity(sale, type, selectedEvent), 0);
+    const typeWaiting = Math.max(0, typeSold - typeCheckins);
+    return `<div class="ticket-stock-row"><strong title="${escapeHtml(type.name)}">${escapeHtml(type.name)}</strong><span><b>${typeCheckins}</b> check-in${typeCheckins === 1 ? "" : "s"} <i aria-hidden="true">•</i> <b>${typeWaiting}</b> aguardando</span></div>`;
+  }).join("")}${tableReservations.length ? `<div class="ticket-stock-row table-checkin-row"><strong>Mesas/bistrôs</strong><span><b>${tableCheckins}</b> check-in${tableCheckins === 1 ? "" : "s"} <i aria-hidden="true">•</i> <b>${Math.max(0, tablePeople - tableCheckins)}</b> aguardando</span></div>` : ""}`;
+  renderFinancialReport(hasRole("admin", "event_manager") ? selectedEvent : undefined, hasRole("admin", "event_manager") ? commercialSales : []);
+  renderTableMapPanel(selectedEvent, selectedSales);
+  renderTableReservationsList(selectedEvent, selectedSales);
+  if (selectedEvent) { $("selectedEventName").textContent = selectedEvent.name; $("selectedEventMeta").textContent = hasRole("door") ? `${selectedEvent.place} · ${eventDateTimeText(selectedEvent)}` : `${selectedEvent.place} · ${eventDateTimeText(selectedEvent)} · ${priceLabel(selectedEvent)}`; $("salesPanelTitle").textContent = `Vendas de ${selectedEvent.name}`; $("allSalesTitle").textContent = `Participantes — ${selectedEvent.name}`; if ($("ticketConfigForm").dataset.eventId !== selectedEvent.id) populateTicketConfigPage(selectedEvent); renderOnlineSalesSettings(selectedEvent); }
+  const activeEvents = events.filter(event => !eventIsArchived(event));
+  $("eventsList").innerHTML = activeEvents.length ? activeEvents.map((event) => {
+    const eventSold = sales.filter((sale) => sale.eventId === event.id && !isTableReservation(sale) && isCommercialSale(sale)).reduce((sum, sale) => sum + saleQuantity(sale, event), 0);
+    const deleteControl = hasRole("admin") ? `<button class="event-card-delete" type="button" data-delete-event="${event.id}" aria-label="Excluir o evento ${escapeHtml(event.name)}" title="Excluir evento">Excluir</button>` : "";
+    return `<div class="event-card ${event.id === selectedEventId ? "is-selected" : ""}" data-select-event="${event.id}" role="button" tabindex="0" aria-pressed="${event.id === selectedEventId}"><span class="calendar"><b>${new Date(`${event.date}T12:00:00`).getDate()}</b><small>${new Date(`${event.date}T12:00:00`).toLocaleDateString("pt-BR", { month: "short" }).replace(".", "")}</small></span><span class="event-info"><strong>${escapeHtml(event.name)}</strong><small>${escapeHtml(event.place)}${eventTimeText(event) ? ` · ${eventTimeText(event)}` : ""}${hasRole("door") ? "" : ` · ${priceLabel(event)}`}</small>${eventUsesTableMap(event) ? `<span class="event-card-mode">Mesas + unitários</span>` : ""}</span><span class="event-card-tools"><span class="event-count">${eventSold}/${eventCapacity(event)}</span>${deleteControl}</span></div>`;
+  }).join("") : `<div class="empty">Nenhum evento ativo. Consulte os eventos arquivados ou cadastre um novo evento.</div>`;
+  const canManageSales = hasRole("admin", "event_manager", "seller");
+  const paymentControl = (sale) => { const courtesy = saleIsCourtesy(sale, selectedEvent) || sale.courtesy; const protectedOnline = sale.channel === "online"; return `<span class="payment-display">${courtesy ? `<span class="payment paid courtesy-payment">Cortesia</span>` : canManageSales && !protectedOnline ? `<button class="payment ${sale.paid ? "paid" : ""}" data-paid="${sale.id}">${sale.paid ? "✓ Pago" : "Pendente"}</button>` : `<span class="payment ${sale.paid ? "paid" : ""}">${sale.paid ? "✓ Pago" : "Pendente"}</span>`}${paymentDetailsHtml(sale)}</span>`; };
+  const checkinControl = (sale) => { const total = saleQuantity(sale, selectedEvent); const done = saleCheckinCount(sale, selectedEvent); const checked = total > 0 && done === total; return currentUserProfile?.role === "promoter" ? `<span class="status ${checked ? "checked" : ""}">${checked ? "✓ Check-in" : done ? `${done}/${total} entradas` : "Aguardando"}</span>` : `<button class="status ${checked ? "checked" : ""}" data-checkin="${sale.id}">${checked ? "✓ Check-in" : done ? `${done}/${total} entradas` : "Fazer check-in"}</button>`; };
+  const actionControl = (sale) => canManageSales ? `${ticketFileActionsHtml(sale)}${sale.channel === "online" ? '<div class="sale-record-actions"><span class="role-readonly">Venda online protegida</span></div>' : `<div class="sale-record-actions"><button class="edit-button" type="button" data-edit-sale="${sale.id}">Editar venda</button><button class="delete-button" type="button" data-delete-sale="${sale.id}">Excluir venda</button></div>`}` : `<span class="role-readonly">Somente consulta</span>`;
+  $("salesList").innerHTML = visibleSales.length ? visibleSales.map((sale) => { const quantity = saleQuantity(sale, selectedEvent); const total = saleTotal(sale, selectedEvent); const expanded = expandedParticipantSaleIds.has(sale.id); return `<tr class="sales-row${expanded ? " is-expanded" : ""}" data-sale-row="${sale.id}" aria-expanded="${expanded}"><td><span class="desktop-participant-content"><strong>${escapeHtml(sale.buyerName)}</strong><small>${quantity} ingresso${quantity > 1 ? "s" : ""}</small>${participantContactHtml(sale, selectedEvent?.name)}</span><span class="mobile-card-overview"><span class="mobile-overview-participant"><small class="mobile-field-label">Participante</small><strong>${escapeHtml(sale.buyerName)}</strong><small>${quantity} ingresso${quantity > 1 ? "s" : ""}</small></span><span class="mobile-overview-value mobile-financial"><small class="mobile-field-label">Valor</small><strong>${money.format(total)}</strong></span><span class="mobile-overview-contact"><span>${escapeHtml(formatPhoneDisplay(sale.buyerPhone) || "Sem telefone")}</span>${whatsappButtonHtml(sale, selectedEvent?.name)}</span><span class="mobile-overview-payment mobile-financial"><small class="mobile-field-label">Pagamento</small>${paymentControl(sale)}</span><span class="mobile-overview-entry"><small class="mobile-field-label">Entrada</small>${checkinControl(sale)}</span><button class="participant-detail-toggle" type="button" data-toggle-sale-details>${expanded ? "Ocultar detalhes" : "Detalhar"}</button></span></td><td>${saleTicketBreakdownHtml(sale, selectedEvent)}</td><td class="sale-observation">${escapeHtml(sale.notes || "Sem observação")}</td><td class="financial-column mobile-detail-original">${money.format(total)}</td><td class="financial-column mobile-detail-original">${paymentControl(sale)}</td><td class="mobile-detail-original">${checkinControl(sale)}</td><td>${actionControl(sale)}</td></tr>`; }).join("") : `<tr><td colspan="7" class="empty">${participantSearchQuery || activeFilterCount ? "Nenhum participante encontrado com esses filtros." : "Nenhuma venda neste evento."}</td></tr>`;
+  $("allSalesList").innerHTML = visibleSales.length ? visibleSales.map((sale) => { const quantity = saleQuantity(sale, selectedEvent); const rowTotal = filteredTicketType ? saleTypeTotal(sale, filteredTicketType, selectedEvent) : saleTotal(sale, selectedEvent); return `<tr class="sales-row" data-sale-row="${sale.id}"><td><strong>${escapeHtml(sale.buyerName)}</strong><small>${quantity} ingresso${quantity > 1 ? "s" : ""}</small></td><td>${saleTicketBreakdownHtml(sale, selectedEvent)}</td><td class="sale-note"><span class="phone-line"><strong>${escapeHtml(formatPhoneDisplay(sale.buyerPhone) || "Não informado")}</strong>${whatsappButtonHtml(sale, selectedEvent?.name)}</span>${sale.notes ? `<small>${escapeHtml(sale.notes)}</small>` : ""}</td><td>${escapeHtml(selectedEvent?.name || "Evento removido")}</td><td class="financial-column">${money.format(rowTotal)}</td><td class="financial-column">${paymentControl(sale)}</td><td>${checkinControl(sale)}</td><td>${actionControl(sale)}</td></tr>`; }).join("") : `<tr><td colspan="8" class="empty">${participantSearchQuery || activeFilterCount ? "Nenhum participante encontrado com esses filtros." : "Nenhum participante neste evento."}</td></tr>`;
+  const currentEvent = $("saleEvent").value; $("saleEvent").innerHTML = `<option value="">Selecione o evento</option>${events.map((event) => `<option value="${event.id}">${escapeHtml(event.name)} — ${priceLabel(event)}</option>`).join("")}`; if (events.some((event) => event.id === currentEvent)) $("saleEvent").value = currentEvent; populateSaleTicketItemOptions($("saleEvent").value);
+  renderAuditHistory();
+  syncApplicationPage();
+  scheduleArchiveRefresh();
+  restoreParticipantViewport();
+  restoreTableReservationViewport();
+}
+
+async function saveEvent(data, id = "") {
+  if (!id && !hasRole("admin")) throw new Error("Somente administradores podem criar eventos.");
+  if (id && !canAdministerEvent(id)) throw new Error("Você não administra este evento.");
+  const eventSales = state.sales.filter((sale) => sale.eventId === id);
+  const existingEvent = state.events.find((event) => event.id === id);
+  let preservedSoldInventory = false;
+  if (existingEvent) {
+    const submittedIds = new Set(data.ticketTypes.map((item) => item.id));
+    data.ticketTypes = data.ticketTypes.map((item) => {
+      const sold = soldForTicket(id, item);
+      if (Number(item.capacity) >= sold) return item;
+      preservedSoldInventory = true;
+      return { ...item, capacity: sold };
+    });
+    ticketTypesFor(existingEvent).forEach((type) => {
+      const sold = soldForTicket(id, type);
+      if (sold > 0 && !submittedIds.has(type.id)) {
+        data.ticketTypes.push({ ...type, capacity: sold });
+        preservedSoldInventory = true;
+      }
+    });
+  }
+  const capacity = data.ticketTypes.reduce((sum, item) => sum + Number(item.capacity), 0);
+  const reservedFurnitureIds = new Set(eventSales.filter((sale) => isTableReservation(sale) || isTableBlock(sale)).map((sale) => sale.furnitureId));
+  let eventMode = data.eventMode === "mixed" ? "mixed" : "unit";
+  let tableMap = eventMode === "mixed" ? normalizeTableMap(data.tableMap) : { areas: [], furniture: [] };
+  let preservedReservations = false;
+  if (reservedFurnitureIds.size) {
+    eventMode = "mixed";
+    const previousMap = normalizeTableMap(existingEvent?.tableMap);
+    const currentIds = new Set(tableMap.furniture.map((item) => item.id));
+    previousMap.furniture.filter((item) => reservedFurnitureIds.has(item.id) && !currentIds.has(item.id)).forEach((item) => {
+      tableMap.furniture.push(item);
+      if (!tableMap.areas.includes(item.area)) tableMap.areas.push(item.area);
+      preservedReservations = true;
+    });
+  }
+  const chairPrice = eventMode === "mixed" ? Math.max(0, Number(data.chairPrice || 0)) : 0;
+  if (eventMode === "mixed" && !tableMap.areas.length) throw new Error("Selecione Salão, Mezanino ou ambos.");
+  if (eventMode === "mixed" && !tableMap.furniture.length) throw new Error("Adicione pelo menos uma mesa ou bistrô ao mapa.");
+  const ticketDesign = existingEvent ? eventTicketDesign(existingEvent) : normalizeTicketDesign(DEFAULT_TICKET_DESIGN);
+  if (!/^\d{2}:\d{2}$/.test(String(data.time || ""))) throw new Error("Informe o horário do evento.");
+  const submittedFinancialRules = hasRole("admin") ? eventFinancialRules(data) : eventFinancialRules(existingEvent || {});
+  const manualBuyerFeeMode = normalizeBuyerFeeMode(data.manualBuyerFeeMode);
+  const manualBuyerFeeValue = Math.max(0, Number(data.manualBuyerFeeValue || 0));
+  if (manualBuyerFeeMode === "percent" && manualBuyerFeeValue > 100) throw new Error("A taxa manual em porcentagem não pode ultrapassar 100%.");
+  const eventData = { name: data.name.trim(), date:data.date, time:String(data.time).slice(0, 5), place: data.place.trim(), eventMode, chairPrice, tableMap, capacity, ticketTypes: data.ticketTypes, packages: data.packages || [], ticketDesign, ...submittedFinancialRules, manualBuyerFeeMode, manualBuyerFeeValue, manualBuyerFeeDefault:data.manualBuyerFeeDefault === "on", updatedAt: Date.now() };
+  if (isDemo) { if (id) state.events = state.events.map((item) => item.id === id ? { ...item, ...eventData } : item); else { rememberSelectedEvent(crypto.randomUUID()); state.events.push({ id: selectedEventId, ...eventData, createdAt: Date.now() }); } persistDemo(); render(); }
+  else if (id) await update(ref(db, `events/${id}`), eventData); else { const eventRef = push(ref(db, "events")); rememberSelectedEvent(eventRef.key); await set(eventRef, { ...eventData, createdAt: Date.now() }); }
+  const preservationNote = [preservedSoldInventory ? "ingressos vendidos" : "", preservedReservations ? "mesas reservadas" : ""].filter(Boolean).join(" e ");
+  toast(id ? preservationNote ? `Evento atualizado. Foram preservados: ${preservationNote}.` : "Evento atualizado." : "Evento criado com sucesso.");
+}
+async function saveSale(data, id = "") {
+  if (!hasRole("admin", "event_manager", "seller")) throw new Error("Seu perfil não permite criar ou editar vendas.");
+  const event = state.events.find((item) => item.id === data.eventId); if (!event) throw new Error("Selecione um evento.");
+  const items = Array.isArray(data.items) ? data.items : [];
+  if (!items.length) throw new Error("Adicione pelo menos um ingresso à venda.");
+  const requestedStock = saleStockItems({ eventId: event.id, items }, event);
+  for (const requested of requestedStock) {
+    const ticketType = ticketTypesFor(event).find((type) => type.id === requested.ticketTypeId);
+    if (!ticketType) throw new Error("Um dos ingressos do pacote ou cortesia não está mais disponível neste evento.");
+    const soldForType = soldForTicket(event.id, ticketType, id);
+    const remaining = Math.max(0, Number(ticketType.capacity) - soldForType);
+    if (requested.quantity > remaining) throw new Error(`Restam apenas ${remaining} ingressos do tipo “${ticketType.name}”. Esta venda precisa de ${requested.quantity}.`);
+  }
+  const quantity = requestedStock.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
+  const subtotal = items.reduce((sum, item) => sum + Number(item.subtotal || 0), 0);
+  const primaryTicket = items[0];
+  const current = state.sales.find((sale) => sale.id === id);
+  const courtesy = Boolean(items.length && items.every((item) => item.kind === "package" && item.packageKind === "courtesy") && subtotal === 0);
+  const paid = courtesy || data.paymentStatus === "paid";
+  const paymentMethod = courtesy ? "courtesy" : paid ? String(data.paymentMethod || "") : "";
+  const paymentDate = courtesy ? "" : paid ? String(data.paymentDate || "") : "";
+  if (paid && !courtesy && !PAYMENT_METHOD_LABELS[paymentMethod]) throw new Error("Selecione a forma de pagamento.");
+  if (paid && !courtesy && !paymentDate) throw new Error("Informe a data do pagamento.");
+  const timestamp = isDemo ? Date.now() : serverTimestamp();
+  const participantNames = saleParticipantNames();
+  if (participantNames.length !== quantity || participantNames.some((name) => !name)) throw new Error("Informe o nome de todos os participantes.");
+  const promoterId = current ? String(current.promoterId || "") : (hasRole("promoter") ? currentUser.uid : "");
+  const promoter = promoterId ? promoterForSale(event.id, promoterId) : null;
+  if (!current && hasRole("promoter") && (!promoter || promoter.active === false)) throw new Error("Seu cadastro de promoter não está ativo neste evento.");
+  const feeSnapshot = manualBuyerFeeFor(event, subtotal, !courtesy && data.applyBuyerFee === "on", current);
+  const total = Math.round((subtotal + feeSnapshot.buyerFeeAmount) * 100) / 100;
+  const financialSnapshot = saleFinancialSnapshot(event, subtotal, current, "manual");
+  const promoterSnapshot = promoterFinancialSnapshot(promoter, subtotal, current, "manual");
+  const saleData = { eventId: event.id, ticketTypeId: items.length === 1 ? primaryTicket.ticketTypeId : "multiple", ticketTypeName: items.length === 1 ? primaryTicket.ticketTypeName : "Vários ingressos", items, participantNames, buyerName: String(data.buyerName || "").trim(), buyerPhone: String(data.buyerPhone || "").trim(), buyerEmail: String(data.buyerEmail || "").trim(), notes: String(data.notes || "").trim(), courtesy, paid, paymentMethod, paymentDate, quantity, total, ...feeSnapshot, ...financialSnapshot, ...promoterSnapshot, checkedIn: current?.checkedIn || false, updatedAt: timestamp };
+  if (isDemo) {
+    if (id) {
+      const updatedSale = { ...current, ...saleData };
+      state.sales = state.sales.map((item) => item.id === id ? updatedSale : item);
+      appendDemoAudit("edited", updatedSale, auditChangeSummary(current, updatedSale));
+    } else {
+      const createdSale = { id: crypto.randomUUID(), ...saleData, createdByUid: currentUser.uid, createdByName: currentUserProfile.name || currentUser.email, createdByEmail: currentUser.email || currentUserProfile.email || "", createdAt: timestamp };
+      state.sales.push(createdSale);
+      appendDemoAudit("created", createdSale, `Criou a venda com ${saleTicketSummary(createdSale, event)}, ${createdSale.courtesy ? "cortesia sem cobrança" : `pagamento ${createdSale.paid ? `${paymentMethodLabel(createdSale.paymentMethod)} em ${paymentDateLabel(createdSale.paymentDate)}` : "pendente"}`}.`);
+    }
+    persistDemo(); render();
+  } else {
+    const saleId = id || push(ref(db, "sales")).key;
+    const storedSale = { ...current, id: saleId, ...saleData };
+    if (!id) Object.assign(storedSale, { createdByUid: currentUser.uid, createdByName: currentUserProfile.name || currentUser.email, createdByEmail: currentUser.email || currentUserProfile.email || "", createdAt: timestamp });
+    const logId = push(ref(db, "auditLogs")).key;
+    const action = id ? "edited" : "created";
+    const details = id ? auditChangeSummary(current, storedSale) : `Criou a venda com ${saleTicketSummary(storedSale, event)}, ${storedSale.courtesy ? "cortesia sem cobrança" : `pagamento ${storedSale.paid ? `${paymentMethodLabel(storedSale.paymentMethod)} em ${paymentDateLabel(storedSale.paymentDate)}` : "pendente"}`}.`;
+    await update(ref(db), { [`sales/${saleId}`]: Object.fromEntries(Object.entries(storedSale).filter(([key]) => key !== "id")), [`auditLogs/${logId}`]: auditLogData(action, storedSale, details, timestamp) });
+  }
+  toast(id ? "Participante atualizado." : "Venda registrada.");
+}
+async function toggleCheckin(id) {
+  if (!requireRole(["admin", "event_manager", "seller", "door"])) return;
+  const sale = state.sales.find((item) => item.id === id); if (!sale) return;
+  preserveSaleDetails(id);
+  const event = state.events.find((item) => item.id === sale.eventId);
+  const value = !saleFullyCheckedIn(sale, event);
+  const details = value ? "Realizou o check-in do participante." : "Desfez o check-in do participante.";
+  const qrTickets = qrTicketsFor(sale, event);
+  if (isDemo) { sale.checkedIn = value; if (qrTickets.some((ticket) => ticket.token)) sale.qrTickets = qrTickets.map((ticket) => ({ ...ticket, checkedIn: value, ...(value ? { checkedInAt: Date.now() } : { checkedInAt: null }) })); appendDemoAudit("checkin", sale, details); persistDemo(); render(); }
+  else { const logId = push(ref(db, "auditLogs")).key; const updates = { [`sales/${id}/checkedIn`]: value, [`auditLogs/${logId}`]: auditLogData("checkin", sale, details) }; qrTickets.forEach((ticket, index) => { if (!ticket.token) return; updates[`sales/${id}/qrTickets/${index}/checkedIn`] = value; updates[`sales/${id}/qrTickets/${index}/checkedInAt`] = value ? Date.now() : null; }); await update(ref(db), updates); }
+}
+async function toggleTableOccupantCheckin(id, occupantIndex) {
+  if (!requireRole(["admin", "event_manager", "seller", "door"])) return;
+  const sale = state.sales.find((item) => item.id === id);
+  preserveSaleDetails(id);
+  const occupants = reservationOccupants(sale);
+  const index = Number(occupantIndex);
+  if (!sale || !isTableReservation(sale) || !Number.isInteger(index) || index < 0 || index >= occupants.length) return;
+  const checkins = reservationOccupantCheckins(sale);
+  const value = !checkins[index];
+  checkins[index] = value;
+  const participantName = occupants[index];
+  const details = value
+    ? `Realizou o check-in de ${participantName} na ${sale.reservationLabel || "reserva"}.`
+    : `Desfez o check-in de ${participantName} na ${sale.reservationLabel || "reserva"}.`;
+  if (isDemo) {
+    sale.occupantCheckins = checkins;
+    const qrTickets = qrTicketsFor(sale, state.events.find((item) => item.id === sale.eventId));
+    const qrIndex = qrTickets.findIndex((ticket) => ticket.occupantIndex === index);
+    if (qrIndex >= 0 && qrTickets[qrIndex].token) { qrTickets[qrIndex].checkedIn = value; qrTickets[qrIndex].checkedInAt = value ? Date.now() : null; sale.qrTickets = qrTickets; }
+    appendDemoAudit("checkin", sale, details);
+    persistDemo();
+    render();
+  } else {
+    const logId = push(ref(db, "auditLogs")).key;
+    const updates = {
+      [`sales/${id}/occupantCheckins/${index}`]: value,
+      [`auditLogs/${logId}`]: auditLogData("checkin", sale, details)
+    };
+    const qrTickets = qrTicketsFor(sale, state.events.find((item) => item.id === sale.eventId));
+    const qrIndex = qrTickets.findIndex((ticket) => ticket.occupantIndex === index);
+    if (qrIndex >= 0 && qrTickets[qrIndex].token) { updates[`sales/${id}/qrTickets/${qrIndex}/checkedIn`] = value; updates[`sales/${id}/qrTickets/${qrIndex}/checkedInAt`] = value ? Date.now() : null; }
+    await update(ref(db), updates);
+  }
+}
+async function togglePayment(id) {
+  if (!requireRole(["admin", "event_manager", "seller"])) return;
+  const sale = state.sales.find((item) => item.id === id); if (!sale) return;
+  preserveSaleDetails(id);
+  if (sale.courtesy || saleIsCourtesy(sale)) return toast("Cortesias não possuem cobrança para alterar.");
+  if (!sale.paid) {
+    const form = $("paymentConfirmationForm");
+    form.reset();
+    form.elements.saleId.value = id;
+    form.elements.paymentDate.value = todayInputValue();
+    $("paymentConfirmationParticipant").textContent = sale.buyerName;
+    $("paymentConfirmationModal").showModal();
+    return;
+  }
+  if (!confirm(`Marcar o pagamento de ${sale.buyerName} como pendente? A forma e a data do pagamento serão removidas.`)) return;
+  const details = "Alterou o pagamento para pendente.";
+  if (isDemo) { sale.paid = false; sale.paymentMethod = ""; sale.paymentDate = ""; sale.updatedAt = Date.now(); appendDemoAudit("payment", sale, details); persistDemo(); render(); }
+  else { const logId = push(ref(db, "auditLogs")).key; await update(ref(db), { [`sales/${id}/paid`]: false, [`sales/${id}/paymentMethod`]: null, [`sales/${id}/paymentDate`]: null, [`sales/${id}/updatedAt`]: serverTimestamp(), [`auditLogs/${logId}`]: auditLogData("payment", sale, details) }); }
+}
+async function confirmSalePayment(data) {
+  if (!requireRole(["admin", "event_manager", "seller"])) return;
+  const sale = state.sales.find((item) => item.id === data.saleId); if (!sale) throw new Error("Venda não encontrada.");
+  preserveSaleDetails(sale.id);
+  if (!PAYMENT_METHOD_LABELS[data.paymentMethod]) throw new Error("Selecione a forma de pagamento.");
+  if (!data.paymentDate) throw new Error("Informe a data do pagamento.");
+  const details = `Confirmou o pagamento por ${paymentMethodLabel(data.paymentMethod)} em ${paymentDateLabel(data.paymentDate)}.`;
+  if (isDemo) { sale.paid = true; sale.paymentMethod = data.paymentMethod; sale.paymentDate = data.paymentDate; sale.updatedAt = Date.now(); appendDemoAudit("payment", sale, details); persistDemo(); render(); }
+  else { const logId = push(ref(db, "auditLogs")).key; await update(ref(db), { [`sales/${sale.id}/paid`]: true, [`sales/${sale.id}/paymentMethod`]: data.paymentMethod, [`sales/${sale.id}/paymentDate`]: data.paymentDate, [`sales/${sale.id}/updatedAt`]: serverTimestamp(), [`auditLogs/${logId}`]: auditLogData("payment", sale, details) }); }
+}
+async function deleteSale(id) {
+  if (!requireRole(["admin", "event_manager", "seller"])) return false;
+  const sale = state.sales.find((item) => item.id === id); if (!sale) return false;
+  if (sale.channel === "online") { toast("Vendas online não podem ser excluídas pelo painel. Faça cancelamento ou reembolso pelo fluxo do Mercado Pago."); return false; }
+  if (!confirm(isTableReservation(sale) ? `Excluir a reserva de ${sale.reservationLabel || sale.buyerName}?` : `Excluir a venda de ${sale.buyerName}?`)) return false;
+  const quantity = saleQuantity(sale);
+  const details = isTableReservation(sale) ? `Excluiu a reserva de ${sale.reservationLabel || "mesa"} com ${quantity} pessoas.` : `Excluiu a venda com ${quantity} ${quantity === 1 ? "ingresso" : "ingressos"}: ${saleTicketSummary(sale)}.`;
+  if (isDemo) { appendDemoAudit("deleted", sale, details); state.sales = state.sales.filter((item) => item.id !== id); persistDemo(); render(); }
+  else { const logId = push(ref(db, "auditLogs")).key; await update(ref(db), { [`sales/${id}`]: null, [`auditLogs/${logId}`]: auditLogData("deleted", sale, details) }); }
+  toast(isTableReservation(sale) ? "Reserva excluída." : "Venda excluída.");
+  return true;
+}
+async function deleteEvent(id) {
+  if (!requireRole(["admin"], "Somente administradores podem excluir eventos.")) return;
+  const event = state.events.find((item) => item.id === id);
+  if (!event || !confirm(`Excluir o evento “${event.name}” e todas as vendas, históricos, conexões e fechamentos dele? Esta ação não pode ser desfeita.`)) return;
+  try {
+  const changes = { [`events/${id}`]:null, [`platformSettlements/${id}`]:null, [`promoters/${id}`]:null };
+  state.sales.filter((sale) => sale.eventId === id).forEach((sale) => { changes[`sales/${sale.id}`] = null; });
+  state.auditLogs.filter((log) => log.eventId === id).forEach((log) => { changes[`auditLogs/${log.id}`] = null; });
+  if (isDemo) {
+    state.events = state.events.filter((item) => item.id !== id);
+    state.sales = state.sales.filter((sale) => sale.eventId !== id);
+    state.platformSettlements = state.platformSettlements.filter((settlement) => settlement.eventId !== id);
+    state.auditLogs = state.auditLogs.filter((log) => log.eventId !== id);
+    persistDemo(); render();
+  } else {
+    const token = await currentUser.getIdToken();
+    const cleanup = await fetch(`${PAYMENT_API_BASE}/cleanupEventPaymentConnection`, { method:"POST", headers:{ Authorization:`Bearer ${token}`, "Content-Type":"application/json" }, body:JSON.stringify({ eventId:id }) });
+    if (!cleanup.ok) { const result = await cleanup.json().catch(() => ({})); throw new Error(result.error || "Não foi possível remover a conexão financeira do evento."); }
+    await update(ref(db), changes);
+  }
+  toast("Evento e registros vinculados excluídos.");
+  } catch (error) { toast(error.message || "Não foi possível excluir o evento."); }
+}
+function toast(message) { const el = $("toast"); el.textContent = message; el.classList.add("visible"); setTimeout(() => el.classList.remove("visible"), 5000); }
+function setPasswordVisibility(button, visible) {
+  const input = $(button.dataset.togglePassword);
+  if (!input) return;
+  input.type = visible ? "text" : "password";
+  button.classList.toggle("is-visible", visible);
+  button.setAttribute("aria-pressed", String(visible));
+  button.setAttribute("aria-label", visible ? "Ocultar senha" : "Mostrar senha");
+  button.title = visible ? "Ocultar senha" : "Mostrar senha";
+}
+function hidePasswords(container = document) { container.querySelectorAll("[data-toggle-password]").forEach((button) => setPasswordVisibility(button, false)); }
+function syncSalePaymentFields(useToday = false) {
+  const form = $("saleForm");
+  const courtesy = form.classList.contains("sale-is-courtesy");
+  const paid = form.elements.paymentStatus.value === "paid";
+  const method = form.elements.paymentMethod;
+  const date = form.elements.paymentDate;
+  method.disabled = courtesy || !paid; date.disabled = courtesy || !paid;
+  method.required = paid && !courtesy; date.required = paid && !courtesy;
+  form.classList.toggle("payment-is-pending", !paid);
+  if (courtesy || !paid) { method.value = ""; date.value = ""; }
+  else if (useToday && !date.value) date.value = todayInputValue();
+}
+
+function openNewEvent() { if (!requireRole(["admin"], "Somente administradores podem criar eventos.")) return; const form = $("eventForm"); form.reset(); form.dataset.editId = ""; form.elements.eventMode.value = "unit"; form.elements.chairPrice.value = ""; syncEventFinancialSettings(); syncEventManualFeeSettings(); resetEventMapDraft(); syncEventMapSettings(); $("eventModalTitle").textContent = "Novo evento"; $("eventSubmitButton").textContent = "Criar evento"; resetPackages(); resetTicketTypes(); $("eventModal").showModal(); }
+function openEditEvent(id) { if (!requireRole(["admin", "event_manager"], "Somente administradores e gerentes podem editar eventos.")) return; if (!canAdministerEvent(id)) return toast("Você não administra este evento."); const item = state.events.find((event) => event.id === id); if (!item) return; const form = $("eventForm"); form.reset(); form.dataset.editId = id; form.elements.name.value = item.name || ""; form.elements.date.value = item.date || ""; form.elements.time.value = eventTimeText(item); form.elements.place.value = item.place || ""; form.elements.eventMode.value = item.eventMode === "mixed" ? "mixed" : "unit"; form.elements.chairPrice.value = Number(item.chairPrice || 0); syncEventFinancialSettings(item); syncEventManualFeeSettings(item); resetEventMapDraft(item); syncEventMapSettings(); resetPackages(); $("ticketTypesList").innerHTML = ""; ticketTypesFor(item).forEach((type) => addTicketTypeRow(type.name, type.price, type.capacity, type.id)); packagesFor(item).forEach((packageItem) => addPackageRow(packageItem)); renderPackagesEmptyState(); $("eventModalTitle").textContent = "Editar evento"; $("eventSubmitButton").textContent = "Salvar alterações"; $("eventModal").showModal(); }
+function openNewSale(eventId = "") { if (!requireRole(["admin", "event_manager", "seller"])) return; if (!state.events.length) return toast("Cadastre um evento antes de registrar uma venda."); const form = $("saleForm"); form.reset(); form.dataset.editId = ""; $("saleGuestNamesList").innerHTML = ""; $("saleModalTitle").textContent = "Registrar ingressos"; $("saleSubmitButton").textContent = "Confirmar venda"; $("saleEvent").value = eventId; const event = state.events.find((item) => item.id === eventId); form.elements.applyBuyerFee.checked = Boolean(event?.manualBuyerFeeDefault); setSaleTicketItems(eventId); syncSalePaymentFields(true); $("saleModal").showModal(); }
+function openEditSale(id) { if (!requireRole(["admin", "event_manager", "seller"])) return; const sale = state.sales.find((item) => item.id === id); if (!sale) return; if (sale.channel === "online") return toast("Os dados financeiros da venda online são protegidos e não podem ser editados manualmente."); if ($("allSalesModal").open) $("allSalesModal").close(); const form = $("saleForm"); form.reset(); form.dataset.editId = id; $("saleGuestNamesList").innerHTML = ""; $("saleEvent").value = sale.eventId; form.elements.buyerName.value = sale.buyerName || ""; form.elements.applyBuyerFee.checked = Boolean(sale.applyBuyerFee); setSaleTicketItems(sale.eventId, saleItems(sale)); syncSaleGuestNames(Array.isArray(sale.participantNames) ? sale.participantNames : null); form.elements.buyerPhone.value = sale.buyerPhone || ""; form.elements.buyerEmail.value = sale.buyerEmail || ""; form.elements.paymentStatus.value = sale.paid ? "paid" : "pending"; form.elements.paymentMethod.value = sale.paymentMethod || ""; form.elements.paymentDate.value = sale.paymentDate || ""; form.elements.notes.value = sale.notes || ""; syncSalePaymentFields(false); $("saleModalTitle").textContent = "Editar participante e ingressos"; $("saleSubmitButton").textContent = "Salvar alterações"; $("saleModal").showModal(); }
+
+async function toggleEventArchive(id) {
+  if (!canAdministerEvent(id)) return toast("Somente administradores e gerentes do evento podem arquivar ou restaurar.");
+  const event = state.events.find(item => item.id === id);
+  if (!event) return;
+  const restore = eventIsArchived(event);
+  if (!confirm(`${restore ? "Restaurar" : "Arquivar"} o evento “${event.name}”? Vendas, reservas e relatórios serão mantidos.${restore ? " O arquivamento automático ficará suspenso para a data atual deste evento." : ""}`)) return;
+  const changes = { archived:!restore, archiveRestoredDate:restore ? event.date : "", archiveUpdatedAt:Date.now(), archiveUpdatedBy:currentUser.uid };
+  try {
+    if (isDemo) { Object.assign(event, changes); persistDemo(); }
+    else await update(ref(db, `events/${id}`), changes);
+    location.hash = restore ? "eventos" : "arquivados";
+    render();
+    toast(restore ? "Evento restaurado." : "Evento arquivado.");
+  } catch(error) { toast(`Não foi possível atualizar o evento: ${error.message}`); }
+}
+const syncEventPages = createEventPages({ normalize:normalizedSearch, escape:escapeHtml, eventDateTime:eventDateTimeText, isTable:isTableReservation, occupants:reservationOccupants, checkins:reservationOccupantCheckins, isArchived:eventIsArchived, canManage:canAdministerEvent, toggleArchive:toggleEventArchive, exportCheckins:() => { if (requireRole(["admin", "event_manager", "seller", "door"])) window.exportSalesXlsx(state.sales, state.events, selectedEventId, "checkins"); } });
+let archiveRefreshTimer;
+function scheduleArchiveRefresh() {
+  clearTimeout(archiveRefreshTimer);
+  const now = Date.now();
+  const next = Math.min(...state.events.filter(event => !eventIsArchived(event)).map(eventArchiveDeadline).filter(time => time > now));
+  archiveRefreshTimer = setTimeout(() => { render(); scheduleArchiveRefresh(); }, Math.min(60000, Math.max(1000, next - now)));
+}
+document.addEventListener("visibilitychange", () => { if (document.hidden) stopQrScanner(); else { render(); scheduleArchiveRefresh(); } });
+scheduleArchiveRefresh();
+document.querySelectorAll("[data-open]").forEach((button) => button.addEventListener("click", () => { if (button.dataset.open === "eventModal") return openNewEvent(); if (button.dataset.open === "saleModal") return openNewSale(selectedEventId); $(button.dataset.open).showModal(); }));
+document.querySelectorAll("[data-close]").forEach((button) => button.addEventListener("click", () => $(button.dataset.close).close()));
+document.querySelectorAll("[data-toggle-password]").forEach((button) => button.addEventListener("click", () => setPasswordVisibility(button, $(button.dataset.togglePassword)?.type === "password")));
+$("addTicketType").addEventListener("click", () => addTicketTypeRow());
+$("addPackage").addEventListener("click", () => addPackageRow());
+$("addCourtesy").addEventListener("click", () => addPackageRow({}, "courtesy"));
+$("ticketTypesList").addEventListener("input", refreshPackageTicketOptions);
+$("packagesList").addEventListener("input", (event) => { const packageRow = event.target.closest(".package-row"); if (packageRow) updatePackageSummary(packageRow); });
+$("packagesList").addEventListener("change", (event) => { if (event.target.matches(".package-component-type")) refreshPackageTicketOptions(); });
+$("addSaleTicketItem").addEventListener("click", () => { const event = state.events.find((item) => item.id === $("saleEvent").value); if (!event) return toast("Selecione o evento primeiro."); if (document.querySelectorAll(".sale-ticket-item-row").length >= saleOptionsFor(event, $("saleForm").dataset.editId || "").length) return toast("Todos os ingressos, pacotes e cortesias disponíveis já foram adicionados."); addSaleTicketItemRow(); populateSaleTicketItemOptions(event.id); });
+$("saleEvent").addEventListener("change", () => { const event = state.events.find((item) => item.id === $("saleEvent").value); $("saleForm").elements.applyBuyerFee.checked = Boolean(event?.manualBuyerFeeDefault); setSaleTicketItems($("saleEvent").value); });
+$("saleTicketItemsList").addEventListener("change", (event) => { if (event.target.matches(".sale-item-type")) populateSaleTicketItemOptions(); else updateSaleItemsSummary(); });
+$("saleTicketItemsList").addEventListener("input", updateSaleItemsSummary);
+$("saleForm").elements.applyBuyerFee.addEventListener("change", updateSaleItemsSummary);
+$("saleForm").elements.buyerName.addEventListener("input", () => {
+  $("saleGuestNamesList").querySelectorAll('.sale-guest-name[data-automatic="true"]').forEach((input) => { input.value = guestDefaultName($("saleForm").elements.buyerName.value, Number(input.dataset.position)); });
+});
+$("saleGuestNamesList").addEventListener("input", (event) => { if (event.target.matches(".sale-guest-name")) event.target.dataset.automatic = "false"; });
+$("saleForm").elements.paymentStatus.addEventListener("change", () => syncSalePaymentFields(true));
+$("saleForm").elements.buyerPhone.addEventListener("blur", (event) => { event.currentTarget.value = formatPhoneDisplay(event.currentTarget.value); });
+$("applyParticipantFilters").addEventListener("click", () => { selectedTicketTypeFilter = $("ticketTypeFilter").value; selectedPaymentFilter = $("paymentStatusFilter").value; selectedEntryFilter = $("entryStatusFilter").value; document.querySelector(".ticket-filter").open = false; render(); });
+$("openFinancialReport").addEventListener("click", () => { if (!requireRole(["admin", "event_manager"], "O relatório financeiro é exclusivo para administradores e gerentes do evento.")) return; if (!selectedEventId) return toast("Selecione um evento para abrir o relatório financeiro."); location.hash = "relatorio-financeiro"; });
+$("backToDashboard").addEventListener("click", () => { location.hash = "resumo"; });
+$("sellerClosingStart").addEventListener("change", render);
+$("sellerClosingEnd").addEventListener("change", render);
+$("sellerClosingToday").addEventListener("click", () => { const today = todayInputValue(); $("sellerClosingStart").value = today; $("sellerClosingEnd").value = today; render(); });
+$("sellerClosingAll").addEventListener("click", () => { $("sellerClosingStart").value = ""; $("sellerClosingEnd").value = ""; render(); });
+$("sellerDetailsToggle").addEventListener("click", toggleSellerTicketReport);
+$("openPlatformSettlement").addEventListener("click", openPlatformSettlementModal);
+$("platformSettlementForm").addEventListener("submit", async (event) => { event.preventDefault(); const form = event.currentTarget; const button = $("createPlatformSettlementButton"); button.disabled = true; button.textContent = "Criando..."; try { await createPlatformSettlement(Object.fromEntries(new FormData(form))); $("platformSettlementModal").close(); toast("Fechamento criado com sucesso."); } catch (error) { toast(error.message); } finally { button.disabled = false; button.textContent = "Criar fechamento"; } });
+$("platformSettlementModal").addEventListener("cancel", (event) => { event.preventDefault(); $("platformSettlementModal").close(); });
+$("platformSettlementsList").addEventListener("submit", async (event) => { const form = event.target.closest("[data-settlement-payment]"); if (!form) return; event.preventDefault(); const button = form.querySelector('button[type="submit"]'); button.disabled = true; button.textContent = "Salvando..."; try { await recordPlatformSettlementPayment(form.dataset.settlementPayment, Object.fromEntries(new FormData(form))); form.reset(); toast("Pagamento registrado no fechamento."); } catch (error) { toast(error.message); } finally { button.disabled = false; button.textContent = "Dar baixa"; } });
+$("accessModal").addEventListener("cancel", (event) => event.preventDefault());
+$("accessForm").addEventListener("submit", async (event) => { event.preventDefault(); if (!auth) return; const button = $("accessSubmitButton"); button.disabled = true; button.textContent = "Entrando..."; $("accessError").textContent = ""; try { await signInWithEmailAndPassword(auth, $("accessEmail").value.trim(), $("accessPassword").value); $("accessPassword").value = ""; hidePasswords($("accessForm")); } catch (error) { $("accessError").textContent = authErrorMessage(error); } finally { button.disabled = false; button.textContent = "Entrar no painel"; } });
+$("resetPasswordButton").addEventListener("click", async () => { const email = $("accessEmail").value.trim(); if (!auth) { $("accessError").textContent = "O Firebase ainda está carregando. Tente novamente."; return; } if (!email) { $("accessError").textContent = "Digite seu e-mail para redefinir a senha."; $("accessEmail").focus(); return; } try { await sendPasswordResetEmail(auth, email); $("accessError").textContent = "Enviamos as instruções para o seu e-mail."; } catch (error) { $("accessError").textContent = authErrorMessage(error); } });
+$("logoutButton").addEventListener("click", async () => { $("userMenu").open = false; if (isDemo) { toast("O modo local usa um perfil de demonstração."); return; } await signOut(auth); });
+$("manageUsersButton").addEventListener("click", () => { if (!requireRole(["admin"])) return; $("userMenu").open = false; location.hash = selectedEventId ? "gerenciar-usuarios" : "eventos"; if (!selectedEventId) toast("Selecione um evento e acesse Gerenciar usuários pela área Mais."); });
+document.querySelector('#createUserForm [name="role"]').addEventListener("change", syncCreateUserEventAccess);
+$("createUserForm").addEventListener("reset", () => setTimeout(renderCreateUserEventOptions));
+$("createUserForm").addEventListener("submit", async (event) => { event.preventDefault(); const form = event.currentTarget; const button = $("createUserButton"); button.disabled = true; button.textContent = "Criando..."; try { await createManagedUser(Object.fromEntries(new FormData(form))); form.reset(); hidePasswords(form); toast("Usuário criado com sucesso."); } catch (error) { toast(authErrorMessage(error)); } finally { button.disabled = false; button.textContent = "+ Criar usuário"; } });
+$("createPromoterForm").addEventListener("submit", async (event) => { event.preventDefault(); const form = event.currentTarget; const button = $("createPromoterButton"); button.disabled = true; button.textContent = "Criando..."; try { await createPromoter(Object.fromEntries(new FormData(form))); form.reset(); hidePasswords(form); toast("Promoter criado e vinculado ao evento."); } catch (error) { toast(authErrorMessage(error)); } finally { button.disabled = false; button.textContent = "+ Criar promoter"; } });
+$("promotersList").addEventListener("click", async (event) => { const save = event.target.closest("[data-save-promoter]"); const toggle = event.target.closest("[data-toggle-promoter]"); if (!save && !toggle) return; const button = save || toggle; button.disabled = true; try { if (save) await updatePromoterSettings(save.dataset.savePromoter, save.closest("[data-promoter-card]")); else await togglePromoter(toggle.dataset.togglePromoter); } catch (error) { toast(error.message); } finally { button.disabled = false; } });
+$("usersList").addEventListener("change", async (event) => { const select = event.target.closest("[data-user-role]"); if (!select) return; try { await updateManagedUserRole(select.dataset.userRole, select.value); } catch (error) { toast(error.message); renderUsers(); } });
+$("usersList").addEventListener("click", async (event) => { const toggle = event.target.closest("[data-toggle-user]"); const reset = event.target.closest("[data-reset-user]"); const removeUser = event.target.closest("[data-delete-user]"); try { if (toggle) await toggleManagedUser(toggle.dataset.toggleUser); if (reset) await resetManagedUserPassword(reset.dataset.resetUser); if (removeUser) await deleteManagedUser(removeUser.dataset.deleteUser); } catch (error) { toast(authErrorMessage(error)); } });
+$("usersList").addEventListener("click", async (event) => {
+  const save = event.target.closest("[data-save-user-events]");
+  if (!save) return;
+  const editor = save.closest("[data-event-access-user]");
+  const eventIds = [...editor.querySelectorAll("input:checked")].map((input) => input.value);
+  save.disabled = true;
+  try { await updateManagedUserEvents(save.dataset.saveUserEvents, eventIds); }
+  catch (error) { toast(error.message); }
+  finally { save.disabled = false; }
+});
+$("participantSearch").addEventListener("input", (event) => { participantSearchQuery = event.currentTarget.value; render(); });
+$("participantSearch").addEventListener("keydown", (event) => { if (event.key === "Escape") { participantSearchQuery = ""; render(); event.currentTarget.focus(); } });
+$("tableReservationSearch").addEventListener("input", (event) => { tableReservationSearchQuery = event.currentTarget.value; render(); });
+$("tableReservationSearch").addEventListener("keydown", (event) => { if (event.key === "Escape") { tableReservationSearchQuery = ""; render(); event.currentTarget.focus(); } });
+$("clearTableReservationSearch").addEventListener("click", () => { tableReservationSearchQuery = ""; render(); $("tableReservationSearch").focus(); });
+$("applyTableReservationFilters").addEventListener("click", () => { tableReservationAreaFilter = $("tableReservationAreaFilter").value; tableReservationPaymentFilter = $("tableReservationPaymentFilter").value; document.querySelector(".table-reservation-filter").open = false; render(); });
+$("clearTableReservationFiltersMenu").addEventListener("click", () => { resetTableReservationFilters(); document.querySelector(".table-reservation-filter").open = false; render(); });
+$("openAllTableReservations").addEventListener("click", () => $("allTableReservationsModal").showModal());
+document.querySelectorAll("[data-clear-participant-filters]").forEach((button) => button.addEventListener("click", () => { resetParticipantFilters(); document.querySelector(".ticket-filter").open = false; render(); $("participantSearch").focus(); }));
+$("eventsList").addEventListener("click", (event) => { if (event.target.closest("[data-select-event]")) resetParticipantFilters(); });
+$("eventMode").addEventListener("change", syncEventMapSettings);
+document.querySelectorAll('#eventForm [name="mapArea"]').forEach((input) => input.addEventListener("change", () => {
+  if (input.checked) {
+    if (!eventMapDraft.areas.includes(input.value)) eventMapDraft.areas.push(input.value);
+    activeMapEditorArea = input.value;
+  } else {
+    const hasFurniture = eventMapDraft.furniture.some((item) => item.area === input.value);
+    if (hasFurniture && !confirm(`Remover todas as mesas e bistrôs do ${mapAreaLabel(input.value)}?`)) { input.checked = true; return; }
+    eventMapDraft.areas = eventMapDraft.areas.filter((area) => area !== input.value);
+    eventMapDraft.furniture = eventMapDraft.furniture.filter((item) => item.area !== input.value);
+    if (activeMapEditorArea === input.value) activeMapEditorArea = eventMapDraft.areas[0] || "";
+  }
+  renderMapEditor();
+}));
+document.querySelectorAll("[data-map-tool]").forEach((button) => button.addEventListener("click", () => { activeMapTool = activeMapTool === button.dataset.mapTool ? "" : button.dataset.mapTool; renderMapEditor(); }));
+$("tableMapEditor").addEventListener("click", (event) => { const slot = event.target.closest("[data-map-slot]"); if (slot) togglePresetSlot(slot.dataset.mapSlot); });
+$("mapEditorAreaTabs").addEventListener("click", (event) => { const button = event.target.closest("[data-editor-map-area]"); if (!button) return; activeMapEditorArea = button.dataset.editorMapArea; renderMapEditor(); });
+$("tableMapAreaTabs").addEventListener("click", (event) => { const button = event.target.closest("[data-view-map-area]"); if (!button) return; activeMapViewerArea = button.dataset.viewMapArea; const selectedEvent = state.events.find((item) => item.id === selectedEventId); renderTableMapPanel(selectedEvent, state.sales.filter((sale) => sale.eventId === selectedEventId)); });
+$("tableMapViewer").addEventListener("click", (event) => { const furniture = event.target.closest("[data-reserve-furniture]"); if (furniture) openTableReservation(furniture.dataset.reserveFurniture); });
+$("openMapZoom").addEventListener("click", () => { const selectedEvent = state.events.find((item) => item.id === selectedEventId); renderMapZoom(selectedEvent, state.sales.filter((sale) => sale.eventId === selectedEventId)); $("mapZoomModal").showModal(); requestAnimationFrame(() => { const canvas = $("mapZoomCanvas"); canvas.scrollLeft = 0; canvas.scrollTop = 0; }); });
+$("tableMapZoomAreaTabs").addEventListener("click", (event) => { const button = event.target.closest("[data-zoom-map-area]"); if (!button) return; activeMapViewerArea = button.dataset.zoomMapArea; const selectedEvent = state.events.find((item) => item.id === selectedEventId); renderTableMapPanel(selectedEvent, state.sales.filter((sale) => sale.eventId === selectedEventId)); });
+$("tableMapZoomViewer").addEventListener("click", (event) => { const furniture = event.target.closest("[data-reserve-furniture]"); if (!furniture) return; $("mapZoomModal").close(); openTableReservation(furniture.dataset.reserveFurniture); });
+$("tableReservationsList").addEventListener("click", (event) => { if (event.target.closest("[data-delete-sale], [data-whatsapp]")) return; const edit = event.target.closest("[data-open-table-reservation]"); if (edit) return openTableReservation(edit.dataset.openTableReservation); const toggle = event.target.closest("[data-toggle-table-reservation-details]"); if (toggle) toggleTableReservationCard(toggle.closest(".table-reservation-card")); });
+$("tableReservationsList").addEventListener("keydown", (event) => { if ((event.key === "Enter" || event.key === " ") && event.target.matches("[data-toggle-table-reservation-details]")) { event.preventDefault(); toggleTableReservationCard(event.target.closest(".table-reservation-card")); } });
+$("allSalesList").addEventListener("click", (event) => { const reservation = event.target.closest("[data-open-table-reservation]"); if (reservation) openTableReservation(reservation.dataset.openTableReservation); });
+$("allTableReservationsList").addEventListener("click", (event) => { const reservation = event.target.closest("[data-open-table-reservation]"); if (reservation) openTableReservation(reservation.dataset.openTableReservation); });
+$("exportTableReservations").addEventListener("click", () => { if (requireRole(["admin", "event_manager", "seller"])) window.exportSalesXlsx(state.sales, state.events, selectedEventId, "tables"); });
+$("exportParticipants").addEventListener("click", () => { if (requireRole(["admin", "event_manager", "seller"])) window.exportSalesXlsx(state.sales, state.events, selectedEventId, "unit"); });
+$("addTableOccupant").addEventListener("click", () => addTableOccupantRow());
+$("tableReservationForm").elements.buyerName.addEventListener("input", () => {
+  $("tableOccupantsList").querySelectorAll('.table-occupant-name[data-automatic="true"]').forEach((input) => { input.value = guestDefaultName($("tableReservationForm").elements.buyerName.value, Number(input.dataset.position)); });
+});
+$("tableOccupantsList").addEventListener("input", (event) => { if (event.target.matches(".table-occupant-name")) event.target.dataset.automatic = "false"; });
+$("tableOccupantsList").addEventListener("click", (event) => { const remove = event.target.closest("[data-remove-table-occupant]"); if (!remove) return; remove.closest(".table-occupant-row").remove(); syncTableGuestPositions(); updateTableReservationTotal(); });
+$("tableReservationForm").addEventListener("click", (event) => {
+  const button = event.target.closest("[data-toggle-chair-discount]");
+  if (!button) return;
+  const control = button.closest("[data-chair-discount]");
+  const input = control.querySelector(".chair-discount-value");
+  const label = control.querySelector("label");
+  const prefix = control.querySelector(".chair-discount-prefix");
+  if (!control.classList.contains("is-active")) {
+    control.classList.add("is-active");
+    label.hidden = false;
+    button.setAttribute("aria-expanded", "true");
+    button.title = "Alterar para desconto em reais";
+  } else {
+    const type = control.dataset.discountType === "fixed" ? "percent" : "fixed";
+    const symbol = type === "fixed" ? "R$" : "%";
+    control.dataset.discountType = type;
+    button.textContent = symbol;
+    prefix.textContent = symbol;
+    input.max = type === "percent" ? "100" : "999999";
+    button.title = type === "percent" ? "Alterar para desconto em reais" : "Alterar para desconto em porcentagem";
+  }
+  input.focus();
+  input.select();
+  updateTableReservationTotal();
+});
+$("tableReservationForm").addEventListener("input", (event) => { if (event.target.matches(".chair-discount-value") || event.target.name === "applyBuyerFee") updateTableReservationTotal(); });
+$("tableReservationForm").elements.paymentStatus.addEventListener("change", () => syncTableReservationPaymentFields(true));
+$("tableReservationForm").elements.buyerPhone.addEventListener("blur", (event) => { event.currentTarget.value = formatPhoneDisplay(event.currentTarget.value); });
+$("deleteTableReservation").addEventListener("click", async () => { const id = $("tableReservationForm").elements.saleId.value; if (!id) return; if (await deleteSale(id)) $("tableReservationModal").close(); });
+$("occupyTableWithoutSale").addEventListener("click", occupyTableWithoutSale);
+$("releaseTableOccupancy").addEventListener("click", releaseTableOccupancy);
+$("eventForm").addEventListener("submit", async (event) => { event.preventDefault(); const form = event.currentTarget; try { const data = Object.fromEntries(new FormData(form)); data.ticketTypes = getTicketTypes(); if (!data.ticketTypes.length) throw new Error("Informe ao menos um tipo ou lote com valor e quantidade."); data.packages = getPackages(data.ticketTypes); data.tableMap = { areas: [...eventMapDraft.areas], furniture: eventMapDraft.furniture.map((item) => ({ ...item })) }; await saveEvent(data, form.dataset.editId); form.reset(); resetPackages(); resetTicketTypes(); resetEventMapDraft(); $("eventModal").close(); } catch (error) { toast(error.message); } });
+$("saleForm").addEventListener("submit", async (event) => { event.preventDefault(); const form = event.currentTarget; try { const data = Object.fromEntries(new FormData(form)); if (form.dataset.editId) preserveSaleDetails(form.dataset.editId); data.items = getSaleTicketItems(); await saveSale(data, form.dataset.editId); form.reset(); $("saleTicketItemsList").innerHTML = ""; $("saleModal").close(); } catch (error) { toast(error.message); } });
+$("tableReservationForm").addEventListener("submit", async (event) => { event.preventDefault(); const form = event.currentTarget; try { const data = Object.fromEntries(new FormData(form)); if (data.saleId) preserveSaleDetails(data.saleId); await saveTableReservation(data); form.reset(); $("tableOccupantsList").innerHTML = ""; $("tableReservationModal").close(); } catch (error) { toast(error.message); } });
+document.addEventListener("click", (event) => {
+  const occupantCheckin = event.target.closest("[data-table-occupant-checkin]");
+  if (!occupantCheckin) return;
+  event.preventDefault();
+  event.stopPropagation();
+  toggleTableOccupantCheckin(occupantCheckin.dataset.tableOccupantCheckin, occupantCheckin.dataset.occupantIndex);
+});
+document.addEventListener("click", (event) => {
+  const generateButton = event.target.closest("[data-ticket-generate]");
+  const viewButton = event.target.closest("[data-ticket-view]");
+  const sendButton = event.target.closest("[data-ticket-send]");
+  const printButton = event.target.closest("[data-ticket-print]");
+  const deleteButton = event.target.closest("[data-ticket-delete]");
+  if (!generateButton && !viewButton && !sendButton && !printButton && !deleteButton) return;
+  event.preventDefault();
+  event.stopPropagation();
+  if (sendButton) return openTicketSendOptions(sendButton.dataset.ticketSend);
+  if (printButton) return openThermalPrintSettings(printButton.dataset.ticketPrint);
+  if (deleteButton) return openDeleteGeneratedTicket(deleteButton.dataset.ticketDelete);
+  const button = generateButton || viewButton;
+  const label = button.textContent;
+  button.disabled = true; button.textContent = generateButton ? "Gerando..." : "Abrindo...";
+  const action = generateButton ? generateTicketPdf(generateButton.dataset.ticketGenerate) : viewTicketPdf(viewButton.dataset.ticketView);
+  Promise.resolve(action).finally(() => { button.disabled = false; button.textContent = label; });
+});
+$("shareTicketFile").addEventListener("click", () => { const saleId = $("ticketSendModal").dataset.saleId; $("ticketSendModal").close(); shareGeneratedTicketPdf(saleId); });
+$("ticketSendModal").addEventListener("click", (event) => { const button = event.target.closest("[data-ticket-whatsapp]"); if (button) sendTicketToRegisteredWhatsapp($("ticketSendModal").dataset.saleId, button.dataset.ticketWhatsapp); });
+$("ticketSendModal").addEventListener("cancel", (event) => { event.preventDefault(); $("ticketSendModal").close(); });
+document.querySelector("[data-close-ticket-send]").addEventListener("click", () => $("ticketSendModal").close());
+$("ticketDeleteModal").addEventListener("cancel", (event) => { event.preventDefault(); $("ticketDeleteModal").close(); });
+document.querySelectorAll("[data-close-ticket-delete]").forEach((button) => button.addEventListener("click", () => $("ticketDeleteModal").close()));
+$("confirmTicketDelete").addEventListener("click", () => deleteGeneratedTicket($("ticketDeleteModal").dataset.saleId));
+$("thermalPrintModal").addEventListener("cancel", (event) => { event.preventDefault(); $("thermalPrintModal").close(); });
+document.querySelectorAll("[data-close-thermal-print]").forEach((button) => button.addEventListener("click", () => $("thermalPrintModal").close()));
+$("confirmThermalPrint").addEventListener("click", printGeneratedTicket);
+$("ticketConfigForm").addEventListener("input", (event) => { if (event.target.name !== "paperWidth") renderTicketConfigPreview(); if (event.target.name === "pdfLayout" || event.target.name?.startsWith("pdf") || ["title", "footer", "primaryColor", "accentColor"].includes(event.target.name)) updatePdfTicketConfigPreview(); });
+$("ticketConfigForm").elements.paperWidth.addEventListener("change", (event) => switchTicketPaperConfig(event.currentTarget.value));
+$("ticketConfigForm").addEventListener("submit", (event) => { event.preventDefault(); saveTicketDesignConfig(); });
+$("ticketConfigLock").addEventListener("click", () => setTicketConfigLocked($("ticketConfigForm").dataset.locked === "false"));
+$("ticketLogoInput").addEventListener("change", async (event) => {
+  const [file] = event.currentTarget.files || [];
+  event.currentTarget.value = "";
+  if (!file) return;
+  try { $("ticketConfigForm").dataset.logoData = await resizeTicketLogo(file); renderTicketConfigPreview(); }
+  catch (error) { toast(error.message || "Não foi possível carregar a imagem."); }
+});
+$("removeTicketLogo").addEventListener("click", () => { $("ticketConfigForm").dataset.logoData = ""; renderTicketConfigPreview(); });
+$("pdfTicketLogoInput").addEventListener("change", async (event) => {
+  const [file] = event.currentTarget.files || [];
+  event.currentTarget.value = "";
+  if (!file) return;
+  try { $("ticketConfigForm").dataset.pdfLogoData = await resizeTicketLogo(file); updatePdfTicketConfigPreview(); }
+  catch (error) { toast(error.message || "Não foi possível carregar a imagem."); }
+});
+$("removePdfTicketLogo").addEventListener("click", () => { $("ticketConfigForm").dataset.pdfLogoData = ""; updatePdfTicketConfigPreview(); });
+$("resetTicketConfig").addEventListener("click", () => { const form = $("ticketConfigForm"); if (form.dataset.locked !== "false") return; const width = normalizeThermalPaperWidth(form.elements.paperWidth.value); const design = normalizeTicketDesign({ ...DEFAULT_TICKET_DESIGN, paperWidth:width }); form.ticketDesignDrafts[String(width)] = design; applyTicketDesignToConfigForm(design); applyPdfTicketDesignToConfigForm({ pdfLayout:"default", pdfLogoDataUrl:"", pdfLogoSize:16.2, pdfTitleSize:8.5, pdfEventSize:17, pdfTextSize:8, pdfDataSize:14 }); setTicketConfigLocked(false); });
+$("confirmQrCheckin").addEventListener("click", () => toggleQrTicketCheckin($("qrValidationModal").dataset.token));
+$("nextQrScan").addEventListener("click", () => { $("qrValidationModal").close(); location.hash = "portaria"; openQrScanner(); });
+$("qrValidationModal").addEventListener("cancel", (event) => { event.preventDefault(); $("qrValidationModal").close(); location.hash = "portaria"; });
+document.querySelector("[data-close-qr-validation]").addEventListener("click", () => { $("qrValidationModal").close(); location.hash = "portaria"; });
+$("openQrScanner").addEventListener("click", () => openCameraPermissionDialog());
+$("chooseQrImage").addEventListener("click", () => $("qrImageInput").click());
+$("qrScannerPhoto").addEventListener("click", () => $("qrImageInput").click());
+$("grantCameraPermission").addEventListener("click", () => { prepareQrAudio(); $("cameraPermissionModal").close(); openQrScanner(); });
+$("cameraPermissionPhoto").addEventListener("click", () => { prepareQrAudio(); $("cameraPermissionModal").close(); $("qrImageInput").click(); });
+$("cameraPermissionModal").addEventListener("cancel", (event) => { event.preventDefault(); $("cameraPermissionModal").close(); });
+document.querySelector("[data-close-camera-permission]").addEventListener("click", () => $("cameraPermissionModal").close());
+$("qrImageInput").addEventListener("change", (event) => { const [file] = event.currentTarget.files || []; event.currentTarget.value = ""; scanQrImageFile(file); });
+$("qrScannerModal").addEventListener("cancel", (event) => { event.preventDefault(); stopQrScanner(); $("qrScannerModal").close(); });
+document.querySelector("[data-close-qr-scanner]").addEventListener("click", () => { stopQrScanner(); $("qrScannerModal").close(); });
+$("paymentConfirmationForm").addEventListener("submit", async (event) => { event.preventDefault(); const form = event.currentTarget; const button = form.querySelector('[type="submit"]'); button.disabled = true; try { await confirmSalePayment(Object.fromEntries(new FormData(form))); form.reset(); $("paymentConfirmationModal").close(); toast("Pagamento confirmado."); } catch (error) { toast(error.message); } finally { button.disabled = false; } });
+document.addEventListener("click", (event) => { const whatsappTrigger = event.target.closest("[data-whatsapp]"); if (whatsappTrigger) { event.preventDefault(); openWhatsappChooser(whatsappTrigger); return; } const whatsappApp = event.target.closest("[data-whatsapp-app]"); if (whatsappApp) { launchWhatsapp(whatsappApp.dataset.whatsappApp); return; } const metricDetails = event.target.closest("[data-toggle-metric-details]"); if (metricDetails) { toggleMetricDetails(metricDetails); return; } const participantDetails = event.target.closest("[data-toggle-sale-details]"); if (participantDetails) { toggleParticipantCard(participantDetails.closest("[data-sale-row]")); return; } const addPackageComponent = event.target.closest("[data-add-package-component]"); if (addPackageComponent) { const packageRow = addPackageComponent.closest(".package-row"); if (packageRow.querySelectorAll(".package-component-row").length >= draftTicketTypes().filter((item) => item.name).length) return toast("Todos os tipos de ingresso já foram adicionados aqui."); addPackageComponentRow(packageRow); refreshPackageTicketOptions(); return; } const removePackageComponent = event.target.closest("[data-remove-package-component]"); if (removePackageComponent) { const packageRow = removePackageComponent.closest(".package-row"); if (packageRow.querySelectorAll(".package-component-row").length === 1) return toast("O pacote ou cortesia precisa ter pelo menos um ingresso."); removePackageComponent.closest(".package-component-row").remove(); refreshPackageTicketOptions(); return; } const removePackage = event.target.closest("[data-remove-package]"); if (removePackage) { removePackage.closest(".package-row").remove(); refreshPackageTicketOptions(); return; } const removeTicket = event.target.closest("[data-remove-ticket]"); if (removeTicket) { if (document.querySelectorAll(".ticket-type-row").length === 1) return toast("O evento precisa de pelo menos um tipo de ingresso."); removeTicket.closest(".ticket-type-row").remove(); refreshPackageTicketOptions(); return; } const removeSaleTicket = event.target.closest("[data-remove-sale-ticket]"); if (removeSaleTicket) { const rows = document.querySelectorAll(".sale-ticket-item-row"); if (rows.length === 1) return toast("A venda precisa de pelo menos um item."); removeSaleTicket.closest(".sale-ticket-item-row").remove(); populateSaleTicketItemOptions(); return; } const deleteEventButton = event.target.closest("[data-delete-event]"); if (deleteEventButton) { event.preventDefault(); event.stopPropagation(); deleteEvent(deleteEventButton.dataset.deleteEvent); return; } const selectedAction = event.target.closest("[data-selected-action]"); if (selectedAction) { const action = selectedAction.dataset.selectedAction; if (action === "sale") openNewSale(selectedEventId); if (action === "edit") openEditEvent(selectedEventId); if (action === "history") openAuditHistory(selectedEventId); if (action === "export" && requireRole(["admin", "seller"])) window.exportSalesXlsx(state.sales, state.events, selectedEventId, "unit"); if (action === "delete") deleteEvent(selectedEventId); return; } const selectEvent = event.target.closest("[data-select-event]"); if (selectEvent) { rememberSelectedEvent(selectEvent.dataset.selectEvent); location.hash = "resumo"; render(); return; } const editSaleButton = event.target.closest("[data-edit-sale]"); if (editSaleButton) { openEditSale(editSaleButton.dataset.editSale); return; } const deleteSaleButton = event.target.closest("[data-delete-sale]"); if (deleteSaleButton) { deleteSale(deleteSaleButton.dataset.deleteSale); return; } const checkin = event.target.closest("[data-checkin]"); if (checkin) { toggleCheckin(checkin.dataset.checkin); return; } const paid = event.target.closest("[data-paid]"); if (paid) { togglePayment(paid.dataset.paid); return; } });
+document.addEventListener("click", (event) => { const toggle = event.target.closest?.("[data-toggle-package-discount]"); if (!toggle) return; event.preventDefault(); event.stopImmediatePropagation(); togglePackageDiscountType(toggle.closest(".package-row")); }, true);
+// O cartão do participante é somente informativo; edição acontece apenas pelo botão Editar.
+document.addEventListener("click", (event) => { const row = event.target.closest?.("#salesList [data-sale-row]"); if (!row || event.target.closest("button, a, input, select, textarea")) return; if (window.matchMedia("(max-width: 700px)").matches) toggleParticipantCard(row); event.stopImmediatePropagation(); }, true);
+document.addEventListener("keydown", (event) => { const card = event.target.closest?.("[data-select-event]"); if (card && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); rememberSelectedEvent(card.dataset.selectEvent); resetParticipantFilters(); location.hash = "resumo"; render(); } });
+window.addEventListener("hashchange", syncApplicationPage);
+window.addEventListener("popstate", syncApplicationPage);
+const mercadoPagoReturn = new URLSearchParams(location.search).get("mercadoPago");
+if (mercadoPagoReturn) {
+  const message = new URLSearchParams(location.search).get("message");
+  history.replaceState({}, "", `${location.pathname}${location.hash || "#vendas-online"}`);
+  setTimeout(() => toast(mercadoPagoReturn === "connected" ? "Conta Mercado Pago conectada com sucesso." : message || "Não foi possível conectar a conta Mercado Pago."), 500);
+}
+start();
+resetTicketTypes();
+resetPackages();
+setSaleTicketItems("");
+syncSalePaymentFields(true);

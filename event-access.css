@@ -1,0 +1,32 @@
+.create-user-form > .two-columns { order: 1; }
+.create-user-event-access { order: 2; margin: 0; padding: 14px; border: 1px solid #dbeafe; border-radius: 10px; background: #fff; }
+.create-user-form > .button { order: 3; }
+.create-user-event-access legend { padding: 0 5px; color: #14213d; font: 700 11px "DM Sans"; }
+.create-user-event-access p { margin: 0 0 10px; color: #64748b; font-size: 10px; }
+.create-user-event-access.is-admin .user-event-options { display: none; }
+.user-event-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; }
+.user-event-option { display: flex !important; align-items: flex-start; gap: 8px; min-width: 0; padding: 9px; border: 1px solid #e2e8f0; border-radius: 9px; background: #f8fafc; cursor: pointer; }
+.user-event-option input { flex: 0 0 auto; width: 15px; height: 15px; margin: 1px 0 0; accent-color: #2563eb; }
+.user-event-option span { min-width: 0; }
+.user-event-option strong, .user-event-option small { display: block; }
+.user-event-option strong { overflow: hidden; color: #14213d; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.user-event-option small { margin-top: 3px; color: #64748b; font-size: 8px; line-height: 1.35; }
+.user-events-empty { grid-column: 1 / -1; margin: 0; color: #94a3b8; font-size: 10px; }
+.user-event-access { grid-column: 1 / -1; padding-top: 11px; border-top: 1px solid #e2e8f0; }
+.user-event-access summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; color: #475569; font-size: 10px; cursor: pointer; list-style: none; }
+.user-event-access summary::-webkit-details-marker { display: none; }
+.user-event-access summary::after { content: "+"; color: #2563eb; font-weight: 700; }
+.user-event-access[open] summary::after { content: "−"; }
+.user-event-access summary strong { color: #2563eb; font-size: 9px; }
+.user-event-access .user-event-options { margin-top: 11px; }
+.save-user-events { margin-top: 10px; padding: 9px 11px; border: 0; border-radius: 8px; background: #2563eb; color: #fff; font: 700 10px "DM Sans"; cursor: pointer; }
+.save-user-events:disabled { opacity: .55; cursor: wait; }
+.admin-access { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.admin-access strong { color: #475569; font-size: 10px; }
+.admin-access span { color: #2563eb; font-size: 9px; font-weight: 700; }
+
+@media (max-width: 600px) {
+  .user-event-options { grid-template-columns: 1fr; }
+  .user-event-access summary { align-items: flex-start; flex-wrap: wrap; }
+  .admin-access { align-items: flex-start; flex-direction: column; gap: 4px; }
+}
