@@ -1062,6 +1062,7 @@ async function generateTicketPdf(saleId) {
     if (!sale) throw new Error("Venda não encontrada.");
     const tickets = await ensureQrTickets(sale);
     render();
+    if ($("tableReservationModal").open && $("tableReservationForm").elements.saleId.value === saleId && wizardStep($("tableReservationForm")) === 4) renderTableWizardTicketStep(sale);
     toast(`${tickets.length} ingresso(s) gerado(s) com sucesso.`);
   }
   catch (error) { console.error(error); toast(error.message || "Não foi possível gerar os ingressos."); }
@@ -1200,6 +1201,7 @@ async function deleteGeneratedTicket(saleId) {
     }
     $("ticketDeleteModal").close();
     render();
+    if ($("tableReservationModal").open && $("tableReservationForm").elements.saleId.value === saleId && wizardStep($("tableReservationForm")) === 4) renderTableWizardTicketStep(sale);
     toast("Ingresso excluído. O QR Code antigo não é mais válido e um novo pode ser gerado.");
   } catch (error) { console.error(error); toast("Não foi possível excluir o ingresso."); }
 }
@@ -1717,6 +1719,11 @@ function ticketFileActionsHtml(sale) {
   if (!hasGeneratedTicket(sale, event)) return sale.paid ? `<div class="ticket-file-actions is-not-generated"><button class="ticket-file-button ticket-generate-button" type="button" data-ticket-generate="${sale.id}">Gerar ingresso em PDF</button></div>` : `<div class="ticket-generation-locked"><strong>Ingresso aguardando pagamento</strong><span>Confirme o pagamento para liberar a geração do PDF e QR Code.</span></div>`;
   return `<div class="ticket-file-actions is-generated"><button class="ticket-file-button" type="button" data-ticket-view="${sale.id}">Ver ingresso</button><button class="ticket-file-button ticket-share-button" type="button" data-ticket-send="${sale.id}">Enviar ingresso</button><button class="ticket-file-button ticket-print-button" type="button" data-ticket-print="${sale.id}">IMPRIMIR</button><button class="ticket-file-button ticket-delete-button" type="button" data-ticket-delete="${sale.id}">Excluir ingresso</button></div>`;
 }
+function renderTableWizardTicketStep(sale) {
+  $("tableWizardTicketActions").innerHTML = sale?.paid
+    ? ticketFileActionsHtml(sale)
+    : '<div class="ticket-generation-locked"><strong>Ingressos aguardando pagamento</strong><span>Confirme o pagamento na etapa anterior para liberar o PDF e os QR Codes.</span></div>';
+}
 function tableReservationCheckinsHtml(sale) {
   const occupants = reservationOccupants(sale);
   const checkins = reservationOccupantCheckins(sale);
@@ -1935,11 +1942,11 @@ function chairDiscountControlHtml(pricing = {}, label = "Desconto desta cadeira"
   return `<div class="chair-discount-control${active ? " is-active" : ""}" data-chair-discount data-discount-type="${type}"><button class="chair-discount-toggle" type="button" data-toggle-chair-discount aria-expanded="${active}" title="${active ? "Alterar tipo do desconto" : "Adicionar desconto"}">${symbol}</button><label ${active ? "" : "hidden"}><span class="chair-discount-prefix">${symbol}</span><input class="chair-discount-value" type="number" min="0" max="${type === "percent" ? "100" : "999999"}" step="0.01" value="${value}" inputmode="decimal" aria-label="${label}" /></label></div>`;
 }
 
-function setChairDiscountControl(control, pricing = {}) {
+function setChairDiscountControl(control, pricing = {}, startExpanded = false) {
   if (!control) return;
   const type = pricing.discountType === "fixed" ? "fixed" : "percent";
   const value = Math.max(0, Number(pricing.discountValue || 0));
-  const active = value > 0;
+  const active = value > 0 || startExpanded;
   const symbol = type === "fixed" ? "R$" : "%";
   control.dataset.discountType = type;
   control.classList.toggle("is-active", active);
@@ -2057,19 +2064,20 @@ function openTableReservation(furnitureId) {
   form.elements.buyerName.value = reservation?.buyerName || "";
   form.elements.buyerPhone.value = reservation?.buyerPhone || "";
   form.elements.buyerEmail.value = reservation?.buyerEmail || "";
-  form.elements.paymentStatus.value = reservation?.paid ? "paid" : "pending";
+  form.elements.paymentStatus.value = reservation ? (reservation.paid ? "paid" : "pending") : "paid";
   form.elements.paymentMethod.value = reservation?.paymentMethod || "";
   form.elements.paymentDate.value = reservation?.paymentDate || "";
   form.elements.applyBuyerFee.checked = reservation ? Boolean(reservation.applyBuyerFee) : Boolean(event.manualBuyerFeeDefault);
   form.elements.notes.value = reservation?.notes || "";
   $("tableOccupantsList").innerHTML = "";
   const storedPricing = reservationOccupantPricing(reservation);
-  setChairDiscountControl($("responsibleChairDiscount"), storedPricing[0]);
+  setChairDiscountControl($("responsibleChairDiscount"), storedPricing[0], canEditChairDiscount());
   reservationOccupants(reservation).slice(1).forEach((name, index) => addTableOccupantRow(name, storedPricing[index + 1]));
   $("tableReservationTitle").textContent = `${furnitureKindLabel(furniture.kind)} ${String(furniture.number).padStart(2, "0")}`;
   $("tableReservationArea").textContent = `${mapAreaLabel(furniture.area)} · ${money.format(Number(event.chairPrice || 0))} por pessoa`;
   $("deleteTableReservation").hidden = !reservation;
   $("occupyTableWithoutSale").hidden = Boolean(reservation) || !hasRole("admin", "event_manager");
+  $("tableWizardTicketActions").innerHTML = "";
   syncTableReservationPaymentFields(!reservation);
   updateTableReservationTotal();
   setWizardStep(form, 1);
@@ -2142,14 +2150,17 @@ async function saveTableReservation(data) {
   const financialSnapshot = saleFinancialSnapshot(event, subtotal, current, "manual");
   const promoterSnapshot = promoterFinancialSnapshot(promoter, subtotal, current, "manual");
   const saleData = { eventId: event.id, reservationType: "table", furnitureId: furniture.id, furnitureKind: furniture.kind, furnitureNumber: furniture.number, mapArea: furniture.area, reservationLabel: label, occupants: names, occupantPricing, occupantCheckins: names.map((_, index) => Boolean(previousCheckins[index])), ticketTypeId: `chair:${furniture.area}`, ticketTypeName: `Cadeira — ${mapAreaLabel(furniture.area)}`, items, buyerName: names[0], buyerPhone: String(data.buyerPhone || "").trim(), buyerEmail: String(data.buyerEmail || "").trim(), notes: String(data.notes || "").trim(), courtesy: false, paid, paymentMethod, paymentDate, quantity, regularTotal, discountTotal, total, ...feeSnapshot, ...financialSnapshot, ...promoterSnapshot, checkedIn: current?.checkedIn || false, updatedAt: timestamp };
+  let savedReservation;
   if (isDemo) {
     if (current) {
       const updated = { ...current, ...saleData };
       state.sales = state.sales.map((sale) => sale.id === current.id ? updated : sale);
+      savedReservation = updated;
       appendDemoAudit("edited", updated, `Atualizou a reserva da ${label} para ${quantity} pessoas${discountTotal ? `, com ${money.format(discountTotal)} de desconto` : ""}.`);
     } else {
       const created = { id: crypto.randomUUID(), ...saleData, createdByUid: currentUser.uid, createdByName: currentUserProfile.name || currentUser.email, createdByEmail: currentUser.email || currentUserProfile.email || "", createdAt: timestamp };
       state.sales.push(created);
+      savedReservation = created;
       appendDemoAudit("created", created, `Criou a reserva da ${label} para ${quantity} pessoas${discountTotal ? `, com ${money.format(discountTotal)} de desconto` : ""}.`);
     }
     persistDemo();
@@ -2161,8 +2172,12 @@ async function saveTableReservation(data) {
     const logId = push(ref(db, "auditLogs")).key;
     const action = current ? "edited" : "created";
     await update(ref(db), { [`sales/${saleId}`]: Object.fromEntries(Object.entries(stored).filter(([key]) => key !== "id")), [`auditLogs/${logId}`]: auditLogData(action, stored, `${current ? "Atualizou" : "Criou"} a reserva da ${label} para ${quantity} pessoas${discountTotal ? `, com ${money.format(discountTotal)} de desconto` : ""}.`, timestamp) });
+    savedReservation = stored;
+    state.sales = current ? state.sales.map((sale) => sale.id === saleId ? stored : sale) : [...state.sales, stored];
+    render();
   }
   toast(current ? "Reserva atualizada." : "Reserva criada.");
+  return savedReservation;
 }
 
 function eventAccessCheckboxes(selectedIds = []) {
@@ -2859,7 +2874,7 @@ function setPasswordVisibility(button, visible) {
   button.title = visible ? "Ocultar senha" : "Mostrar senha";
 }
 function hidePasswords(container = document) { container.querySelectorAll("[data-toggle-password]").forEach((button) => setPasswordVisibility(button, false)); }
-function wizardStep(form) { return Math.min(3, Math.max(1, Number(form.dataset.wizardStep || 1))); }
+function wizardStep(form) { return Math.min(form.id === "tableReservationForm" ? 4 : 3, Math.max(1, Number(form.dataset.wizardStep || 1))); }
 function updateWizardReview(form) {
   if (form.id === "saleForm") {
     const event = state.events.find((item) => item.id === form.elements.eventId.value);
@@ -2877,7 +2892,7 @@ function updateWizardReview(form) {
   }
 }
 function setWizardStep(form, nextStep) {
-  const step = Math.min(3, Math.max(1, Number(nextStep || 1)));
+  const step = Math.min(form.id === "tableReservationForm" ? 4 : 3, Math.max(1, Number(nextStep || 1)));
   form.dataset.wizardStep = String(step);
   form.querySelectorAll("[data-wizard-step]").forEach((section) => { section.hidden = Number(section.dataset.wizardStep) !== step; });
   form.querySelectorAll("[data-wizard-indicator]").forEach((indicator) => {
@@ -3091,7 +3106,8 @@ $("occupyTableWithoutSale").addEventListener("click", occupyTableWithoutSale);
 $("releaseTableOccupancy").addEventListener("click", releaseTableOccupancy);
 $("eventForm").addEventListener("submit", async (event) => { event.preventDefault(); const form = event.currentTarget; try { const data = Object.fromEntries(new FormData(form)); data.ticketTypes = getTicketTypes(); if (!data.ticketTypes.length) throw new Error("Informe ao menos um tipo ou lote com valor e quantidade."); data.packages = getPackages(data.ticketTypes); data.tableMap = { areas: [...eventMapDraft.areas], furniture: eventMapDraft.furniture.map((item) => ({ ...item })) }; await saveEvent(data, form.dataset.editId); form.reset(); resetPackages(); resetTicketTypes(); resetEventMapDraft(); $("eventModal").close(); } catch (error) { toast(error.message); } });
 $("saleForm").addEventListener("submit", async (event) => { event.preventDefault(); const form = event.currentTarget; try { const data = Object.fromEntries(new FormData(form)); if (form.dataset.editId) preserveSaleDetails(form.dataset.editId); data.items = getSaleTicketItems(); await saveSale(data, form.dataset.editId); form.reset(); $("saleTicketItemsList").innerHTML = ""; $("saleModal").close(); } catch (error) { toast(error.message); } });
-$("tableReservationForm").addEventListener("submit", async (event) => { event.preventDefault(); const form = event.currentTarget; try { const data = Object.fromEntries(new FormData(form)); if (data.saleId) preserveSaleDetails(data.saleId); await saveTableReservation(data); form.reset(); $("tableOccupantsList").innerHTML = ""; $("tableReservationModal").close(); } catch (error) { toast(error.message); } });
+$("tableReservationForm").addEventListener("submit", async (event) => { event.preventDefault(); const form = event.currentTarget; if (wizardStep(form) !== 3) return; try { const data = Object.fromEntries(new FormData(form)); if (data.saleId) preserveSaleDetails(data.saleId); const sale = await saveTableReservation(data); form.elements.saleId.value = sale.id; $("deleteTableReservation").hidden = false; $("occupyTableWithoutSale").hidden = true; renderTableWizardTicketStep(sale); setWizardStep(form, 4); } catch (error) { toast(error.message); } });
+$("finishTableReservation").addEventListener("click", () => { $("tableReservationForm").reset(); $("tableOccupantsList").innerHTML = ""; $("tableReservationModal").close(); });
 document.addEventListener("click", (event) => {
   const occupantCheckin = event.target.closest("[data-table-occupant-checkin]");
   if (!occupantCheckin) return;

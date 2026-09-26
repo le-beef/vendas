@@ -1,5 +1,17 @@
 # Le Beef — painel de vendas de ingressos
 
+## Versão 6.0.17 — primeira etapa da reserva no celular
+
+- No celular, **Ocupar sem venda** aparece menor à esquerda e **Continuar** maior à direita, na mesma linha. Para perfis sem acesso à ocupação sem venda, **Continuar** ocupa a largura disponível.
+- O desconto da cadeira do responsável já abre expandido para administrador e gerente, inclusive com valor inicial zero. A regra de visibilidade dos descontos não mudou.
+
+## Versão 6.0.16 — emissão após a reserva de mesa
+
+- A reserva de mesa/bistrô agora tem uma quarta etapa, **Ingressos**, exibida após salvar os dados de pagamento.
+- Reservas novas abrem a etapa de pagamento com **Pago** pré-selecionado; reservas existentes mantêm sua situação gravada.
+- A etapa final oferece gerar os ingressos imediatamente ou concluir sem gerar. O QR Code/PDF continua bloqueado até a confirmação do pagamento. Após gerar, os botões de visualizar, enviar, imprimir e excluir aparecem na própria etapa.
+- A venda individual continua com o fluxo anterior.
+
 ## Versão 6.0.15 — ocupar mesa sem venda
 
 - O botão **Ocupar sem venda** fica na primeira etapa da reserva, sem exigir nome ou outros dados do responsável.
