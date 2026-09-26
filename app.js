@@ -1024,6 +1024,39 @@ async function buildTicketPdf(saleId, generate = false) {
   return { blob, filename: ticketPdfName(event, sale), sale, event, count: tickets.length };
 }
 function downloadBlob(blob, filename) { const url = URL.createObjectURL(blob); const link = document.createElement("a"); link.href = url; link.download = filename; document.body.append(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 1500); }
+async function ticketShareId(sale, event) {
+  const firstToken = qrTicketsFor(sale, event)[0]?.token;
+  if (!firstToken) throw new Error("Gere o ingresso antes de criar o link.");
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(`${sale.id}:${firstToken}`));
+  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+function ticketPdfBase64(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || "").split(",", 2)[1] || "");
+    reader.onerror = () => reject(new Error("Não foi possível preparar o PDF para o link."));
+    reader.readAsDataURL(blob);
+  });
+}
+async function createTicketShareLink(result) {
+  if (isDemo) throw new Error("O link do ingresso só funciona no site publicado e conectado ao Firebase.");
+  if (!result.sale.paid) throw new Error("Confirme o pagamento antes de enviar o ingresso.");
+  const tickets = qrTicketsFor(result.sale, result.event);
+  const id = await ticketShareId(result.sale, result.event);
+  if (result.blob.size > 1875000) throw new Error("Este PDF é grande demais para gerar um link. Envie-o pela opção de compartilhar PDF.");
+  const pdfBase64 = await ticketPdfBase64(result.blob);
+  if (!pdfBase64 || pdfBase64.length > 2500000) throw new Error("Este PDF é grande demais para gerar um link. Envie-o pela opção de compartilhar PDF.");
+  await set(ref(db, `ticketLinks/${id}`), {
+    saleId: result.sale.id,
+    eventId: result.sale.eventId,
+    firstTicketToken: tickets[0].token,
+    filename: result.filename.length > 160 ? `${result.filename.slice(0, 156)}.pdf` : result.filename,
+    pdfBase64,
+    createdAt: Date.now(),
+    createdByUid: currentUser.uid
+  });
+  return new URL(`ingresso.html?id=${encodeURIComponent(id)}`, location.href).href;
+}
 function preserveParticipantDetails(saleId) {
   const row = [...document.querySelectorAll("#salesList [data-sale-row]")].find((item) => item.dataset.saleRow === saleId);
   if (!row?.classList.contains("is-expanded")) return;
@@ -1155,6 +1188,7 @@ function openTicketSendOptions(saleId) {
   $("ticketSendName").textContent = sale.buyerName || "Participante";
   $("ticketSendPhone").textContent = formatPhoneDisplay(sale.buyerPhone) || "Telefone não informado";
   $("ticketSendRegisteredOptions").hidden = !whatsappNumber(sale.buyerPhone);
+  $("ticketSendHint").hidden = !whatsappNumber(sale.buyerPhone);
   if (!modal.open) modal.showModal();
 }
 async function shareGeneratedTicketPdf(saleId) {
@@ -1168,19 +1202,23 @@ async function shareGeneratedTicketPdf(saleId) {
   } catch (error) { if (error?.name !== "AbortError") { console.error(error); toast(error.message || "Não foi possível compartilhar os ingressos."); } }
 }
 async function sendTicketToRegisteredWhatsapp(saleId, appType) {
+  const button = $(`ticketSendRegisteredOptions`).querySelector(`[data-ticket-whatsapp="${appType}"]`);
+  const originalLabel = button?.querySelector("strong")?.textContent || "";
   try {
+    if (button) { button.disabled = true; button.querySelector("strong").textContent = "Preparando link..."; }
     const result = await buildTicketPdf(saleId);
     const number = whatsappNumber(result.sale.buyerPhone);
     if (!number) throw new Error("Esta venda não possui telefone cadastrado.");
-    downloadBlob(result.blob, result.filename);
+    const link = await createTicketShareLink(result);
     $("ticketSendModal").close();
-    const message = encodeURIComponent(`Olá, ${result.sale.buyerName || "participante"}! O PDF do seu ingresso para ${result.event?.name || "o evento"} foi baixado neste aparelho. Anexe o arquivo “${result.filename}” nesta conversa.`);
+    const message = encodeURIComponent(`Olá, ${result.sale.buyerName || "participante"}! ${result.count > 1 ? "Seus ingressos" : "Seu ingresso"} para ${result.event?.name || "o evento"} ${result.count > 1 ? "estão disponíveis" : "está disponível"} aqui: ${link}`);
     const fallbackUrl = `https://wa.me/${number}?text=${message}`;
     if (/Android/i.test(navigator.userAgent)) {
       const packageName = appType === "business" ? "com.whatsapp.w4b" : "com.whatsapp";
       window.location.assign(`intent://send?phone=${number}&text=${message}#Intent;scheme=whatsapp;package=${packageName};S.browser_fallback_url=${encodeURIComponent(fallbackUrl)};end`);
     } else window.open(fallbackUrl, "_blank", "noopener,noreferrer");
-  } catch (error) { console.error(error); toast(error.message || "Não foi possível abrir o WhatsApp."); }
+  } catch (error) { console.error(error); toast(/permission.denied/i.test(`${error?.code || ""} ${error?.message || ""}`) ? "O Firebase bloqueou o link. Publique a regra ticketLinks antes de enviar." : error.message || "Não foi possível criar o link do ingresso."); }
+  finally { if (button) { button.disabled = false; button.querySelector("strong").textContent = originalLabel; } }
 }
 function openDeleteGeneratedTicket(saleId) {
   const sale = state.sales.find((item) => item.id === saleId);

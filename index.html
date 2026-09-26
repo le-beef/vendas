@@ -40,7 +40,7 @@
     <link rel="stylesheet" href="table-reservation-details.css?v=2" />
     <link rel="stylesheet" href="table-reservation-final.css?v=3" />
     <link rel="stylesheet" href="table-reservation-harmony.css?v=4" />
-    <link rel="stylesheet" href="ticketing.css?v=11" />
+    <link rel="stylesheet" href="ticketing.css?v=12" />
     <link rel="stylesheet" href="ticket-config.css?v=8" />
     <link rel="stylesheet" href="pages.css?v=5" />
     <link rel="stylesheet" href="toast-responsive.css?v=1" />
@@ -270,7 +270,7 @@
       </section>
     </main>
 
-    <footer class="site-footer">Le Beef | Versão: 6.0.19</footer>
+    <footer class="site-footer">Le Beef | Versão: 6.0.20</footer>
 
     <button class="fab" data-open="saleModal" data-roles="admin,event_manager,seller" aria-label="Registrar venda">+</button>
 
@@ -464,8 +464,8 @@
         <div class="modal-heading"><div><p class="eyebrow">INGRESSO GERADO</p><h2>Enviar ingresso</h2></div><button class="close" type="button" data-close-ticket-send aria-label="Fechar">×</button></div>
         <div class="ticket-send-contact"><strong id="ticketSendName">Participante</strong><span id="ticketSendPhone">Telefone</span></div>
         <button id="shareTicketFile" class="ticket-send-choice ticket-send-any" type="button"><span aria-hidden="true">↗</span><span><strong>Escolher contato e enviar PDF</strong><small>Abre o compartilhamento do celular com o PDF anexado. Escolha WhatsApp normal, Business e o destinatário.</small></span></button>
-        <div id="ticketSendRegisteredOptions" class="ticket-send-registered"><p>Enviar para o número cadastrado</p><button type="button" data-ticket-whatsapp="personal"><span class="whatsapp-option-badge" aria-hidden="true">W</span><span><strong>WhatsApp normal</strong><small>Baixa o PDF e abre a conversa cadastrada</small></span></button><button type="button" data-ticket-whatsapp="business"><span class="whatsapp-option-badge" aria-hidden="true">B</span><span><strong>WhatsApp Business</strong><small>Baixa o PDF e abre a conversa cadastrada</small></span></button></div>
-        <p class="ticket-send-hint">Por segurança do Android, uma conversa específica não pode receber um arquivo automaticamente. Nessas duas opções, anexe o PDF baixado na conversa.</p>
+        <div id="ticketSendRegisteredOptions" class="ticket-send-registered"><p>Enviar para o número cadastrado</p><button type="button" data-ticket-whatsapp="personal"><span class="whatsapp-option-badge" aria-hidden="true">W</span><span><strong>WhatsApp normal</strong><small>Abre a conversa com o link do ingresso</small></span></button><button type="button" data-ticket-whatsapp="business"><span class="whatsapp-option-badge" aria-hidden="true">B</span><span><strong>WhatsApp Business</strong><small>Abre a conversa com o link do ingresso</small></span></button></div>
+        <p id="ticketSendHint" class="ticket-send-hint">O comprador abre o link da mensagem para visualizar ou baixar o PDF. Confirme o envio no WhatsApp.</p>
       </div>
     </dialog>
 
@@ -519,6 +519,6 @@
     <div id="toast" role="status" aria-live="polite"></div>
     <script src="pwa.js"></script>
     <script src="excel-export.js?v=40"></script>
-    <script type="module" src="app.js?v=118"></script>
+    <script type="module" src="app.js?v=119"></script>
   </body>
 </html>

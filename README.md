@@ -1,5 +1,13 @@
 # Le Beef — painel de vendas de ingressos
 
+## Versão 6.0.20 — link do ingresso para telefone cadastrado
+
+- Ao escolher **WhatsApp normal** ou **WhatsApp Business** para o número cadastrado, o sistema cria um link compartilhável do PDF e o inclui na mensagem pronta. O envio ainda é confirmado pelo usuário no WhatsApp.
+- **Escolher contato e enviar PDF** permanece igual, compartilhando o arquivo pelo menu do celular.
+- O comprador abre `ingresso.html` para visualizar ou baixar o PDF, sem login. O link é individual e deixa de abrir se a venda não estiver paga ou se o QR Code for excluído ou regenerado.
+- O PDF compartilhado é salvo em `ticketLinks` do Realtime Database. Antes de usar em produção, adicione o nó de `regras-ticket-links.json` às regras atuais do Realtime Database; mantenha os demais nós existentes. Não substitua suas regras inteiras por esse fragmento.
+- O modo demonstração não cria links públicos. Cada PDF compartilhado tem limite de aproximadamente 1,8 MB, para evitar gravações excessivas no banco.
+
 ## Versão 6.0.19 — botão para adicionar pessoas
 
 - Na etapa Pessoas da reserva, **+ Adicionar pessoa** virou um botão azul compacto e mais visível, sem alterar o fluxo nem ampliar o bloco desnecessariamente.
