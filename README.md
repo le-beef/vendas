@@ -1,5 +1,11 @@
 # Le Beef — painel de vendas de ingressos
 
+## Versão 6.0.13 — cabeçalho do PDF digital
+
+- Em **Tamanho e margens** do PDF, o controle **Altura do cabeçalho** ajusta a faixa colorida até a linha tracejada entre 43 e 58 mm (padrão: 48 mm).
+- O espaçamento entre as linhas do nome do evento foi ampliado para 8 a 11 mm para melhorar a leitura de títulos como “ENCONTRO DE GERAÇÕES”.
+- Pré-visualização e PDF final acompanham os dois controles; a configuração fica salva por evento. A impressão térmica não foi alterada.
+
 ## Versão 6.0.12 — configuração térmica
 
 - Removidos somente os seletores de cor sem efeito da aba **Impressão térmica**.

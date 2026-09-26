@@ -5,7 +5,7 @@ import { firebaseConfig } from "./firebase-config.js";
 import { createEventPages } from "./pages.js?v=12";
 import { decodeQrImageData } from "./qr-scanner-tools.js?v=1";
 import { eventIsArchived, eventArchiveDeadline } from "./event-archive.js?v=1";
-import { createTicketPdf, createQrDataUrl } from "./ticket-tools.js?v=13";
+import { createTicketPdf, createQrDataUrl } from "./ticket-tools.js?v=14";
 import { THERMAL_PAPER_WIDTHS, buildThermalPrintHtml, normalizeThermalPaperWidth } from "./thermal-print.js?v=10";
 import { DEFAULT_TICKET_DESIGN, normalizeTicketDesign, ticketHeightForDesign } from "./ticket-layout.js?v=3";
 import { PLATFORM_COMMISSION_SCOPES, eventFinancialRules, normalizeCommissionScope, normalizePercentage, promoterFinancialSnapshot, saleFinancialSnapshot } from "./financial-core.js?v=2";
@@ -517,6 +517,7 @@ function normalizePdfTicketDesign(value = {}) {
     pdfPrimaryColor:/^#[0-9a-f]{6}$/i.test(String(value.pdfPrimaryColor || "")) ? value.pdfPrimaryColor : "#17375f",
     pdfAccentColor:/^#[0-9a-f]{6}$/i.test(String(value.pdfAccentColor || "")) ? value.pdfAccentColor : "#14b886",
     pdfPageHeight:bounded(value.pdfPageHeight, 160, 160, 200),
+    pdfHeaderHeight:bounded(value.pdfHeaderHeight, 48, 43, 58),
     pdfMargin:bounded(value.pdfMargin, 6, 4, 8),
     pdfLogoSize:bounded(value.pdfLogoSize, 16.2, 8, 22),
     pdfTitleSize:bounded(value.pdfTitleSize, 8.5, 7, 12),
@@ -528,7 +529,7 @@ function normalizePdfTicketDesign(value = {}) {
     pdfLogoTopSpacing:bounded(value.pdfLogoTopSpacing, 2, 0, 6),
     pdfLogoTitleSpacing:bounded(value.pdfLogoTitleSpacing, 3, 0, 6),
     pdfTitleEventSpacing:bounded(value.pdfTitleEventSpacing, 4, 1, 6),
-    pdfEventLineSpacing:bounded(value.pdfEventLineSpacing, 5, 3.5, 6),
+    pdfEventLineSpacing:bounded(value.pdfEventLineSpacing, 8, 8, 11),
     pdfInfoSpacing:bounded(value.pdfInfoSpacing, 0, 0, 2),
     pdfFooterSize:bounded(value.pdfFooterSize, 5, 4, 8)
   };
@@ -543,6 +544,7 @@ function pdfTicketDesignFromConfigForm() {
     pdfPrimaryColor:form.elements.pdfPrimaryColor.value,
     pdfAccentColor:form.elements.pdfAccentColor.value,
     pdfPageHeight:form.elements.pdfPageHeight.value,
+    pdfHeaderHeight:form.elements.pdfHeaderHeight.value,
     pdfMargin:form.elements.pdfMargin.value,
     pdfLogoSize:form.elements.pdfLogoSize.value,
     pdfTitleSize:form.elements.pdfTitleSize.value,
@@ -563,7 +565,7 @@ function applyPdfTicketDesignToConfigForm(designValue) {
   const form = $("ticketConfigForm");
   const design = normalizePdfTicketDesign(designValue);
   form.dataset.pdfLogoData = design.pdfLogoDataUrl;
-  ["pdfTitle", "pdfFooter", "pdfPrimaryColor", "pdfAccentColor", "pdfPageHeight", "pdfMargin", "pdfLogoSize", "pdfTitleSize", "pdfEventSize", "pdfTextSize", "pdfDataSize", "pdfQrSize", "pdfQrSpacing", "pdfLogoTopSpacing", "pdfLogoTitleSpacing", "pdfTitleEventSpacing", "pdfEventLineSpacing", "pdfInfoSpacing", "pdfFooterSize"].forEach((name) => { form.elements[name].value = design[name]; });
+  ["pdfTitle", "pdfFooter", "pdfPrimaryColor", "pdfAccentColor", "pdfPageHeight", "pdfHeaderHeight", "pdfMargin", "pdfLogoSize", "pdfTitleSize", "pdfEventSize", "pdfTextSize", "pdfDataSize", "pdfQrSize", "pdfQrSpacing", "pdfLogoTopSpacing", "pdfLogoTitleSpacing", "pdfTitleEventSpacing", "pdfEventLineSpacing", "pdfInfoSpacing", "pdfFooterSize"].forEach((name) => { form.elements[name].value = design[name]; });
   updatePdfTicketConfigPreview(design);
 }
 function ticketDesignFromConfigForm(paperWidth) {
@@ -629,7 +631,7 @@ function updatePdfTicketConfigPreview(designValue = pdfTicketDesignFromConfigFor
   image.src = design.pdfLogoDataUrl || "";
   $("pdfTicketLogoPlaceholder").hidden = Boolean(design.pdfLogoDataUrl);
   $("removePdfTicketLogo").disabled = !design.pdfLogoDataUrl;
-  const units = { pdfPageHeight:"mm", pdfMargin:"mm", pdfLogoSize:"mm", pdfTitleSize:"pt", pdfEventSize:"pt", pdfTextSize:"pt", pdfDataSize:"pt", pdfFooterSize:"pt", pdfQrSize:"mm", pdfQrSpacing:"mm", pdfLogoTopSpacing:"mm", pdfLogoTitleSpacing:"mm", pdfTitleEventSpacing:"mm", pdfEventLineSpacing:"mm", pdfInfoSpacing:"mm" };
+  const units = { pdfPageHeight:"mm", pdfHeaderHeight:"mm", pdfMargin:"mm", pdfLogoSize:"mm", pdfTitleSize:"pt", pdfEventSize:"pt", pdfTextSize:"pt", pdfDataSize:"pt", pdfFooterSize:"pt", pdfQrSize:"mm", pdfQrSpacing:"mm", pdfLogoTopSpacing:"mm", pdfLogoTitleSpacing:"mm", pdfTitleEventSpacing:"mm", pdfEventLineSpacing:"mm", pdfInfoSpacing:"mm" };
   Object.entries(units).forEach(([name, unit]) => {
     const output = document.querySelector(`[data-pdf-ticket-output="${name}"]`);
     if (output) output.textContent = `${design[name]} ${unit}`;
@@ -646,34 +648,41 @@ function schedulePdfTicketConfigPreview(design) {
 }
 function buildPdfTicketPreviewHtml({ design, event, type, qrCode }) {
   const pageHeight = design.pdfPageHeight;
+  const headerHeight = design.pdfHeaderHeight;
   const percentY = (mm) => `${mm / pageHeight * 100}%`;
   const percentX = (mm) => `${mm / 90 * 100}%`;
+  const cqwMm = (mm) => `${mm / 90 * 100}cqw`;
   const margin = design.pdfMargin;
   const qrTop = Math.min(99 + design.pdfQrSpacing + (pageHeight - 160) * 0.82, pageHeight - 20 - design.pdfQrSize);
+  const bodyScale = (94 - headerHeight) / 51;
+  const bodyY = (mm) => headerHeight + (mm - 43) * bodyScale;
   const logo = design.pdfLogoDataUrl ? `<img src="${escapeHtml(design.pdfLogoDataUrl)}" alt="Logo do PDF">` : "";
   const eventName = escapeHtml(event.name || "ENCONTRO DE GERAÇÕES");
   const eventMeta = escapeHtml(event.date ? `${eventDateTimeText(event)} | ${event.place || "Le Beef"}` : "11 de out. de 2026 às 20:00 | Le Beef - Salão de Eventos");
   const title = escapeHtml(design.pdfTitle);
   const footer = escapeHtml(design.pdfFooter);
   const eventFont = Math.min(design.pdfEventSize * 0.38, eventName.length > 34 ? 5.6 : 7.2);
-  const latestEventStart = 41 - (eventName.length > 18 ? design.pdfEventLineSpacing : 0);
-  const logoTop = margin + design.pdfLogoTopSpacing;
-  const titleY = Math.min(logoTop + design.pdfLogoSize + design.pdfLogoTitleSpacing, latestEventStart - Math.max(6, design.pdfTitleEventSpacing + 1));
-  const visibleLogoSize = Math.min(design.pdfLogoSize, titleY - logoTop - 2);
-  const visibleLogoGap = Math.max(0, titleY - logoTop - visibleLogoSize);
+  const latestEventStart = headerHeight - 3 - (eventName.length > 18 ? design.pdfEventLineSpacing : 0);
+  const titleHeight = design.pdfTitleSize * 0.342;
+  const eventHeight = eventFont * 0.9;
+  const maxLogoTop = latestEventStart - eventHeight - design.pdfTitleEventSpacing - titleHeight - design.pdfLogoTitleSpacing - 5;
+  const logoTop = Math.min(margin + design.pdfLogoTopSpacing, Math.max(margin, maxLogoTop));
+  const visibleLogoSize = design.pdfLogoDataUrl ? Math.max(5, Math.min(design.pdfLogoSize, latestEventStart - eventHeight - design.pdfTitleEventSpacing - titleHeight - design.pdfLogoTitleSpacing - logoTop)) : 0;
+  const titleY = design.pdfLogoDataUrl ? logoTop + visibleLogoSize + design.pdfLogoTitleSpacing + titleHeight : 17;
+  const eventStart = Math.min(titleY + design.pdfTitleEventSpacing + eventHeight, latestEventStart);
   return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>
     *{box-sizing:border-box}html,body{width:100%;height:100%;margin:0;overflow:hidden;background:#fff;font-family:Arial,Helvetica,sans-serif}
     .ticket{position:relative;width:100%;height:100%;overflow:hidden;border-radius:10cqw;background:${design.pdfPrimaryColor};color:${design.pdfPrimaryColor};container-type:inline-size;text-align:center}
-    .head{position:absolute;top:${percentY(margin)};left:${percentX(margin)};right:${percentX(margin)};height:${percentY(43-margin)};padding-top:${percentX(design.pdfLogoTopSpacing)};overflow:hidden;border-radius:4cqw 4cqw 0 0;background:${design.pdfAccentColor};color:#fff;display:flex;flex-direction:column;align-items:center}
-    .head img{display:block;max-width:80%;max-height:${visibleLogoSize / 90 * 100}cqw;height:auto;width:auto;object-fit:contain}
-    .digital{display:block;margin-top:${percentX(visibleLogoGap)};font-size:${design.pdfTitleSize * .38}cqw;line-height:1.1}
-    .head h1{max-width:88%;margin:${percentX(design.pdfTitleEventSpacing)} 0 0;font-size:${eventFont}cqw;line-height:${design.pdfEventLineSpacing / 90 * 100}cqw;overflow-wrap:anywhere;text-transform:uppercase}
-    .body{position:absolute;top:${percentY(43)};left:${percentX(margin)};right:${percentX(margin)};bottom:${percentY(11)};border-radius:0 0 4cqw 4cqw;background:#fff}
-    .dash{position:absolute;top:${percentY(43)};left:${percentX(margin)};right:${percentX(margin)};border-top:2px dashed ${design.pdfPrimaryColor}}
+    .head{position:absolute;top:${percentY(margin)};left:${percentX(margin)};right:${percentX(margin)};height:${percentY(headerHeight-margin)};overflow:hidden;border-radius:4cqw 4cqw 0 0;background:${design.pdfAccentColor};color:#fff}
+    .head img{position:absolute;top:${cqwMm(logoTop-margin)};left:50%;display:block;max-width:80%;max-height:${cqwMm(visibleLogoSize)};height:auto;width:auto;transform:translateX(-50%);object-fit:contain}
+    .digital{position:absolute;top:${cqwMm(titleY-margin-titleHeight)};left:0;right:0;display:block;font-size:${design.pdfTitleSize * .38}cqw;line-height:1}
+    .head h1{position:absolute;top:${cqwMm(eventStart-margin-eventHeight)};left:6%;right:6%;margin:0;font-size:${eventFont}cqw;line-height:${cqwMm(design.pdfEventLineSpacing)};overflow-wrap:anywhere;text-transform:uppercase}
+    .body{position:absolute;top:${percentY(headerHeight)};left:${percentX(margin)};right:${percentX(margin)};bottom:${percentY(11)};border-radius:0 0 4cqw 4cqw;background:#fff}
+    .dash{position:absolute;top:${percentY(headerHeight)};left:${percentX(margin)};right:${percentX(margin)};border-top:2px dashed ${design.pdfPrimaryColor}}
     .item{position:absolute;left:9%;width:82%;margin:0}.label{font-size:${design.pdfTextSize * .34}cqw;font-weight:700;text-transform:uppercase}.name{font-size:${design.pdfDataSize * .42}cqw;font-weight:700}.muted{color:#526173}.rule{position:absolute;left:${percentX(margin+6)};right:${percentX(margin+6)};border-top:1px solid #d9e1ea}
-    .participant-label{top:${percentY(46)}}.participant-name{top:${percentY(50)}}.first-rule{top:${percentY(61.5)}}
-    .admission{top:${percentY(66+design.pdfInfoSpacing)}}.type{top:${percentY(70+design.pdfInfoSpacing)}}.meta{top:${percentY(76+design.pdfInfoSpacing)};font-size:${Math.max(2.1,design.pdfTextSize*.3)}cqw}.second-rule{top:${percentY(81.5+design.pdfInfoSpacing)}}
-    .values{position:absolute;top:${percentY(84+design.pdfInfoSpacing)};left:15%;right:15%;display:grid;grid-template-columns:1fr 1fr}.values>div+div{border-left:1px solid #d9e1ea}.values strong{display:block;margin-top:2%;font-size:${design.pdfDataSize*.35}cqw}.values small{display:block;margin-top:2%;font-size:${design.pdfTextSize*.27}cqw}
+    .participant-label{top:${percentY(bodyY(46))}}.participant-name{top:${percentY(bodyY(50))}}.first-rule{top:${percentY(bodyY(61.5))}}
+    .admission{top:${percentY(bodyY(66+design.pdfInfoSpacing))}}.type{top:${percentY(bodyY(70+design.pdfInfoSpacing))}}.meta{top:${percentY(bodyY(76+design.pdfInfoSpacing))};font-size:${Math.max(2.1,design.pdfTextSize*.3)}cqw}.second-rule{top:${percentY(bodyY(81.5+design.pdfInfoSpacing))}}
+    .values{position:absolute;top:${percentY(bodyY(84+design.pdfInfoSpacing))};left:15%;right:15%;display:grid;grid-template-columns:1fr 1fr}.values>div+div{border-left:1px solid #d9e1ea}.values strong{display:block;margin-top:2%;font-size:${design.pdfDataSize*.35}cqw}.values small{display:block;margin-top:2%;font-size:${design.pdfTextSize*.27}cqw}
     .qr{position:absolute;top:${percentY(qrTop)};left:50%;width:${percentX(design.pdfQrSize)};aspect-ratio:1;transform:translateX(-50%);padding:2%;border:1px solid #d9e1ea;border-radius:3cqw;background:#fff;object-fit:contain}
     .code{top:${percentY(qrTop+design.pdfQrSize+2.5)};font:700 ${design.pdfTextSize*.35}cqw monospace}.message{top:${percentY(qrTop+design.pdfQrSize+5.5)};font-size:${design.pdfTextSize*.3}cqw}.last-rule{top:${percentY(pageHeight-12)}}
     .origin{position:absolute;left:5%;right:5%;bottom:${percentY(2)};color:#fff;font-size:${design.pdfFooterSize*.38}cqw;line-height:1.25}
