@@ -1,5 +1,18 @@
 # Le Beef — painel de vendas de ingressos
 
+## Versão 6.0.23 — melhorias seguras da segunda etapa
+
+- Links novos de PDF acompanham a revisão da venda: após edição, o link antigo deixa de abrir até o PDF ser gerado e enviado novamente. Links antigos sem campo de revisão continuam aceitos para preservar compatibilidade. Editar um evento não invalida todos os links já enviados.
+- A regra de exclusão de `ticketLinks` foi alinhada com a exclusão da própria venda pelo promoter, sem permitir que ele remova links de outras pessoas.
+- Falhas na criação do perfil de um novo usuário/promoter agora tentam identificar o estado da conta e evitam novo cadastro às cegas; quando a gravação foi inequivocamente recusada, a conta recém-criada no Authentication é removida.
+- Leituras negadas de uma seção não desconectam automaticamente o usuário; a leitura negada do próprio perfil continua encerrando a sessão.
+- Atualizações simultâneas recebidas do Firebase passam a compartilhar um redesenho do painel por quadro.
+- O relatório financeiro não causa mais transbordamento horizontal na largura de tablet testada. A estrutura visual e a impressão térmica foram preservadas.
+- Exclusão de venda pela interface é barrada quando há entrada registrada; para quem pode consultar os fechamentos, também é barrada quando a venda já integra um deles.
+- O service worker remove apenas caches deste painel e não apresenta o painel como se fosse um ingresso quando um link público é aberto offline.
+- Execute `node --test tests/regression.test.cjs` para verificar sintaxe, referências locais e contratos básicos das regras. Publique `regras-firebase-completas.json` no Realtime Database junto com esta versão; a cópia no ZIP, sozinha, não altera as regras em produção.
+- Algumas melhorias propostas na análise anterior exigem backend transacional, migração controlada ou decisão de produto. Não foram simuladas apenas no navegador, porque isso não resolveria a concorrência ou poderia quebrar vendas já existentes. Consulte `MELHORIAS-v6.0.23.md`.
+
 ## Versão 6.0.22 — auditoria e limpeza conservadora
 
 - Removidos apenas seletores CSS de componentes sem referências e o parâmetro não utilizado do renderizador de fechamentos.

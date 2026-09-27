@@ -1,4 +1,5 @@
-const CACHE_NAME = "le-beef-painel-v6-0-22-1";
+const CACHE_NAME = "le-beef-painel-v6-0-23-1";
+const CACHE_PREFIX = "le-beef-painel-";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -14,7 +15,7 @@ const APP_SHELL = [
   "./whatsapp.css?v=23",
   "./whatsapp-icon.png",
   "./pwa.css?v=7",
-  "./financial-report.css?v=20",
+  "./financial-report.css?v=21",
   "./financial-settings.css?v=1",
   "./promoters.css?v=3",
   "./promoter-report.css?v=1",
@@ -34,7 +35,7 @@ const APP_SHELL = [
   "./ticket-config.css?v=8",
   "./excel-export.js?v=40",
   "./firebase-config.js",
-  "./app.js?v=121",
+  "./app.js?v=122",
   "./financial-core.js?v=2",
   "./pages.js?v=12",
   "./qr-scanner-tools.js?v=1",
@@ -68,7 +69,7 @@ self.addEventListener("install", (event) => {
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches.keys()
-      .then((keys) => Promise.all(keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))))
+      .then((keys) => Promise.all(keys.filter((key) => key.startsWith(CACHE_PREFIX) && key !== CACHE_NAME).map((key) => caches.delete(key))))
       .then(() => self.clients.claim())
   );
 });
@@ -91,7 +92,12 @@ self.addEventListener("fetch", (event) => {
       .catch(async () => {
         const cached = await caches.match(request);
         if (cached) return cached;
-        if (request.mode === "navigate") return caches.match("./index.html");
+        if (request.mode === "navigate") {
+          if (url.pathname.endsWith("/ingresso.html") || url.pathname.endsWith("/comprar.html")) {
+            return new Response("Esta página não está disponível sem conexão. Conecte-se e tente novamente.", { status: 503, headers: { "Content-Type": "text/plain; charset=utf-8" } });
+          }
+          return caches.match("./index.html");
+        }
         throw new Error("Recurso indisponível offline.");
       })
   );

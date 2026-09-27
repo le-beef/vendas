@@ -1,5 +1,5 @@
 import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js";
-import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged, browserLocalPersistence, inMemoryPersistence, setPersistence, createUserWithEmailAndPassword, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js";
+import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged, browserLocalPersistence, inMemoryPersistence, setPersistence, createUserWithEmailAndPassword, deleteUser, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js";
 import { getDatabase, ref, push, set, update, onValue, get, query, orderByChild, equalTo, runTransaction, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-database.js";
 import { firebaseConfig } from "./firebase-config.js";
 import { createEventPages } from "./pages.js?v=12";
@@ -216,9 +216,16 @@ function applyRolePermissions() {
   $("userRoleLabel").textContent = roleLabel(currentUserProfile.role);
   $("userRoleBadge").textContent = roleLabel(currentUserProfile.role);
 }
+let pendingRealtimeRender = false;
+function scheduleRealtimeRender() {
+  if (pendingRealtimeRender) return;
+  pendingRealtimeRender = true;
+  requestAnimationFrame(() => { pendingRealtimeRender = false; render(); });
+}
 function attachRealtimeListeners() {
   clearDataSubscriptions();
-  const readError = async (error) => { toast(`Acesso ao Firebase bloqueado: ${error.code || error.message}`); if (error.code === "PERMISSION_DENIED" || error.code === "permission_denied") await signOut(auth); };
+  const readError = (error) => { console.error("Falha na leitura de dados do Firebase:", error); toast(`Não foi possível atualizar esta seção: ${error.code || error.message}. Verifique a conexão e as regras do Firebase.`); };
+  const profileReadError = async (error) => { readError(error); if (error.code === "PERMISSION_DENIED" || error.code === "permission_denied") await signOut(auth); };
   dataSubscriptions.push(onValue(ref(db, `users/${currentUser.uid}`), async (snapshot) => {
     const profile = snapshot.val();
     if (!profile?.active || !ROLE_LABELS[profile.role]) { await signOut(auth); return; }
@@ -226,17 +233,17 @@ function attachRealtimeListeners() {
     const eventAccessChanged = eventAccessSignature(currentUserProfile) !== eventAccessSignature(profile);
     currentUserProfile = { ...profile, active: true };
     applyRolePermissions();
-    if (roleChanged || eventAccessChanged) attachRealtimeListeners(); else render();
-  }, readError));
+    if (roleChanged || eventAccessChanged) attachRealtimeListeners(); else scheduleRealtimeRender();
+  }, profileReadError));
 
   if (hasRole("admin")) {
-    dataSubscriptions.push(onValue(ref(db, "events"), (snapshot) => { state.events = objectToArray(snapshot.val()); render(); }, readError));
-    dataSubscriptions.push(onValue(ref(db, "sales"), (snapshot) => { state.sales = objectToArray(snapshot.val()); render(); }, readError));
+    dataSubscriptions.push(onValue(ref(db, "events"), (snapshot) => { state.events = objectToArray(snapshot.val()); scheduleRealtimeRender(); }, readError));
+    dataSubscriptions.push(onValue(ref(db, "sales"), (snapshot) => { state.sales = objectToArray(snapshot.val()); scheduleRealtimeRender(); }, readError));
     dataSubscriptions.push(onValue(ref(db, "users"), (snapshot) => { state.users = objectToArray(snapshot.val()); renderUsers(); }, readError));
     dataSubscriptions.push(onValue(ref(db, "auditLogs"), (snapshot) => { state.auditLogs = objectToArray(snapshot.val()); renderAuditHistory(); }, readError));
     dataSubscriptions.push(onValue(ref(db, "promoters"), (snapshot) => { state.promoters = promoterRecords(snapshot.val()); renderPromoters(); }, readError));
-    dataSubscriptions.push(onValue(ref(db, "paymentConnections"), (snapshot) => { state.paymentConnections = objectToArray(snapshot.val()); render(); }, readError));
-    dataSubscriptions.push(onValue(ref(db, "platformSettlements"), (snapshot) => { state.platformSettlements = settlementRecords(snapshot.val()); render(); }, readError));
+    dataSubscriptions.push(onValue(ref(db, "paymentConnections"), (snapshot) => { state.paymentConnections = objectToArray(snapshot.val()); scheduleRealtimeRender(); }, readError));
+    dataSubscriptions.push(onValue(ref(db, "platformSettlements"), (snapshot) => { state.platformSettlements = settlementRecords(snapshot.val()); scheduleRealtimeRender(); }, readError));
     return;
   }
 
@@ -253,19 +260,19 @@ function attachRealtimeListeners() {
   state.platformSettlements = [];
   state.paymentConnections = [];
   state.auditLogs = [];
-  render();
+  scheduleRealtimeRender();
   allowedEventIds().forEach((eventId) => {
     dataSubscriptions.push(onValue(ref(db, `events/${eventId}`), (snapshot) => {
       if (snapshot.exists()) eventMap.set(eventId, { id: eventId, ...snapshot.val() }); else eventMap.delete(eventId);
       state.events = [...eventMap.values()];
-      render();
+      scheduleRealtimeRender();
     }, readError));
     if (!hasRole("promoter")) {
       const eventSalesQuery = query(ref(db, "sales"), orderByChild("eventId"), equalTo(eventId));
       dataSubscriptions.push(onValue(eventSalesQuery, (snapshot) => {
         salesByEvent.set(eventId, objectToArray(snapshot.val()));
         state.sales = [...salesByEvent.values()].flat();
-        render();
+        scheduleRealtimeRender();
       }, readError));
     }
     if (hasRole("event_manager")) {
@@ -283,13 +290,13 @@ function attachRealtimeListeners() {
       dataSubscriptions.push(onValue(ref(db, `platformSettlements/${eventId}`), (snapshot) => {
         settlementsByEvent.set(eventId, objectToArray(snapshot.val()).map((settlement) => ({ ...settlement, eventId })));
         state.platformSettlements = [...settlementsByEvent.values()].flat();
-        render();
+        scheduleRealtimeRender();
       }, readError));
       dataSubscriptions.push(onValue(ref(db, `paymentConnections/${eventId}`), (snapshot) => {
         const connection = snapshot.val();
         if (connection) connectionsByEvent.set(eventId, { id: eventId, ...connection }); else connectionsByEvent.delete(eventId);
         state.paymentConnections = [...connectionsByEvent.values()];
-        render();
+        scheduleRealtimeRender();
       }, readError));
     } else if (hasRole("promoter")) {
       dataSubscriptions.push(onValue(ref(db, `promoters/${eventId}/${currentUser.uid}`), (snapshot) => {
@@ -297,13 +304,13 @@ function attachRealtimeListeners() {
         if (promoter) promotersByEvent.set(eventId, [{ id: currentUser.uid, eventId, ...promoter }]); else promotersByEvent.delete(eventId);
         state.promoters = [...promotersByEvent.values()].flat();
         renderPromoters();
-        render();
+        scheduleRealtimeRender();
       }, readError));
     }
   });
   if (hasRole("promoter")) {
     const promoterSalesQuery = query(ref(db, "sales"), orderByChild("promoterId"), equalTo(currentUser.uid));
-    dataSubscriptions.push(onValue(promoterSalesQuery, (snapshot) => { state.sales = objectToArray(snapshot.val()); render(); }, readError));
+    dataSubscriptions.push(onValue(promoterSalesQuery, (snapshot) => { state.sales = objectToArray(snapshot.val()); scheduleRealtimeRender(); }, readError));
   }
 }
 async function handleAuthenticatedUser(user) {
@@ -1053,6 +1060,7 @@ async function createTicketShareLink(result) {
     saleId: result.sale.id,
     eventId: result.sale.eventId,
     firstTicketToken: tickets[0].token,
+    ...(Number.isFinite(Number(result.sale.updatedAt)) && result.sale.updatedAt != null ? { saleRevision: Number(result.sale.updatedAt) } : {}),
     filename: result.filename.length > 160 ? `${result.filename.slice(0, 156)}.pdf` : result.filename,
     pdfBase64,
     createdAt: Date.now(),
@@ -1220,7 +1228,7 @@ async function sendTicketToRegisteredWhatsapp(saleId, appType) {
       const packageName = appType === "business" ? "com.whatsapp.w4b" : "com.whatsapp";
       window.location.assign(`intent://send?phone=${number}&text=${message}#Intent;scheme=whatsapp;package=${packageName};S.browser_fallback_url=${encodeURIComponent(fallbackUrl)};end`);
     } else window.open(fallbackUrl, "_blank", "noopener,noreferrer");
-  } catch (error) { console.error(error); toast(/permission.denied/i.test(`${error?.code || ""} ${error?.message || ""}`) ? "O Firebase bloqueou o link. Publique a regra ticketLinks antes de enviar." : error.message || "Não foi possível criar o link do ingresso."); }
+  } catch (error) { console.error(error); toast(/permission.denied/i.test(`${error?.code || ""} ${error?.message || ""}`) ? "O Firebase bloqueou o link. Aguarde a atualização da venda e tente novamente; confira também se as regras ticketLinks foram publicadas." : error.message || "Não foi possível criar o link do ingresso."); }
   finally { if (button) { button.disabled = false; button.querySelector("strong").textContent = originalLabel; } }
 }
 function openDeleteGeneratedTicket(saleId) {
@@ -2250,6 +2258,25 @@ function renderPromoters() {
     return `<article class="promoter-card ${promoter.active === false ? "is-inactive" : ""}" data-promoter-card="${escapeHtml(promoter.id)}"><div class="promoter-identity"><span class="promoter-avatar">${escapeHtml(userInitials(promoter.name, promoter.email))}</span><div class="promoter-copy"><strong>${escapeHtml(promoter.name || "Sem nome")}</strong><small>${escapeHtml(promoter.email || "E-mail não informado")}</small><small>${promoter.active === false ? "Desativado neste evento" : "Ativo neste evento"}</small></div></div><div class="promoter-financial"><span>${normalizePercentage(promoter.commissionPercent)}% de comissão</span><span>${escapeHtml(PLATFORM_COMMISSION_SCOPES[normalizeCommissionScope(promoter.commissionScope)])}</span><button class="deactivate" type="button" data-toggle-promoter="${escapeHtml(promoter.id)}">${promoter.active === false ? "Ativar" : "Desativar"}</button></div><div class="promoter-editor"><label>Porcentagem<input name="commissionPercent" type="number" min="0" max="100" step="0.01" value="${normalizePercentage(promoter.commissionPercent)}" /></label><label>Aplicar comissão em<select name="commissionScope"><option value="both" ${promoter.commissionScope === "both" ? "selected" : ""}>Online e manuais</option><option value="online" ${promoter.commissionScope === "online" ? "selected" : ""}>Somente online</option><option value="manual" ${promoter.commissionScope === "manual" ? "selected" : ""}>Somente manuais</option><option value="none" ${promoter.commissionScope === "none" ? "selected" : ""}>Não pagar comissão</option></select></label><button class="button secondary" type="button" data-save-promoter="${escapeHtml(promoter.id)}">Salvar comissão</button></div></article>`;
   }).join("") : '<div class="empty">Nenhum promoter cadastrado neste evento.</div>';
 }
+async function persistNewAccountProfile(account, writeProfile) {
+  try {
+    await writeProfile();
+  } catch (error) {
+    const definitelyRejected = /permission.denied/i.test(`${error?.code || ""} ${error?.message || ""}`);
+    if (definitelyRejected) {
+      try { await deleteUser(account); }
+      catch { throw new Error(`O Firebase recusou o perfil e a conta ${account.uid} precisa ser removida no Authentication antes de um novo cadastro.`); }
+      throw error;
+    }
+    let profileExists;
+    try { profileExists = (await get(ref(db, `users/${account.uid}`))).exists(); }
+    catch { throw new Error(`Não foi possível confirmar se a conta ${account.uid} foi concluída. Verifique o Firebase antes de tentar cadastrá-la novamente.`); }
+    if (profileExists) return;
+    try { await deleteUser(account); }
+    catch { throw new Error(`O perfil não foi salvo e a conta ${account.uid} precisa ser removida no Firebase Authentication antes de um novo cadastro.`); }
+    throw error;
+  }
+}
 async function createPromoter(data) {
   if (!hasRole("admin", "event_manager") || !canAdministerEvent(selectedEventId)) throw new Error("Você não pode cadastrar promoters neste evento.");
   if (isDemo) throw new Error("A criação de contas funciona somente no site conectado ao Firebase.");
@@ -2267,7 +2294,7 @@ async function createPromoter(data) {
     const email = data.email.trim().toLocaleLowerCase("pt-BR");
     const profile = { name, email, role: "promoter", active: true, eventIds: { [event.id]: true }, createdAt: timestamp, createdBy: currentUser.uid };
     const promoter = { name, email, active: true, commissionPercent, commissionScope, createdAt: timestamp, createdBy: currentUser.uid };
-    await update(ref(db), { [`users/${credential.user.uid}`]: profile, [`promoters/${event.id}/${credential.user.uid}`]: promoter });
+    await persistNewAccountProfile(credential.user, () => update(ref(db), { [`users/${credential.user.uid}`]: profile, [`promoters/${event.id}/${credential.user.uid}`]: promoter }));
   } finally { try { await signOut(secondaryAuth); } catch {} await deleteApp(secondaryApp); }
 }
 async function updatePromoterSettings(uid, card) {
@@ -2325,7 +2352,7 @@ async function createManagedUser(data) {
     const credential = await createUserWithEmailAndPassword(secondaryAuth, data.email.trim(), data.password);
     const profile = { name: data.name.trim(), email: data.email.trim().toLocaleLowerCase("pt-BR"), role: data.role, active: true, createdAt: Date.now(), createdBy: currentUser.uid };
     if (data.role !== "admin") profile.eventIds = Object.fromEntries(selectedEventIds.map((eventId) => [eventId, true]));
-    await set(ref(db, `users/${credential.user.uid}`), profile);
+    await persistNewAccountProfile(credential.user, () => set(ref(db, `users/${credential.user.uid}`), profile));
   } finally { try { await signOut(secondaryAuth); } catch {} await deleteApp(secondaryApp); }
 }
 async function updateManagedUserRole(uid, role) { if (!requireRole(["admin"]) || uid === currentUser?.uid) return; await update(ref(db, `users/${uid}`), { role, updatedAt: Date.now(), updatedBy: currentUser.uid }); toast("Perfil atualizado."); }
@@ -2882,6 +2909,14 @@ async function deleteSale(id) {
   if (!requireRole(["admin", "event_manager", "seller"])) return false;
   const sale = state.sales.find((item) => item.id === id); if (!sale) return false;
   if (sale.channel === "online") { toast("Vendas online não podem ser excluídas pelo painel. Faça cancelamento ou reembolso pelo fluxo do Mercado Pago."); return false; }
+  if (sale.checkedIn || (Array.isArray(sale.occupantCheckins) && sale.occupantCheckins.some(Boolean)) || storedQrTickets(sale).some((ticket) => ticket.checkedIn)) {
+    toast("Não é possível excluir uma venda com entrada já registrada. Corrija o check-in antes de continuar.");
+    return false;
+  }
+  if (state.platformSettlements.some((settlement) => settlement.eventId === sale.eventId && settlement.saleIds?.[sale.id])) {
+    toast("Esta venda já integra um fechamento financeiro e não pode ser excluída diretamente.");
+    return false;
+  }
   if (!confirm(isTableReservation(sale) ? `Excluir a reserva de ${sale.reservationLabel || sale.buyerName}?` : `Excluir a venda de ${sale.buyerName}?`)) return false;
   const quantity = saleQuantity(sale);
   const details = isTableReservation(sale) ? `Excluiu a reserva de ${sale.reservationLabel || "mesa"} com ${quantity} pessoas.` : `Excluiu a venda com ${quantity} ${quantity === 1 ? "ingresso" : "ingressos"}: ${saleTicketSummary(sale)}.`;
