@@ -2466,7 +2466,7 @@ function availablePlatformSettlementSales(eventId) {
   const settled = settledPlatformSaleIds(eventId);
   return state.sales.filter((sale) => sale.eventId === eventId && sale.paid && sale.platformCommissionApplied === true && Number(sale.platformCommissionAmount || 0) > 0 && !settled.has(sale.id));
 }
-function renderPlatformSettlements(eventSales) {
+function renderPlatformSettlements() {
   const openSales = availablePlatformSettlementSales(selectedEventId);
   const openAmount = openSales.reduce((sum, sale) => sum + Number(sale.platformCommissionAmount || 0), 0);
   $("unsettledCommissionAmount").textContent = money.format(openAmount);
@@ -2592,7 +2592,7 @@ function renderFinancialReport(event, eventSales) {
   }
   renderSellerClosing(eventSales, event);
   renderPromoterCommissionReport(eventSales);
-  renderPlatformSettlements(eventSales);
+  renderPlatformSettlements();
 }
 
 function syncApplicationPage() {

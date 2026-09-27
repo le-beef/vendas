@@ -1,5 +1,14 @@
 # Le Beef — painel de vendas de ingressos
 
+## Versão 6.0.22 — auditoria e limpeza conservadora
+
+- Removidos apenas seletores CSS de componentes sem referências e o parâmetro não utilizado do renderizador de fechamentos.
+- O ícone-fonte `pwa-icon-1024.png`, não utilizado pelo manifesto nem pelo site, foi excluído deste pacote. Os ícones instaláveis de 192 e 512 pixels permanecem.
+- O cache não baixa mais antecipadamente `online-store.js`, pois a página de compra atual não carrega esse script. O arquivo e as integrações foram preservados. As URLs de cache dos ícones de 512 pixels foram alinhadas com o manifesto.
+- Layout, páginas, formulários, impressão, PDF, autenticação, dados e regras do Firebase foram preservados. O número da versão foi atualizado.
+- Esta limpeza não exige novas regras de banco. O arquivo completo vigente neste pacote é `regras-firebase-completas.json`. O histórico abaixo descreve versões anteriores e seus respectivos pacotes.
+- Consulte `AUDITORIA.md` para o inventário das alterações, verificações e limitações.
+
 ## Versão 6.0.21 — excluir também o link do ingresso
 
 - Ao excluir os QR Codes gerados, a venda ou o evento, o painel remove o respectivo registro em `ticketLinks` no Firebase na mesma operação de exclusão.
@@ -92,7 +101,7 @@
 - O webhook valida a assinatura do Mercado Pago, confirma a venda e gera os QR Codes uma única vez.
 - Depois do pagamento, o comprador vê os ingressos e baixa o PDF usando o mesmo modelo digital configurado no evento.
 - Um processo agendado remove reservas online expiradas e devolve os ingressos ao estoque.
-- O backend está na pasta `functions` e as instruções de publicação estão em `FIREBASE-SETUP.md`.
+- Naquele pacote, o backend foi entregue na pasta `functions`, com instruções em `FIREBASE-SETUP.md`. Esses arquivos pertencem ao pacote de backend anterior; não fazem parte desta distribuição estática.
 
 ## Versão 6.0.0 — base financeira por evento
 
@@ -382,7 +391,7 @@ Nas reservas, a primeira pessoa é a responsável e informa nome e telefone. Os 
 - **Vendedor**: visualiza somente os eventos marcados pelo administrador; nesses eventos, trabalha com vendas, pagamentos, check-in e Excel.
 - **Portaria**: visualiza somente os eventos marcados pelo administrador; nesses eventos, consulta participantes e realiza check-in.
 
-As permissões são aplicadas na interface e nas regras do Realtime Database. Consulte [FIREBASE-SETUP.md](FIREBASE-SETUP.md) antes de publicar esta versão.
+As permissões são aplicadas na interface e nas regras do Realtime Database. As regras completas deste pacote estão em [regras-firebase-completas.json](regras-firebase-completas.json).
 
 ## Publicar no GitHub Pages
 
@@ -393,9 +402,9 @@ As permissões são aplicadas na interface e nas regras do Realtime Database. Co
 
 ## Atualização obrigatória no Firebase
 
-Na atualização para a versão 5.0.0, envie todos os arquivos do pacote ao GitHub Pages. As regras do Firebase continuam iguais às da versão 4.9.0; publique `database.rules.json` somente se ainda não tiver aplicado aquela atualização. Eventos, vendas e reservas antigas continuam disponíveis normalmente.
+Envie os arquivos deste pacote ao GitHub Pages. Esta limpeza mantém as regras da versão 6.0.21; não é necessário republicá-las se elas já estiverem aplicadas. Eventos, vendas e reservas antigas continuam disponíveis normalmente.
 
-As instruções completas estão em [FIREBASE-SETUP.md](FIREBASE-SETUP.md).
+Caso esteja atualizando de uma versão anterior à 6.0.21, use o arquivo [regras-firebase-completas.json](regras-firebase-completas.json) no Realtime Database para permitir também a remoção dos links dos ingressos.
 
 ## Instalar como aplicativo
 
