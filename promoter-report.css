@@ -1,0 +1,18 @@
+.promoter-report-page .financial-page-header { margin-bottom: 24px; }
+.promoter-report-page .financial-panel { margin-top: 24px; }
+.promoter-report-page .financial-table-wrap { overflow-x: auto; }
+.promoter-report-page table { width: 100%; border-collapse: collapse; min-width: 680px; }
+.promoter-report-page th, .promoter-report-page td { padding: 14px 12px; text-align: left; border-bottom: 1px solid #e5eaf2; vertical-align: top; }
+.promoter-report-page th { color: #53627b; font-size: .8rem; }
+.promoter-report-page td small { display: block; margin-top: 3px; color: #61718a; }
+.promoter-report-page td strong { color: #14284a; }
+@media (max-width: 700px) {
+  .promoter-report-page table { min-width: 0; }
+  .promoter-report-page thead { display: none; }
+  .promoter-report-page tbody, .promoter-report-page tr { display: block; }
+  .promoter-report-page tr { padding: 10px 12px; border-bottom: 1px solid #e5eaf2; }
+  .promoter-report-page td { display: flex; justify-content: space-between; gap: 12px; padding: 5px 0; border: 0; text-align: right; overflow-wrap: anywhere; }
+  .promoter-report-page td::before { content: attr(data-label); flex: 0 0 40%; text-align: left; color: #53627b; font-size: .8rem; }
+  .promoter-report-page td.financial-empty { display: block; text-align: center; }
+  .promoter-report-page td.financial-empty::before { content: none; }
+}

@@ -1,0 +1,39 @@
+.map-layout-options {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 7px;
+  padding: 3px 0;
+  color: #475569;
+  font-size: 11px;
+  font-weight: 700;
+}
+.map-layout-options[hidden], .map-editor-lock-notice[hidden] { display: none !important; }
+.map-layout-options button {
+  min-height: 33px;
+  padding: 6px 12px;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  background: #fff;
+  color: #2563eb;
+  font: 700 11px "DM Sans";
+  cursor: pointer;
+}
+.map-layout-options button.is-active { border-color: #2563eb; background: #2563eb; color: #fff; }
+.map-layout-options button:disabled, .map-tool-button:disabled, .map-preset-slot:disabled { cursor: not-allowed; }
+.map-editor-lock-notice {
+  margin: 0;
+  padding: 9px 11px;
+  border: 1px solid #fed7aa;
+  border-radius: 8px;
+  background: #fff7ed;
+  color: #9a3412;
+  font-size: 11px;
+}
+.table-map-stage[data-area="salao"] { aspect-ratio: 913 / 957; }
+.table-map-stage[data-area="mezanino"] { aspect-ratio: 925 / 960; }
+.table-map-editor[data-area="salao"][data-layout="6x4"] { background-image: url("salao-grade-6x4.png"); }
+.table-map-editor[data-area="salao"][data-layout="6x5"] { background-image: url("salao-grade-6x5.png"); }
+.table-map-editor[data-area="salao"][data-layout="7x5"] { background-image: url("salao-grade-7x5.png"); }
+.table-map-editor[data-area="salao"][data-layout="8x5"] { background-image: url("salao-grade-8x5.png"); }
+.table-map-editor[data-area="mezanino"][data-layout="13"] { background-image: url("mezanino-grade-13.png"); }

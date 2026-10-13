@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#19395f" />
+    <title>Seu ingresso | Le Beef</title>
+    <style>
+      *{box-sizing:border-box}body{margin:0;background:#f3f6fa;color:#17243b;font:15px Arial,sans-serif}main{width:min(900px,calc(100% - 28px));margin:24px auto}.card{padding:20px;border:1px solid #dce5ef;border-radius:14px;background:#fff;box-shadow:0 8px 24px #14213d12}h1{margin:0 0 9px;font-size:23px}p{margin:0 0 14px;color:#526178;line-height:1.5}.actions{display:flex;flex-wrap:wrap;gap:10px;margin:14px 0}.button{display:inline-flex;align-items:center;justify-content:center;min-height:44px;padding:11px 16px;border:1px solid #2563eb;border-radius:9px;background:#2563eb;color:#fff;font-weight:700;text-decoration:none}.button.secondary{background:#fff;color:#2563eb}iframe{display:block;width:100%;height:min(78vh,900px);border:1px solid #dce5ef;border-radius:9px;background:#fff}[hidden]{display:none!important}@media(max-width:600px){main{margin:14px auto}.card{padding:16px}.actions .button{flex:1}iframe{height:68vh}}
+    </style>
+  </head>
+  <body>
+    <main class="card">
+      <h1>Seu ingresso</h1>
+      <p id="ticketStatus" role="status">Carregando ingresso…</p>
+      <div id="ticketActions" class="actions" hidden><a id="openTicket" class="button" target="_blank" rel="noopener">Abrir PDF</a><a id="downloadTicket" class="button secondary">Baixar PDF</a></div>
+      <iframe id="ticketPreview" title="Pré-visualização do ingresso em PDF" hidden></iframe>
+    </main>
+    <script type="module" src="ingresso.js?v=1"></script>
+  </body>
+</html>

@@ -1,0 +1,18 @@
+#toast {
+  z-index: 3000;
+  bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+  width: max-content;
+  max-width: calc(100vw - 32px);
+  max-height: calc(100dvh - 48px - env(safe-area-inset-bottom, 0px));
+  overflow-y: auto;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+@media (max-width: 800px) {
+  #toast {
+    bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+    width: calc(100vw - 32px);
+    max-height: calc(100dvh - 32px - env(safe-area-inset-bottom, 0px));
+  }
+}
