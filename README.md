@@ -1,5 +1,10 @@
 # Le Beef — painel de vendas de ingressos
 
+## Versão 6.2.4 — aro roxo nas mesas Ouro do mapa de reservas
+
+- Quando o preço especial Ouro está ativado, somente as mesas Ouro exibem aro roxo ao redor do número no mapa de reservas e na visualização ampliada.
+- Mesas comuns, bistrôs e eventos sem Ouro mantêm o aro branco. O sistema também reconhece mapas antigos que guardaram a posição no identificador da mesa.
+
 ## Versão 6.2.3 — correção da criação de eventos com mesas Ouro
 
 - A validação reconhece tanto as posições novas (`slotId`) quanto as mesas já posicionadas cujo identificador é a própria posição da grade.

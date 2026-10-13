@@ -414,7 +414,7 @@ function normalizeTableSectorPricing(value) {
 function chairSectorFor(event, furniture) {
   if (!event?.tableSectorPricing?.enabled || furniture?.area !== "salao" || furniture?.kind !== "table") return "regular";
   const layout = event?.tableMap?.layouts?.salao;
-  return salonSectorForSlot(layout, furniture.slotId);
+  return salonSectorForSlot(layout, furniture.slotId || furniture.id);
 }
 function chairPriceFor(event, furniture) {
   const settings = normalizeTableSectorPricing(event?.tableSectorPricing);
@@ -1824,9 +1824,9 @@ function tableReservationDiscountHtml(sale) {
 function toggleMetricDetails(button) { const details = $(button.dataset.toggleMetricDetails); if (!details) return; const expanded = details.hidden; details.hidden = !expanded; button.setAttribute("aria-expanded", String(expanded)); button.textContent = expanded ? "Ocultar" : "Detalhar"; }
 function toggleSellerTicketReport() { const report = $("sellerTicketReport"); const button = $("sellerDetailsToggle"); const expanded = report.hidden; report.hidden = !expanded; button.setAttribute("aria-expanded", String(expanded)); button.textContent = expanded ? "Ocultar" : "Detalhar"; }
 
-function mapFurnitureHtml(item, editor = false, reservation = null, disabled = false) {
+function mapFurnitureHtml(item, editor = false, reservation = null, disabled = false, event = null) {
   const label = `${furnitureKindLabel(item.kind)} ${String(item.number).padStart(2, "0")} — ${mapAreaLabel(item.area)}`;
-  const sector = editor && $("tableSectorPricingEnabled").checked && item.kind === "table" ? salonSectorForSlot(eventMapDraft.layouts.salao, item.slotId) : "regular";
+  const sector = editor ? $("tableSectorPricingEnabled").checked && item.kind === "table" ? salonSectorForSlot(eventMapDraft.layouts.salao, item.slotId || item.id) : "regular" : chairSectorFor(event, item);
   const sectorClass = sector === "regular" ? "" : ` sector-${sector}`;
   const status = reservation ? (reservation.paid && !isTableBlock(reservation) ? "is-paid" : "is-pending") : "is-free";
   const occupancy = reservation && !isTableBlock(reservation) ? `<span class="map-furniture-occupancy">${reservation.occupants?.length || reservation.quantity || 1}</span>` : "";
@@ -1834,7 +1834,7 @@ function mapFurnitureHtml(item, editor = false, reservation = null, disabled = f
   const style = `left:${item.x}%;top:${item.y}%;width:${item.width}%;height:${item.height}%`;
   return editor
     ? `<button class="map-furniture map-preset-slot kind-${item.kind} is-active${sectorClass}" type="button" data-map-slot="${item.slotId || item.id}" style="${style}" aria-label="${escapeHtml(`${label}${sector === "regular" ? "" : ` · ${chairSectorLabel(sector)}`}`)}" ${disabled ? "disabled" : ""}>${content}</button>`
-    : `<button class="map-furniture kind-${item.kind} ${status}" type="button" data-reserve-furniture="${item.id}" style="${style}" aria-label="${escapeHtml(`${label}${reservation ? isTableBlock(reservation) ? ", ocupada sem venda" : `, reservada para ${reservation.buyerName}` : ", livre"}`)}">${content}</button>`;
+    : `<button class="map-furniture kind-${item.kind} ${status}${sectorClass}" type="button" data-reserve-furniture="${item.id}" style="${style}" aria-label="${escapeHtml(`${label}${sector === "gold" ? " · Mesa Ouro" : ""}${reservation ? isTableBlock(reservation) ? ", ocupada sem venda" : `, reservada para ${reservation.buyerName}` : ", livre"}`)}">${content}</button>`;
 }
 
 function updateMapEditorTabs() {
@@ -1976,7 +1976,7 @@ function renderTableMapPanel(event, eventSales) {
   const stage = $("tableMapViewer");
   stage.dataset.area = activeMapViewerArea;
   const furniture = tableMap.furniture.filter((item) => item.area === activeMapViewerArea);
-  stage.innerHTML = furniture.map((item) => mapFurnitureHtml(item, false, reservations.find((sale) => sale.furnitureId === item.id))).join("") || `<div class="map-empty-hint">Nenhuma mesa ou bistrô configurado nesta área.</div>`;
+  stage.innerHTML = furniture.map((item) => mapFurnitureHtml(item, false, reservations.find((sale) => sale.furnitureId === item.id), false, event)).join("") || `<div class="map-empty-hint">Nenhuma mesa ou bistrô configurado nesta área.</div>`;
   const occupied = furniture.filter((item) => reservations.some((sale) => sale.furnitureId === item.id)).length;
   const paid = furniture.filter((item) => reservations.some((sale) => sale.furnitureId === item.id && isTableReservation(sale) && sale.paid)).length;
   const blocked = furniture.filter((item) => reservations.some((sale) => sale.furnitureId === item.id && isTableBlock(sale))).length;
@@ -1995,7 +1995,7 @@ function renderMapZoom(event, eventSales) {
   const stage = $("tableMapZoomViewer");
   stage.dataset.area = activeMapViewerArea;
   const furniture = tableMap.furniture.filter((item) => item.area === activeMapViewerArea);
-  stage.innerHTML = furniture.map((item) => mapFurnitureHtml(item, false, reservations.find((sale) => sale.furnitureId === item.id))).join("") || `<div class="map-empty-hint">Nenhuma mesa ou bistrô configurado nesta área.</div>`;
+  stage.innerHTML = furniture.map((item) => mapFurnitureHtml(item, false, reservations.find((sale) => sale.furnitureId === item.id), false, event)).join("") || `<div class="map-empty-hint">Nenhuma mesa ou bistrô configurado nesta área.</div>`;
 }
 
 function renderTableReservationsList(event, eventSales) {
