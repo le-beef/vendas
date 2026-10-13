@@ -41,11 +41,9 @@
 .table-sector-pricing[hidden],.table-sector-price-fields[hidden]{display:none!important}
 .table-sector-pricing .toggle-setting{margin:0}
 .table-sector-pricing .field-help{margin:0}
-.table-sector-price-fields{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.table-sector-price-fields{display:grid;grid-template-columns:minmax(0,1fr);gap:10px;max-width:380px}
 .table-sector-price-fields label{min-width:0}
 .map-sector-key{display:inline-flex;align-items:center;gap:5px;margin-left:auto;color:#475569;font-size:10px}
 .map-sector-key i{width:9px;height:9px;border-radius:50%;background:#7e22ce}
-.map-sector-key i.silver{background:#eab308}
 .table-map-editor .map-preset-slot.sector-gold{outline:2px solid #7e22ce;outline-offset:1px}
-.table-map-editor .map-preset-slot.sector-silver{outline:2px solid #eab308;outline-offset:1px}
 @media(max-width:520px){.table-sector-price-fields{grid-template-columns:1fr}.map-sector-key{flex-basis:100%;margin-left:0}}

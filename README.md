@@ -1,5 +1,11 @@
 # Le Beef — painel de vendas de ingressos
 
+## Versão 6.2.2 — somente mesas Ouro têm preço especial
+
+- As duas fileiras da esquerda do Salão continuam sendo Ouro nas quatro grades. Todas as outras mesas usam o valor normal por pessoa/cadeira, sem categoria ou campo de preço Prata.
+- Bistrôs e Mezanino também usam o valor normal. Reservas já feitas preservam os preços por cadeira registrados; o valor normal ou Ouro vigente vale apenas para novas reservas/cadeiras.
+- Eventos criados na versão 6.2.1 continuam legíveis: um antigo `silverPrice` é ignorado e não é mais gravado quando o evento for salvo. Regras e dados existentes do Firebase não foram migrados nem apagados.
+
 ## Versão 6.2.1 — correção dos setores Ouro e Prata
 
 - Nas quatro grades do Salão, as duas fileiras da esquerda e suas posições superiores são Ouro; todas as demais mesas do Salão são Prata.

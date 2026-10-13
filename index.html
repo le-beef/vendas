@@ -36,7 +36,7 @@
     <link rel="stylesheet" href="payment-closing.css?v=28" />
     <link rel="stylesheet" href="event-access.css?v=18" />
     <link rel="stylesheet" href="table-map.css?v=16" />
-    <link rel="stylesheet" href="map-layouts.css?v=3" />
+    <link rel="stylesheet" href="map-layouts.css?v=4" />
     <link rel="stylesheet" href="table-reservation-override.css?v=2" />
     <link rel="stylesheet" href="table-reservation-details.css?v=2" />
     <link rel="stylesheet" href="table-reservation-final.css?v=3" />
@@ -271,7 +271,7 @@
       </section>
     </main>
 
-    <footer class="site-footer">Le Beef | Versão: 6.2.1</footer>
+    <footer class="site-footer">Le Beef | Versão: 6.2.2</footer>
 
     <button class="fab" data-open="saleModal" data-roles="admin,event_manager,seller" aria-label="Registrar venda">+</button>
 
@@ -313,12 +313,11 @@
           <div class="map-settings-heading"><div><span class="field-label">Mapa de mesas e bistrôs</span><p class="field-help">Escolha as áreas abertas, selecione o tipo e toque nas posições predefinidas para ativá-las.</p></div><label class="chair-price-field">Valor por pessoa/cadeira<input id="chairPrice" name="chairPrice" type="number" min="0" step="0.01" placeholder="R$ 0,00" /></label></div>
           <fieldset class="map-area-selector"><legend>Áreas disponíveis neste evento</legend><label><input type="checkbox" name="mapArea" value="salao" /> Salão</label><label><input type="checkbox" name="mapArea" value="mezanino" /> Mezanino</label></fieldset>
           <div id="tableSectorPricingOptions" class="table-sector-pricing" hidden>
-            <label class="toggle-setting"><input id="tableSectorPricingEnabled" name="tableSectorPricingEnabled" type="checkbox" /><span>Cobrar valores diferentes nas mesas Ouro e Prata do Salão</span></label>
+            <label class="toggle-setting"><input id="tableSectorPricingEnabled" name="tableSectorPricingEnabled" type="checkbox" /><span>Cobrar valor diferente nas mesas Ouro do Salão</span></label>
             <div id="tableSectorPriceFields" class="table-sector-price-fields" hidden>
               <label>Mesa Ouro · por cadeira<input name="tableGoldChairPrice" type="number" min="0" step="0.01" inputmode="decimal" placeholder="R$ 0,00" /></label>
-              <label>Mesa Prata · por cadeira<input name="tableSilverChairPrice" type="number" min="0" step="0.01" inputmode="decimal" placeholder="R$ 0,00" /></label>
             </div>
-            <p class="field-help">As duas fileiras da esquerda são Ouro; as demais mesas do Salão são Prata. Bistrôs e Mezanino usam o valor normal. Alterações de preço valem só para cadeiras reservadas depois.</p>
+            <p class="field-help">As duas fileiras da esquerda são Ouro. Todas as outras mesas, bistrôs e Mezanino usam o valor normal por pessoa/cadeira acima. Alterações de preço valem só para cadeiras reservadas depois.</p>
           </div>
           <div class="map-editor-toolbar"><div class="map-tool-buttons"><button class="map-tool-button" type="button" data-map-tool="table"><img src="mesa-icon.png" alt="" />Ativar como mesa</button><button class="map-tool-button" type="button" data-map-tool="bistro"><img src="bistro-icon.png" alt="" />Ativar como bistrô</button></div></div>
           <div id="mapEditorAreaTabs" class="map-area-tabs" role="tablist" aria-label="Área sendo editada"></div>
@@ -530,6 +529,6 @@
     <div id="toast" role="status" aria-live="polite"></div>
     <script src="pwa.js"></script>
     <script src="excel-export.js?v=40"></script>
-    <script type="module" src="app.js?v=126"></script>
+    <script type="module" src="app.js?v=127"></script>
   </body>
 </html>

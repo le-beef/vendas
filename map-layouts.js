@@ -2,7 +2,7 @@
 export const SALON_LAYOUTS = Object.freeze(["6x4", "6x5", "7x5", "8x5"]);
 
 // The two left-hand bands (including the three top positions) are Gold.
-// Every other valid Salon position is Silver. Indices follow the supplied maps.
+// Every other valid Salon position uses the event's ordinary chair price.
 const salonGoldSlots = {
   "6x4": [0, 1, 2, 5, 6, 7, 10, 11, 14, 15, 18, 19],
   "6x5": [0, 1, 2, 6, 7, 8, 12, 13, 17, 18, 22, 23],
@@ -16,7 +16,7 @@ export function salonSectorForSlot(layout, slotId) {
   if (!match || match[1] !== layout) return "regular";
   const index = Number(match[2]) - 1;
   if (index < 0 || index >= salonPositions[layout].length) return "regular";
-  return salonGoldSlots[layout].includes(index) ? "gold" : "silver";
+  return salonGoldSlots[layout].includes(index) ? "gold" : "regular";
 }
 
 const salonPositions = {

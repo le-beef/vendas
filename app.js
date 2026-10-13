@@ -9,7 +9,7 @@ import { createTicketPdf, createQrDataUrl } from "./ticket-tools.js?v=15";
 import { THERMAL_PAPER_WIDTHS, buildThermalPrintHtml, normalizeThermalPaperWidth } from "./thermal-print.js?v=10";
 import { DEFAULT_TICKET_DESIGN, normalizeTicketDesign, ticketHeightForDesign } from "./ticket-layout.js?v=3";
 import { PLATFORM_COMMISSION_SCOPES, eventFinancialRules, normalizeCommissionScope, normalizePercentage, promoterFinancialSnapshot, saleFinancialSnapshot } from "./financial-core.js?v=2";
-import { SALON_LAYOUTS, presetSlotsFor, salonSectorForSlot, validMapLayout } from "./map-layouts.js?v=3";
+import { SALON_LAYOUTS, presetSlotsFor, salonSectorForSlot, validMapLayout } from "./map-layouts.js?v=4";
 
 const demoEvents = [
   { id: "demo-1", name: "Festival de Inverno", date: "2026-08-02", time: "20:00", place: "Espaço Aurora", capacity: 300, ticketTypes: [{ id: "inteira", name: "Inteira", price: 85, capacity: 200 }, { id: "meia", name: "Meia-entrada", price: 42.5, capacity: 100 }], packages: [{ id: "combo-casal", name: "Combo Casal", discountType: "percent", discountValue: 10, discountPercent: 10, regularPrice: 127.5, price: 114.75, items: [{ ticketTypeId: "inteira", quantity: 1 }, { ticketTypeId: "meia", quantity: 1 }] }] },
@@ -409,7 +409,7 @@ function normalizeTableMap(value) {
 }
 function normalizeTableSectorPricing(value) {
   const price = (input) => Number.isFinite(Number(input)) && Number(input) >= 0 ? Math.round(Number(input) * 100) / 100 : 0;
-  return { enabled:value?.enabled === true, goldPrice:price(value?.goldPrice), silverPrice:price(value?.silverPrice) };
+  return { enabled:value?.enabled === true, goldPrice:price(value?.goldPrice) };
 }
 function chairSectorFor(event, furniture) {
   if (!event?.tableSectorPricing?.enabled || furniture?.area !== "salao" || furniture?.kind !== "table") return "regular";
@@ -419,9 +419,9 @@ function chairSectorFor(event, furniture) {
 function chairPriceFor(event, furniture) {
   const settings = normalizeTableSectorPricing(event?.tableSectorPricing);
   const sector = chairSectorFor(event, furniture);
-  return sector === "gold" ? settings.goldPrice : sector === "silver" ? settings.silverPrice : Math.max(0, Number(event?.chairPrice || 0));
+  return sector === "gold" ? settings.goldPrice : Math.max(0, Number(event?.chairPrice || 0));
 }
-function chairSectorLabel(sector) { return sector === "gold" ? "Mesa Ouro" : sector === "silver" ? "Mesa Prata" : ""; }
+function chairSectorLabel(sector) { return sector === "gold" ? "Mesa Ouro" : ""; }
 function packagesFor(event) {
   const original = Array.isArray(event?.packages) ? event.packages : Object.values(event?.packages || {});
   return original.map((item) => {
@@ -1866,7 +1866,7 @@ function renderMapEditor() {
   const choices = activeMapEditorArea === "salao" ? SALON_LAYOUTS : ["13"];
   options.hidden = false;
   const sectorsVisible = activeMapEditorArea === "salao" && $("tableSectorPricingEnabled").checked;
-  options.innerHTML = `<span>Grade do ${mapAreaLabel(activeMapEditorArea)}:</span>${choices.map((choice) => `<button type="button" data-map-layout="${choice}" class="${layout === choice ? "is-active" : ""}" aria-pressed="${layout === choice}" ${locked ? "disabled" : ""}>${activeMapEditorArea === "mezanino" ? "13 posições" : choice}</button>`).join("")}${sectorsVisible ? '<span class="map-sector-key"><i></i>Ouro <i class="silver"></i>Prata</span>' : ""}`;
+  options.innerHTML = `<span>Grade do ${mapAreaLabel(activeMapEditorArea)}:</span>${choices.map((choice) => `<button type="button" data-map-layout="${choice}" class="${layout === choice ? "is-active" : ""}" aria-pressed="${layout === choice}" ${locked ? "disabled" : ""}>${activeMapEditorArea === "mezanino" ? "13 posições" : choice}</button>`).join("")}${sectorsVisible ? '<span class="map-sector-key"><i></i>Ouro</span>' : ""}`;
   const furniture = eventMapDraft.furniture.filter((item) => item.area === activeMapEditorArea);
   const slots = presetSlotsFor(activeMapEditorArea, layout);
   const slotButtons = slots.map((slot) => {
@@ -1874,7 +1874,7 @@ function renderMapEditor() {
     if (active) return mapFurnitureHtml(active, true, null, locked);
     const style = `left:${slot.x}%;top:${slot.y}%;width:${slot.width}%;height:${slot.height}%`;
     const sector = sectorsVisible ? salonSectorForSlot(layout, slot.id) : "regular";
-    return `<button class="map-furniture map-preset-slot is-inactive${sector === "regular" ? "" : ` sector-${sector}`}" type="button" data-map-slot="${slot.id}" style="${style}" aria-label="${sector === "regular" ? "Ativar esta posição" : `Ativar posição de Mesa ${sector === "gold" ? "Ouro" : "Prata"}; bistrôs usam o valor normal`}" ${locked ? "disabled" : ""}><span class="map-slot-plus">+</span></button>`;
+    return `<button class="map-furniture map-preset-slot is-inactive${sector === "regular" ? "" : ` sector-${sector}`}" type="button" data-map-slot="${slot.id}" style="${style}" aria-label="${sector === "regular" ? "Ativar esta posição" : "Ativar posição de Mesa Ouro; bistrôs usam o valor normal"}" ${locked ? "disabled" : ""}><span class="map-slot-plus">+</span></button>`;
   }).join("");
   const legacyFurniture = furniture.filter((item) => !slots.some((slot) => slot.id === (item.slotId || item.id)));
   stage.innerHTML = slotButtons + legacyFurniture.map((item) => mapFurnitureHtml(item, true, null, locked)).join("");
@@ -1888,7 +1888,7 @@ function syncTableSectorPricingSettings() {
   checkbox.disabled = mapEditingLocked();
   const enabled = visible && checkbox.checked;
   $("tableSectorPriceFields").hidden = !enabled;
-  for (const name of ["tableGoldChairPrice", "tableSilverChairPrice"]) $("eventForm").elements[name].required = enabled;
+  $("eventForm").elements.tableGoldChairPrice.required = enabled;
 }
 function syncEventMapSettings() {
   const mixed = $("eventMode").value === "mixed";
@@ -2823,7 +2823,7 @@ async function saveEvent(data, id = "") {
     if (value === "" || value === undefined || !Number.isFinite(Number(value)) || Number(value) < 0 || Number(value) > 999999) throw new Error(`Informe um valor válido por cadeira para ${label}.`);
     return Math.round(Number(value) * 100) / 100;
   };
-  const tableSectorPricing = sectorPricingEnabled ? { enabled:true, goldPrice:sectorPrice(data.tableGoldChairPrice, "Mesa Ouro"), silverPrice:sectorPrice(data.tableSilverChairPrice, "Mesa Prata") } : { enabled:false, goldPrice:0, silverPrice:0 };
+  const tableSectorPricing = sectorPricingEnabled ? { enabled:true, goldPrice:sectorPrice(data.tableGoldChairPrice, "Mesa Ouro") } : { enabled:false, goldPrice:0 };
   if (eventMode === "mixed" && !tableMap.areas.length) throw new Error("Selecione Salão, Mezanino ou ambos.");
   if (eventMode === "mixed" && !tableMap.furniture.length) throw new Error("Adicione pelo menos uma mesa ou bistrô ao mapa.");
   const ticketDesign = existingEvent ? eventTicketDesign(existingEvent) : normalizeTicketDesign(DEFAULT_TICKET_DESIGN);
@@ -3137,7 +3137,6 @@ function openEditEvent(id) {
   form.elements.chairPrice.value = Number(item.chairPrice || 0);
   form.elements.tableSectorPricingEnabled.checked = sectorPricing.enabled;
   form.elements.tableGoldChairPrice.value = sectorPricing.enabled ? sectorPricing.goldPrice : "";
-  form.elements.tableSilverChairPrice.value = sectorPricing.enabled ? sectorPricing.silverPrice : "";
   syncEventFinancialSettings(item); syncEventManualFeeSettings(item); resetEventMapDraft(item); syncEventMapSettings();
   resetPackages(); $("ticketTypesList").innerHTML = "";
   ticketTypesFor(item).forEach((type) => addTicketTypeRow(type.name, type.price, type.capacity, type.id));
