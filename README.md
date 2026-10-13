@@ -1,5 +1,11 @@
 # Le Beef — painel de vendas de ingressos
 
+## Versão 6.2.1 — correção dos setores Ouro e Prata
+
+- Nas quatro grades do Salão, as duas fileiras da esquerda e suas posições superiores são Ouro; todas as demais mesas do Salão são Prata.
+- Bistrôs e mesas do Mezanino continuam com o preço normal. Reservas já feitas preservam os preços por cadeira registrados; valores novos valem para reservas futuras e cadeiras acrescentadas.
+- O mapa final permanece sem as faixas coloridas. Regras e dados do Firebase não foram alterados.
+
 ## Versão 6.2.0 — preços por setor nas mesas do Salão
 
 - A criação do evento oferece uma opção desligada por padrão para cobrar valores por cadeira nas mesas Ouro e Prata. Mesas comuns, bistrôs e Mezanino mantêm o valor normal.

@@ -1,13 +1,13 @@
 // Centers measured from the exact map images supplied for the event editor.
 export const SALON_LAYOUTS = Object.freeze(["6x4", "6x5", "7x5", "8x5"]);
 
-// The two premium bands are mapped to the supplied position images, not to table numbers.
-// Indices are zero-based and remain valid even when only some positions are activated.
-const salonSectorSlots = {
-  "6x4": { gold:[5, 6, 10, 14, 18], silver:[0, 1, 2, 7, 11, 15, 19] },
-  "6x5": { gold:[6, 7, 12, 17, 22], silver:[0, 1, 2, 8, 13, 18, 23] },
-  "7x5": { gold:[6, 7, 12, 17, 22, 27], silver:[0, 1, 2, 8, 13, 18, 23, 28] },
-  "8x5": { gold:[6, 7, 12, 17, 22, 27, 32], silver:[0, 1, 2, 8, 13, 18, 23, 28, 33] }
+// The two left-hand bands (including the three top positions) are Gold.
+// Every other valid Salon position is Silver. Indices follow the supplied maps.
+const salonGoldSlots = {
+  "6x4": [0, 1, 2, 5, 6, 7, 10, 11, 14, 15, 18, 19],
+  "6x5": [0, 1, 2, 6, 7, 8, 12, 13, 17, 18, 22, 23],
+  "7x5": [0, 1, 2, 6, 7, 8, 12, 13, 17, 18, 22, 23, 27, 28],
+  "8x5": [0, 1, 2, 6, 7, 8, 12, 13, 17, 18, 22, 23, 27, 28, 32, 33]
 };
 
 export function salonSectorForSlot(layout, slotId) {
@@ -15,9 +15,8 @@ export function salonSectorForSlot(layout, slotId) {
   const match = String(slotId || "").match(/^slot-salao-([0-9]x[0-9])-([0-9]{2})$/);
   if (!match || match[1] !== layout) return "regular";
   const index = Number(match[2]) - 1;
-  if (salonSectorSlots[layout].gold.includes(index)) return "gold";
-  if (salonSectorSlots[layout].silver.includes(index)) return "silver";
-  return "regular";
+  if (index < 0 || index >= salonPositions[layout].length) return "regular";
+  return salonGoldSlots[layout].includes(index) ? "gold" : "silver";
 }
 
 const salonPositions = {
