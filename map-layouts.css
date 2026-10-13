@@ -37,3 +37,15 @@
 .table-map-editor[data-area="salao"][data-layout="7x5"] { background-image: url("salao-grade-7x5.png"); }
 .table-map-editor[data-area="salao"][data-layout="8x5"] { background-image: url("salao-grade-8x5.png"); }
 .table-map-editor[data-area="mezanino"][data-layout="13"] { background-image: url("mezanino-grade-13.png"); }
+.table-sector-pricing{display:grid;gap:9px;padding:11px 12px;border:1px solid #dbeafe;border-radius:10px;background:#fff}
+.table-sector-pricing[hidden],.table-sector-price-fields[hidden]{display:none!important}
+.table-sector-pricing .toggle-setting{margin:0}
+.table-sector-pricing .field-help{margin:0}
+.table-sector-price-fields{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.table-sector-price-fields label{min-width:0}
+.map-sector-key{display:inline-flex;align-items:center;gap:5px;margin-left:auto;color:#475569;font-size:10px}
+.map-sector-key i{width:9px;height:9px;border-radius:50%;background:#d946ef}
+.map-sector-key i.silver{background:#7e22ce}
+.table-map-editor .map-preset-slot.sector-gold{outline:2px solid #d946ef;outline-offset:1px}
+.table-map-editor .map-preset-slot.sector-silver{outline:2px solid #7e22ce;outline-offset:1px}
+@media(max-width:520px){.table-sector-price-fields{grid-template-columns:1fr}.map-sector-key{flex-basis:100%;margin-left:0}}

@@ -1,6 +1,25 @@
 // Centers measured from the exact map images supplied for the event editor.
 export const SALON_LAYOUTS = Object.freeze(["6x4", "6x5", "7x5", "8x5"]);
 
+// The two premium bands are mapped to the supplied position images, not to table numbers.
+// Indices are zero-based and remain valid even when only some positions are activated.
+const salonSectorSlots = {
+  "6x4": { gold:[5, 6, 10, 14, 18], silver:[0, 1, 2, 7, 11, 15, 19] },
+  "6x5": { gold:[6, 7, 12, 17, 22], silver:[0, 1, 2, 8, 13, 18, 23] },
+  "7x5": { gold:[6, 7, 12, 17, 22, 27], silver:[0, 1, 2, 8, 13, 18, 23, 28] },
+  "8x5": { gold:[6, 7, 12, 17, 22, 27, 32], silver:[0, 1, 2, 8, 13, 18, 23, 28, 33] }
+};
+
+export function salonSectorForSlot(layout, slotId) {
+  if (!SALON_LAYOUTS.includes(layout)) return "regular";
+  const match = String(slotId || "").match(/^slot-salao-([0-9]x[0-9])-([0-9]{2})$/);
+  if (!match || match[1] !== layout) return "regular";
+  const index = Number(match[2]) - 1;
+  if (salonSectorSlots[layout].gold.includes(index)) return "gold";
+  if (salonSectorSlots[layout].silver.includes(index)) return "silver";
+  return "regular";
+}
+
 const salonPositions = {
   "6x4": [
     [70, 122], [207, 155], [319, 155], [431, 155], [543, 155], [107, 195],

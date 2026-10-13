@@ -9,7 +9,7 @@ import { createTicketPdf, createQrDataUrl } from "./ticket-tools.js?v=15";
 import { THERMAL_PAPER_WIDTHS, buildThermalPrintHtml, normalizeThermalPaperWidth } from "./thermal-print.js?v=10";
 import { DEFAULT_TICKET_DESIGN, normalizeTicketDesign, ticketHeightForDesign } from "./ticket-layout.js?v=3";
 import { PLATFORM_COMMISSION_SCOPES, eventFinancialRules, normalizeCommissionScope, normalizePercentage, promoterFinancialSnapshot, saleFinancialSnapshot } from "./financial-core.js?v=2";
-import { SALON_LAYOUTS, presetSlotsFor, validMapLayout } from "./map-layouts.js?v=1";
+import { SALON_LAYOUTS, presetSlotsFor, salonSectorForSlot, validMapLayout } from "./map-layouts.js?v=2";
 
 const demoEvents = [
   { id: "demo-1", name: "Festival de Inverno", date: "2026-08-02", time: "20:00", place: "Espaço Aurora", capacity: 300, ticketTypes: [{ id: "inteira", name: "Inteira", price: 85, capacity: 200 }, { id: "meia", name: "Meia-entrada", price: 42.5, capacity: 100 }], packages: [{ id: "combo-casal", name: "Combo Casal", discountType: "percent", discountValue: 10, discountPercent: 10, regularPrice: 127.5, price: 114.75, items: [{ ticketTypeId: "inteira", quantity: 1 }, { ticketTypeId: "meia", quantity: 1 }] }] },
@@ -374,7 +374,9 @@ function reservationOccupantPricing(sale) {
   const stored = Array.isArray(sale?.occupantPricing) ? sale.occupantPricing : Object.keys(sale?.occupantPricing || {}).sort((a, b) => Number(a) - Number(b)).map((key) => sale.occupantPricing[key]);
   return reservationOccupants(sale).map((_, index) => {
     const item = stored[index] || {};
-    return { discountType: item.discountType === "fixed" ? "fixed" : "percent", discountValue: Math.max(0, Number(item.discountValue || 0)) };
+    const fallbackPrice = Number(sale?.items?.[0]?.unitPrice ?? 0);
+    const regularPrice = Number(item.regularPrice);
+    return { discountType: item.discountType === "fixed" ? "fixed" : "percent", discountValue: Math.max(0, Number(item.discountValue || 0)), regularPrice: item.regularPrice != null && Number.isFinite(regularPrice) ? regularPrice : fallbackPrice, finalPrice: Number(item.finalPrice ?? fallbackPrice) };
   });
 }
 function reservationOccupantCheckins(sale) {
@@ -405,6 +407,21 @@ function normalizeTableMap(value) {
   for (const area of areas) if (validMapLayout(area, value?.layouts?.[area])) layouts[area] = value.layouts[area];
   return { areas, furniture, layouts };
 }
+function normalizeTableSectorPricing(value) {
+  const price = (input) => Number.isFinite(Number(input)) && Number(input) >= 0 ? Math.round(Number(input) * 100) / 100 : 0;
+  return { enabled:value?.enabled === true, goldPrice:price(value?.goldPrice), silverPrice:price(value?.silverPrice) };
+}
+function chairSectorFor(event, furniture) {
+  if (!event?.tableSectorPricing?.enabled || furniture?.area !== "salao" || furniture?.kind !== "table") return "regular";
+  const layout = event?.tableMap?.layouts?.salao;
+  return salonSectorForSlot(layout, furniture.slotId);
+}
+function chairPriceFor(event, furniture) {
+  const settings = normalizeTableSectorPricing(event?.tableSectorPricing);
+  const sector = chairSectorFor(event, furniture);
+  return sector === "gold" ? settings.goldPrice : sector === "silver" ? settings.silverPrice : Math.max(0, Number(event?.chairPrice || 0));
+}
+function chairSectorLabel(sector) { return sector === "gold" ? "Mesa Ouro" : sector === "silver" ? "Mesa Prata" : ""; }
 function packagesFor(event) {
   const original = Array.isArray(event?.packages) ? event.packages : Object.values(event?.packages || {});
   return original.map((item) => {
@@ -1809,12 +1826,14 @@ function toggleSellerTicketReport() { const report = $("sellerTicketReport"); co
 
 function mapFurnitureHtml(item, editor = false, reservation = null, disabled = false) {
   const label = `${furnitureKindLabel(item.kind)} ${String(item.number).padStart(2, "0")} — ${mapAreaLabel(item.area)}`;
+  const sector = editor && $("tableSectorPricingEnabled").checked && item.kind === "table" ? salonSectorForSlot(eventMapDraft.layouts.salao, item.slotId) : "regular";
+  const sectorClass = sector === "regular" ? "" : ` sector-${sector}`;
   const status = reservation ? (reservation.paid && !isTableBlock(reservation) ? "is-paid" : "is-pending") : "is-free";
   const occupancy = reservation && !isTableBlock(reservation) ? `<span class="map-furniture-occupancy">${reservation.occupants?.length || reservation.quantity || 1}</span>` : "";
   const content = `<img src="${item.kind === "bistro" ? "bistro-icon.png" : "mesa-icon.png"}" alt="" /><span class="map-furniture-number">${String(item.number).padStart(2, "0")}</span>${occupancy}`;
   const style = `left:${item.x}%;top:${item.y}%;width:${item.width}%;height:${item.height}%`;
   return editor
-    ? `<button class="map-furniture map-preset-slot kind-${item.kind} is-active" type="button" data-map-slot="${item.slotId || item.id}" style="${style}" aria-label="${escapeHtml(label)}" ${disabled ? "disabled" : ""}>${content}</button>`
+    ? `<button class="map-furniture map-preset-slot kind-${item.kind} is-active${sectorClass}" type="button" data-map-slot="${item.slotId || item.id}" style="${style}" aria-label="${escapeHtml(`${label}${sector === "regular" ? "" : ` · ${chairSectorLabel(sector)}`}`)}" ${disabled ? "disabled" : ""}>${content}</button>`
     : `<button class="map-furniture kind-${item.kind} ${status}" type="button" data-reserve-furniture="${item.id}" style="${style}" aria-label="${escapeHtml(`${label}${reservation ? isTableBlock(reservation) ? ", ocupada sem venda" : `, reservada para ${reservation.buyerName}` : ", livre"}`)}">${content}</button>`;
 }
 
@@ -1846,19 +1865,31 @@ function renderMapEditor() {
   else stage.removeAttribute("data-layout");
   const choices = activeMapEditorArea === "salao" ? SALON_LAYOUTS : ["13"];
   options.hidden = false;
-  options.innerHTML = `<span>Grade do ${mapAreaLabel(activeMapEditorArea)}:</span>${choices.map((choice) => `<button type="button" data-map-layout="${choice}" class="${layout === choice ? "is-active" : ""}" aria-pressed="${layout === choice}" ${locked ? "disabled" : ""}>${activeMapEditorArea === "mezanino" ? "13 posições" : choice}</button>`).join("")}`;
+  const sectorsVisible = activeMapEditorArea === "salao" && $("tableSectorPricingEnabled").checked;
+  options.innerHTML = `<span>Grade do ${mapAreaLabel(activeMapEditorArea)}:</span>${choices.map((choice) => `<button type="button" data-map-layout="${choice}" class="${layout === choice ? "is-active" : ""}" aria-pressed="${layout === choice}" ${locked ? "disabled" : ""}>${activeMapEditorArea === "mezanino" ? "13 posições" : choice}</button>`).join("")}${sectorsVisible ? '<span class="map-sector-key"><i></i>Ouro <i class="silver"></i>Prata</span>' : ""}`;
   const furniture = eventMapDraft.furniture.filter((item) => item.area === activeMapEditorArea);
   const slots = presetSlotsFor(activeMapEditorArea, layout);
   const slotButtons = slots.map((slot) => {
     const active = furniture.find((item) => (item.slotId || item.id) === slot.id);
     if (active) return mapFurnitureHtml(active, true, null, locked);
     const style = `left:${slot.x}%;top:${slot.y}%;width:${slot.width}%;height:${slot.height}%`;
-    return `<button class="map-furniture map-preset-slot is-inactive" type="button" data-map-slot="${slot.id}" style="${style}" aria-label="Ativar esta posição" ${locked ? "disabled" : ""}><span class="map-slot-plus">+</span></button>`;
+    const sector = sectorsVisible ? salonSectorForSlot(layout, slot.id) : "regular";
+    return `<button class="map-furniture map-preset-slot is-inactive${sector === "regular" ? "" : ` sector-${sector}`}" type="button" data-map-slot="${slot.id}" style="${style}" aria-label="${sector === "regular" ? "Ativar esta posição" : `Ativar posição de Mesa ${sector === "gold" ? "Ouro" : "Prata"}; bistrôs usam o valor normal`}" ${locked ? "disabled" : ""}><span class="map-slot-plus">+</span></button>`;
   }).join("");
   const legacyFurniture = furniture.filter((item) => !slots.some((slot) => slot.id === (item.slotId || item.id)));
   stage.innerHTML = slotButtons + legacyFurniture.map((item) => mapFurnitureHtml(item, true, null, locked)).join("");
 }
 
+function syncTableSectorPricingSettings() {
+  const visible = $("eventMode").value === "mixed" && eventMapDraft.areas.includes("salao");
+  const checkbox = $("tableSectorPricingEnabled");
+  $("tableSectorPricingOptions").hidden = !visible;
+  if (!visible) checkbox.checked = false;
+  checkbox.disabled = mapEditingLocked();
+  const enabled = visible && checkbox.checked;
+  $("tableSectorPriceFields").hidden = !enabled;
+  for (const name of ["tableGoldChairPrice", "tableSilverChairPrice"]) $("eventForm").elements[name].required = enabled;
+}
 function syncEventMapSettings() {
   const mixed = $("eventMode").value === "mixed";
   $("eventMapSettings").hidden = !mixed;
@@ -1871,6 +1902,7 @@ function syncEventMapSettings() {
     activeMapEditorArea = "salao";
   }
   if (mixed && !activeMapTool) activeMapTool = "table";
+  syncTableSectorPricingSettings();
   renderMapEditor();
 }
 
@@ -2020,6 +2052,9 @@ function setChairDiscountControl(control, pricing = {}, startExpanded = false) {
   const active = value > 0 || startExpanded;
   const symbol = type === "fixed" ? "R$" : "%";
   control.dataset.discountType = type;
+  control.dataset.discountValue = String(value);
+  if (pricing.regularPrice != null && Number.isFinite(Number(pricing.regularPrice))) control.dataset.regularPrice = String(pricing.regularPrice);
+  else delete control.dataset.regularPrice;
   control.classList.toggle("is-active", active);
   const button = control.querySelector("[data-toggle-chair-discount]");
   const label = control.querySelector("label");
@@ -2040,6 +2075,9 @@ function addTableOccupantRow(name = null, pricing = {}) {
   const resolvedName = automatic ? guestDefaultName($("tableReservationForm").elements.buyerName.value, position) : name;
   const row = document.createElement("div");
   row.className = `table-occupant-row${canEditChairDiscount() ? "" : " no-discount"}`;
+  row.dataset.discountType = pricing.discountType === "fixed" ? "fixed" : "percent";
+  row.dataset.discountValue = String(Math.max(0, Number(pricing.discountValue || 0)));
+  if (pricing.regularPrice != null && Number.isFinite(Number(pricing.regularPrice))) row.dataset.regularPrice = String(pricing.regularPrice);
   row.innerHTML = `<input class="table-occupant-name" data-automatic="${automatic}" data-position="${position}" required placeholder="Nome do participante" value="${escapeHtml(resolvedName)}" />${canEditChairDiscount() ? chairDiscountControlHtml(pricing, "Desconto da cadeira deste participante") : ""}<button class="close" type="button" data-remove-table-occupant aria-label="Remover participante">×</button>`;
   $("tableOccupantsList").append(row);
   updateTableReservationTotal();
@@ -2058,40 +2096,36 @@ function tableReservationNames() {
   return [responsible, ...others].filter(Boolean);
 }
 
-function tableReservationPricing(chairPrice) {
-  if (!canEditChairDiscount()) {
-    const form = $("tableReservationForm");
-    const current = state.sales.find((sale) => sale.id === form.elements.saleId.value);
-    const savedNames = reservationOccupants(current);
-    const savedPricing = reservationOccupantPricing(current);
-    const names = [String(form.elements.buyerName.value || "").trim(), ...[...document.querySelectorAll("#tableOccupantsList .table-occupant-name")].map((input) => input.value.trim())];
-    return names.map((name, index) => {
-      const saved = name && savedNames[index] === name ? savedPricing[index] : null;
-      const discountType = saved?.discountType === "fixed" ? "fixed" : "percent";
-      const discountValue = Math.max(0, Number(saved?.discountValue || 0));
-      const discountAmount = discountType === "fixed" ? Math.min(chairPrice, discountValue) : chairPrice * Math.min(100, discountValue) / 100;
-      return { discountType, discountValue, regularPrice:chairPrice, discountAmount:Math.round(discountAmount * 100) / 100, finalPrice:Math.round(Math.max(0, chairPrice - discountAmount) * 100) / 100 };
-    });
-  }
-  return [...document.querySelectorAll("#tableReservationForm [data-chair-discount]")].map((control) => {
-    const discountType = control.dataset.discountType === "fixed" ? "fixed" : "percent";
-    const rawValue = control.classList.contains("is-active") ? Math.max(0, Number(control.querySelector(".chair-discount-value")?.value || 0)) : 0;
-    const discountValue = discountType === "percent" ? Math.min(100, rawValue) : Math.min(chairPrice, rawValue);
-    const discountAmount = discountType === "percent" ? chairPrice * discountValue / 100 : discountValue;
-    return { discountType, discountValue, regularPrice: chairPrice, discountAmount: Math.round(discountAmount * 100) / 100, finalPrice: Math.round(Math.max(0, chairPrice - discountAmount) * 100) / 100 };
+function tableReservationPricing(currentChairPrice) {
+  const controls = [...document.querySelectorAll("#tableReservationForm [data-chair-discount]")];
+  const rows = [...document.querySelectorAll("#tableOccupantsList .table-occupant-row")];
+  return [$("responsibleChairDiscount"), ...rows].map((position, index) => {
+    const savedPrice = position.dataset.regularPrice;
+    const regularPrice = savedPrice !== undefined && Number.isFinite(Number(savedPrice)) ? Math.max(0, Number(savedPrice)) : currentChairPrice;
+    const control = index === 0 ? controls[0] : rows[index - 1].querySelector("[data-chair-discount]");
+    const discountType = control?.dataset.discountType === "fixed" || (!control && position.dataset.discountType === "fixed") ? "fixed" : "percent";
+    const rawValue = control && canEditChairDiscount()
+      ? control.classList.contains("is-active") ? Math.max(0, Number(control.querySelector(".chair-discount-value")?.value || 0)) : 0
+      : Math.max(0, Number(position.dataset.discountValue || 0));
+    const discountValue = discountType === "percent" ? Math.min(100, rawValue) : Math.min(regularPrice, rawValue);
+    const discountAmount = Math.round((discountType === "percent" ? regularPrice * discountValue / 100 : discountValue) * 100) / 100;
+    return { discountType, discountValue, regularPrice, discountAmount, finalPrice:Math.round(Math.max(0, regularPrice - discountAmount) * 100) / 100 };
   });
 }
 
 function updateTableReservationTotal() {
   const form = $("tableReservationForm");
   const event = state.events.find((item) => item.id === form.elements.eventId.value);
-  const people = Math.max(1, 1 + document.querySelectorAll(".table-occupant-row").length);
-  const chairPrice = Math.max(0, Number(event?.chairPrice || 0));
+  const furniture = normalizeTableMap(event?.tableMap).furniture.find((item) => item.id === form.elements.furnitureId.value);
+  const chairPrice = chairPriceFor(event, furniture);
   const pricing = tableReservationPricing(chairPrice);
+  const people = pricing.length;
+  const regularTotal = pricing.reduce((sum, item) => sum + item.regularPrice, 0);
   const total = pricing.reduce((sum, item) => sum + item.finalPrice, 0);
-  const discount = Math.max(0, people * chairPrice - total);
+  const discount = Math.max(0, regularTotal - total);
   $("tableReservationPeople").textContent = people;
-  $("tableReservationUnitPrice").textContent = money.format(chairPrice);
+  const prices = [...new Set(pricing.map((item) => item.regularPrice))].sort((a, b) => a - b);
+  $("tableReservationUnitPrice").textContent = prices.length > 1 ? `${money.format(prices[0])} – ${money.format(prices.at(-1))}` : money.format(prices[0] ?? chairPrice);
   $("tableReservationDiscount").textContent = money.format(discount);
   const current = state.sales.find((sale) => sale.id === form.elements.saleId.value);
   const fee = syncManualFeeOption(form, event, total, "[data-table-manual-fee-preview]", current) || 0;
@@ -2145,7 +2179,8 @@ function openTableReservation(furnitureId) {
   setChairDiscountControl($("responsibleChairDiscount"), storedPricing[0], canEditChairDiscount());
   reservationOccupants(reservation).slice(1).forEach((name, index) => addTableOccupantRow(name, storedPricing[index + 1]));
   $("tableReservationTitle").textContent = `${furnitureKindLabel(furniture.kind)} ${String(furniture.number).padStart(2, "0")}`;
-  $("tableReservationArea").textContent = `${mapAreaLabel(furniture.area)} · ${money.format(Number(event.chairPrice || 0))} por pessoa`;
+  const sector = chairSectorFor(event, furniture);
+  $("tableReservationArea").textContent = `${mapAreaLabel(furniture.area)}${sector === "regular" ? "" : ` · ${chairSectorLabel(sector)}`} · ${money.format(chairPriceFor(event, furniture))} por cadeira (vigente)`;
   $("deleteTableReservation").hidden = !reservation;
   $("occupyTableWithoutSale").hidden = Boolean(reservation) || !hasRole("admin", "event_manager");
   $("tableWizardTicketActions").innerHTML = "";
@@ -2198,10 +2233,10 @@ async function saveTableReservation(data) {
   const current = state.sales.find((sale) => sale.id === data.saleId);
   const occupiedByAnother = tableOccupanciesFor(event.id).find((sale) => sale.furnitureId === furniture.id && sale.id !== data.saleId);
   if (occupiedByAnother) throw new Error("Esta mesa já possui uma reserva.");
-  const chairPrice = Math.max(0, Number(event.chairPrice || 0));
+  const chairPrice = chairPriceFor(event, furniture);
   const quantity = names.length;
   const occupantPricing = tableReservationPricing(chairPrice).slice(0, quantity);
-  const regularTotal = chairPrice * quantity;
+  const regularTotal = Math.round(occupantPricing.reduce((sum, item) => sum + item.regularPrice, 0) * 100) / 100;
   const subtotal = occupantPricing.reduce((sum, item) => sum + item.finalPrice, 0);
   const discountTotal = Math.round((regularTotal - subtotal) * 100) / 100;
   const paid = data.paymentStatus === "paid";
@@ -2211,7 +2246,9 @@ async function saveTableReservation(data) {
   if (paid && !paymentDate) throw new Error("Informe a data do pagamento.");
   const timestamp = isDemo ? Date.now() : serverTimestamp();
   const label = `${furnitureKindLabel(furniture.kind)} ${String(furniture.number).padStart(2, "0")} — ${mapAreaLabel(furniture.area)}`;
-  const items = [{ kind: "ticket", ticketTypeId: `chair:${furniture.area}`, ticketTypeName: `Cadeira — ${mapAreaLabel(furniture.area)}`, unitPrice: chairPrice, quantity, regularSubtotal: regularTotal, discountTotal, subtotal }];
+  const tableSector = chairSectorFor(event, furniture);
+  const chairName = `Cadeira — ${mapAreaLabel(furniture.area)}${tableSector === "regular" ? "" : ` · ${chairSectorLabel(tableSector)}`}`;
+  const items = [{ kind: "ticket", ticketTypeId: `chair:${furniture.area}`, ticketTypeName: chairName, unitPrice: regularTotal / quantity, quantity, regularSubtotal: regularTotal, discountTotal, subtotal }];
   const previousCheckins = reservationOccupantCheckins(current);
   const promoterId = current ? String(current.promoterId || "") : (hasRole("promoter") ? currentUser.uid : "");
   const promoter = promoterId ? promoterForSale(event.id, promoterId) : null;
@@ -2220,7 +2257,7 @@ async function saveTableReservation(data) {
   const total = Math.round((subtotal + feeSnapshot.buyerFeeAmount) * 100) / 100;
   const financialSnapshot = saleFinancialSnapshot(event, subtotal, current, "manual");
   const promoterSnapshot = promoterFinancialSnapshot(promoter, subtotal, current, "manual");
-  const saleData = { eventId: event.id, reservationType: "table", furnitureId: furniture.id, furnitureKind: furniture.kind, furnitureNumber: furniture.number, mapArea: furniture.area, reservationLabel: label, occupants: names, occupantPricing, occupantCheckins: names.map((_, index) => Boolean(previousCheckins[index])), ticketTypeId: `chair:${furniture.area}`, ticketTypeName: `Cadeira — ${mapAreaLabel(furniture.area)}`, items, buyerName: names[0], buyerPhone: String(data.buyerPhone || "").trim(), buyerEmail: String(data.buyerEmail || "").trim(), notes: String(data.notes || "").trim(), courtesy: false, paid, paymentMethod, paymentDate, quantity, regularTotal, discountTotal, total, ...feeSnapshot, ...financialSnapshot, ...promoterSnapshot, checkedIn: current?.checkedIn || false, updatedAt: timestamp };
+  const saleData = { eventId: event.id, reservationType: "table", furnitureId: furniture.id, furnitureKind: furniture.kind, furnitureNumber: furniture.number, mapArea: furniture.area, tableSector, reservationLabel: label, occupants: names, occupantPricing, occupantCheckins: names.map((_, index) => Boolean(previousCheckins[index])), ticketTypeId: `chair:${furniture.area}`, ticketTypeName: chairName, items, buyerName: names[0], buyerPhone: String(data.buyerPhone || "").trim(), buyerEmail: String(data.buyerEmail || "").trim(), notes: String(data.notes || "").trim(), courtesy: false, paid, paymentMethod, paymentDate, quantity, regularTotal, discountTotal, total, ...feeSnapshot, ...financialSnapshot, ...promoterSnapshot, checkedIn: current?.checkedIn || false, updatedAt: timestamp };
   let savedReservation;
   if (isDemo) {
     if (current) {
@@ -2761,6 +2798,12 @@ async function saveEvent(data, id = "") {
   const capacity = data.ticketTypes.reduce((sum, item) => sum + Number(item.capacity), 0);
   let eventMode = data.eventMode === "mixed" ? "mixed" : "unit";
   const tableMap = eventMode === "mixed" ? normalizeTableMap(data.tableMap) : { areas: [], furniture: [], layouts: {} };
+  const sectorPricingEnabled = eventMode === "mixed" && (data.tableSectorPricingEnabled === true || data.tableSectorPricingEnabled === "on");
+  if (sectorPricingEnabled && (!tableMap.areas.includes("salao") || !validMapLayout("salao", tableMap.layouts.salao))) throw new Error("Escolha uma grade do Salão antes de ativar os preços por setor.");
+  if (sectorPricingEnabled) {
+    const slots = new Set(presetSlotsFor("salao", tableMap.layouts.salao).map((slot) => slot.id));
+    if (tableMap.furniture.some((item) => item.area === "salao" && item.kind === "table" && !slots.has(item.slotId))) throw new Error("Para cobrar por setor, posicione todas as mesas do Salão na grade selecionada.");
+  }
   if (existingEvent) {
     const localOccupied = tableOccupanciesFor(id).length > 0;
     let liveOccupied = false;
@@ -2771,8 +2814,16 @@ async function saveEvent(data, id = "") {
     if ((localOccupied || liveOccupied) && mapStructureSignature(tableMap, eventMode) !== mapStructureSignature(existingEvent.tableMap, existingEvent.eventMode)) {
       throw new Error("O mapa não pode ser alterado enquanto houver reserva ou ocupação sem venda. Exclua todas para liberar a edição.");
     }
+    if ((localOccupied || liveOccupied) && sectorPricingEnabled !== (existingEvent.tableSectorPricing?.enabled === true)) {
+      throw new Error("A ativação dos setores não pode mudar enquanto houver reserva ou ocupação sem venda. Os valores podem ser atualizados para futuras cadeiras.");
+    }
   }
   const chairPrice = eventMode === "mixed" ? Math.max(0, Number(data.chairPrice || 0)) : 0;
+  const sectorPrice = (value, label) => {
+    if (value === "" || value === undefined || !Number.isFinite(Number(value)) || Number(value) < 0 || Number(value) > 999999) throw new Error(`Informe um valor válido por cadeira para ${label}.`);
+    return Math.round(Number(value) * 100) / 100;
+  };
+  const tableSectorPricing = sectorPricingEnabled ? { enabled:true, goldPrice:sectorPrice(data.tableGoldChairPrice, "Mesa Ouro"), silverPrice:sectorPrice(data.tableSilverChairPrice, "Mesa Prata") } : { enabled:false, goldPrice:0, silverPrice:0 };
   if (eventMode === "mixed" && !tableMap.areas.length) throw new Error("Selecione Salão, Mezanino ou ambos.");
   if (eventMode === "mixed" && !tableMap.furniture.length) throw new Error("Adicione pelo menos uma mesa ou bistrô ao mapa.");
   const ticketDesign = existingEvent ? eventTicketDesign(existingEvent) : normalizeTicketDesign(DEFAULT_TICKET_DESIGN);
@@ -2781,7 +2832,7 @@ async function saveEvent(data, id = "") {
   const manualBuyerFeeMode = normalizeBuyerFeeMode(data.manualBuyerFeeMode);
   const manualBuyerFeeValue = Math.max(0, Number(data.manualBuyerFeeValue || 0));
   if (manualBuyerFeeMode === "percent" && manualBuyerFeeValue > 100) throw new Error("A taxa manual em porcentagem não pode ultrapassar 100%.");
-  const eventData = { name: data.name.trim(), date:data.date, time:String(data.time).slice(0, 5), place: data.place.trim(), eventMode, chairPrice, tableMap, capacity, ticketTypes: data.ticketTypes, packages: data.packages || [], ticketDesign, ...submittedFinancialRules, manualBuyerFeeMode, manualBuyerFeeValue, manualBuyerFeeDefault:data.manualBuyerFeeDefault === "on", updatedAt: Date.now() };
+  const eventData = { name: data.name.trim(), date:data.date, time:String(data.time).slice(0, 5), place: data.place.trim(), eventMode, chairPrice, tableSectorPricing, tableMap, capacity, ticketTypes: data.ticketTypes, packages: data.packages || [], ticketDesign, ...submittedFinancialRules, manualBuyerFeeMode, manualBuyerFeeValue, manualBuyerFeeDefault:data.manualBuyerFeeDefault === "on", updatedAt: Date.now() };
   if (isDemo) { if (id) state.events = state.events.map((item) => item.id === id ? { ...item, ...eventData } : item); else { rememberSelectedEvent(crypto.randomUUID()); state.events.push({ id: selectedEventId, ...eventData, createdAt: Date.now() }); } persistDemo(); render(); }
   else if (id) await update(ref(db, `events/${id}`), eventData); else { const eventRef = push(ref(db, "events")); rememberSelectedEvent(eventRef.key); await set(eventRef, { ...eventData, createdAt: Date.now() }); }
   const preservationNote = [preservedSoldInventory ? "ingressos vendidos" : ""].filter(Boolean).join(" e ");
@@ -3060,8 +3111,41 @@ function syncSalePaymentFields(useToday = false) {
   else if (useToday && !date.value) date.value = todayInputValue();
 }
 
-function openNewEvent() { if (!requireRole(["admin"], "Somente administradores podem criar eventos.")) return; const form = $("eventForm"); form.reset(); form.dataset.editId = ""; form.elements.eventMode.value = "unit"; form.elements.chairPrice.value = ""; syncEventFinancialSettings(); syncEventManualFeeSettings(); resetEventMapDraft(); syncEventMapSettings(); $("eventModalTitle").textContent = "Novo evento"; $("eventSubmitButton").textContent = "Criar evento"; resetPackages(); resetTicketTypes(); $("eventModal").showModal(); }
-function openEditEvent(id) { if (!requireRole(["admin", "event_manager"], "Somente administradores e gerentes podem editar eventos.")) return; if (!canAdministerEvent(id)) return toast("Você não administra este evento."); const item = state.events.find((event) => event.id === id); if (!item) return; const form = $("eventForm"); form.reset(); form.dataset.editId = id; form.elements.name.value = item.name || ""; form.elements.date.value = item.date || ""; form.elements.time.value = eventTimeText(item); form.elements.place.value = item.place || ""; form.elements.eventMode.value = item.eventMode === "mixed" ? "mixed" : "unit"; form.elements.chairPrice.value = Number(item.chairPrice || 0); syncEventFinancialSettings(item); syncEventManualFeeSettings(item); resetEventMapDraft(item); syncEventMapSettings(); resetPackages(); $("ticketTypesList").innerHTML = ""; ticketTypesFor(item).forEach((type) => addTicketTypeRow(type.name, type.price, type.capacity, type.id)); packagesFor(item).forEach((packageItem) => addPackageRow(packageItem)); renderPackagesEmptyState(); $("eventModalTitle").textContent = "Editar evento"; $("eventSubmitButton").textContent = "Salvar alterações"; $("eventModal").showModal(); }
+function openNewEvent() {
+  if (!requireRole(["admin"], "Somente administradores podem criar eventos.")) return;
+  const form = $("eventForm");
+  form.reset(); form.dataset.editId = "";
+  form.elements.eventMode.value = "unit";
+  form.elements.chairPrice.value = "";
+  syncEventFinancialSettings(); syncEventManualFeeSettings(); resetEventMapDraft(); syncEventMapSettings();
+  $("eventModalTitle").textContent = "Novo evento"; $("eventSubmitButton").textContent = "Criar evento";
+  resetPackages(); resetTicketTypes(); $("eventModal").showModal();
+}
+function openEditEvent(id) {
+  if (!requireRole(["admin", "event_manager"], "Somente administradores e gerentes podem editar eventos.")) return;
+  if (!canAdministerEvent(id)) return toast("Você não administra este evento.");
+  const item = state.events.find((event) => event.id === id);
+  if (!item) return;
+  const form = $("eventForm");
+  const sectorPricing = normalizeTableSectorPricing(item.tableSectorPricing);
+  form.reset(); form.dataset.editId = id;
+  form.elements.name.value = item.name || "";
+  form.elements.date.value = item.date || "";
+  form.elements.time.value = eventTimeText(item);
+  form.elements.place.value = item.place || "";
+  form.elements.eventMode.value = item.eventMode === "mixed" ? "mixed" : "unit";
+  form.elements.chairPrice.value = Number(item.chairPrice || 0);
+  form.elements.tableSectorPricingEnabled.checked = sectorPricing.enabled;
+  form.elements.tableGoldChairPrice.value = sectorPricing.enabled ? sectorPricing.goldPrice : "";
+  form.elements.tableSilverChairPrice.value = sectorPricing.enabled ? sectorPricing.silverPrice : "";
+  syncEventFinancialSettings(item); syncEventManualFeeSettings(item); resetEventMapDraft(item); syncEventMapSettings();
+  resetPackages(); $("ticketTypesList").innerHTML = "";
+  ticketTypesFor(item).forEach((type) => addTicketTypeRow(type.name, type.price, type.capacity, type.id));
+  packagesFor(item).forEach((packageItem) => addPackageRow(packageItem));
+  renderPackagesEmptyState();
+  $("eventModalTitle").textContent = "Editar evento"; $("eventSubmitButton").textContent = "Salvar alterações";
+  $("eventModal").showModal();
+}
 function openNewSale(eventId = "") { if (!requireRole(["admin", "event_manager", "seller"])) return; if (!state.events.length) return toast("Cadastre um evento antes de registrar uma venda."); const form = $("saleForm"); form.reset(); form.dataset.editId = ""; $("saleGuestNamesList").innerHTML = ""; $("saleModalTitle").textContent = "Registrar ingressos"; $("saleSubmitButton").textContent = "Confirmar venda"; $("saleEvent").value = eventId; const event = state.events.find((item) => item.id === eventId); form.elements.applyBuyerFee.checked = Boolean(event?.manualBuyerFeeDefault); setSaleTicketItems(eventId); syncSalePaymentFields(true); setWizardStep(form, 1); $("saleModal").showModal(); }
 function openEditSale(id) { if (!requireRole(["admin", "event_manager", "seller"])) return; const sale = state.sales.find((item) => item.id === id); if (!sale) return; if (sale.channel === "online") return toast("Os dados financeiros da venda online são protegidos e não podem ser editados manualmente."); if ($("allSalesModal").open) $("allSalesModal").close(); const form = $("saleForm"); form.reset(); form.dataset.editId = id; $("saleGuestNamesList").innerHTML = ""; $("saleEvent").value = sale.eventId; form.elements.buyerName.value = sale.buyerName || ""; form.elements.applyBuyerFee.checked = Boolean(sale.applyBuyerFee); setSaleTicketItems(sale.eventId, saleItems(sale)); syncSaleGuestNames(Array.isArray(sale.participantNames) ? sale.participantNames : null); form.elements.buyerPhone.value = sale.buyerPhone || ""; form.elements.buyerEmail.value = sale.buyerEmail || ""; form.elements.paymentStatus.value = sale.paid ? "paid" : "pending"; form.elements.paymentMethod.value = sale.paymentMethod || ""; form.elements.paymentDate.value = sale.paymentDate || ""; form.elements.notes.value = sale.notes || ""; syncSalePaymentFields(false); $("saleModalTitle").textContent = "Editar participante e ingressos"; $("saleSubmitButton").textContent = "Salvar alterações"; setWizardStep(form, 1); $("saleModal").showModal(); }
 
@@ -3158,6 +3242,7 @@ $("openAllTableReservations").addEventListener("click", () => $("allTableReserva
 document.querySelectorAll("[data-clear-participant-filters]").forEach((button) => button.addEventListener("click", () => { resetParticipantFilters(); document.querySelector(".ticket-filter").open = false; render(); $("participantSearch").focus(); }));
 $("eventsList").addEventListener("click", (event) => { if (event.target.closest("[data-select-event]")) resetParticipantFilters(); });
 $("eventMode").addEventListener("change", syncEventMapSettings);
+$("tableSectorPricingEnabled").addEventListener("change", () => { syncTableSectorPricingSettings(); renderMapEditor(); });
 document.querySelectorAll('#eventForm [name="mapArea"]').forEach((input) => input.addEventListener("change", () => {
   if (mapEditingLocked()) { input.checked = eventMapDraft.areas.includes(input.value); return toast("O mapa fica bloqueado enquanto houver reserva ou ocupação sem venda."); }
   if (input.checked) {
@@ -3172,6 +3257,7 @@ document.querySelectorAll('#eventForm [name="mapArea"]').forEach((input) => inpu
     delete eventMapDraft.layouts[input.value];
     if (activeMapEditorArea === input.value) activeMapEditorArea = eventMapDraft.areas[0] || "";
   }
+  syncTableSectorPricingSettings();
   renderMapEditor();
 }));
 document.querySelectorAll("[data-map-tool]").forEach((button) => button.addEventListener("click", () => { if (mapEditingLocked()) return; activeMapTool = activeMapTool === button.dataset.mapTool ? "" : button.dataset.mapTool; renderMapEditor(); }));
@@ -3231,7 +3317,7 @@ $("tableReservationForm").addEventListener("change", () => { if (wizardStep($("t
 $("deleteTableReservation").addEventListener("click", async () => { const id = $("tableReservationForm").elements.saleId.value; if (!id) return; if (await deleteSale(id)) $("tableReservationModal").close(); });
 $("occupyTableWithoutSale").addEventListener("click", occupyTableWithoutSale);
 $("releaseTableOccupancy").addEventListener("click", releaseTableOccupancy);
-$("eventForm").addEventListener("submit", async (event) => { event.preventDefault(); const form = event.currentTarget; try { const data = Object.fromEntries(new FormData(form)); data.eventMode = form.elements.eventMode.value; data.ticketTypes = getTicketTypes(); if (!data.ticketTypes.length) throw new Error("Informe ao menos um tipo ou lote com valor e quantidade."); data.packages = getPackages(data.ticketTypes); data.tableMap = { areas: [...eventMapDraft.areas], furniture: eventMapDraft.furniture.map((item) => ({ ...item })), layouts: { ...eventMapDraft.layouts } }; await saveEvent(data, form.dataset.editId); form.reset(); form.dataset.editId = ""; resetPackages(); resetTicketTypes(); resetEventMapDraft(); $("eventModal").close(); } catch (error) { toast(error.message); } });
+$("eventForm").addEventListener("submit", async (event) => { event.preventDefault(); const form = event.currentTarget; try { const data = Object.fromEntries(new FormData(form)); data.eventMode = form.elements.eventMode.value; data.tableSectorPricingEnabled = form.elements.tableSectorPricingEnabled.checked; data.ticketTypes = getTicketTypes(); if (!data.ticketTypes.length) throw new Error("Informe ao menos um tipo ou lote com valor e quantidade."); data.packages = getPackages(data.ticketTypes); data.tableMap = { areas: [...eventMapDraft.areas], furniture: eventMapDraft.furniture.map((item) => ({ ...item })), layouts: { ...eventMapDraft.layouts } }; await saveEvent(data, form.dataset.editId); form.reset(); form.dataset.editId = ""; resetPackages(); resetTicketTypes(); resetEventMapDraft(); $("eventModal").close(); } catch (error) { toast(error.message); } });
 $("saleForm").addEventListener("submit", async (event) => { event.preventDefault(); const form = event.currentTarget; try { const data = Object.fromEntries(new FormData(form)); if (form.dataset.editId) preserveSaleDetails(form.dataset.editId); data.items = getSaleTicketItems(); await saveSale(data, form.dataset.editId); form.reset(); $("saleTicketItemsList").innerHTML = ""; $("saleModal").close(); } catch (error) { toast(error.message); } });
 $("tableReservationForm").addEventListener("submit", async (event) => { event.preventDefault(); const form = event.currentTarget; if (wizardStep(form) !== 3) return; try { const data = Object.fromEntries(new FormData(form)); if (data.saleId) preserveSaleDetails(data.saleId); const sale = await saveTableReservation(data); form.elements.saleId.value = sale.id; $("deleteTableReservation").hidden = false; $("occupyTableWithoutSale").hidden = true; renderTableWizardTicketStep(sale); setWizardStep(form, 4); } catch (error) { toast(error.message); } });
 $("finishTableReservation").addEventListener("click", () => { $("tableReservationForm").reset(); $("tableOccupantsList").innerHTML = ""; $("tableReservationModal").close(); });

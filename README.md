@@ -1,5 +1,13 @@
 # Le Beef — painel de vendas de ingressos
 
+## Versão 6.2.0 — preços por setor nas mesas do Salão
+
+- A criação do evento oferece uma opção desligada por padrão para cobrar valores por cadeira nas mesas Ouro e Prata. Mesas comuns, bistrôs e Mezanino mantêm o valor normal.
+- As faixas Ouro e Prata seguem as posições físicas indicadas nas quatro grades do Salão (6x4, 6x5, 7x5 e 8x5). Somente o editor destaca os pontos; o mapa final continua com o fundo limpo.
+- Os preços podem mudar para reservas futuras. Cada cadeira já reservada guarda seu valor original; uma cadeira adicionada posteriormente usa o valor vigente do setor. Descontos e totais são calculados por cadeira.
+- A ativação ou desativação dos setores, assim como o mapa, fica bloqueada enquanto houver reserva ou ocupação sem venda. A atualização dos valores continua permitida.
+- Eventos antigos continuam sem setores especiais até a opção ser ativada. As regras do Firebase não foram modificadas; nenhum dado existente foi migrado ou apagado.
+
 ## Versão 6.1.1 — correção da exclusão de eventos
 
 - Eventos sem conexão financeira agora podem ser excluídos sem depender da função de limpeza de pagamentos.
