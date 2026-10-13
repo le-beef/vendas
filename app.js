@@ -1929,7 +1929,7 @@ function togglePresetSlot(slotId) {
   } else {
     if (!slot) return;
     const number = Math.max(0, ...eventMapDraft.furniture.map((item) => Number(item.number || 0))) + 1;
-    eventMapDraft.furniture.push({ ...slot, kind: activeMapTool, number });
+    eventMapDraft.furniture.push({ ...slot, slotId: slot.id, kind: activeMapTool, number });
   }
   renderMapEditor();
 }
@@ -2802,7 +2802,7 @@ async function saveEvent(data, id = "") {
   if (sectorPricingEnabled && (!tableMap.areas.includes("salao") || !validMapLayout("salao", tableMap.layouts.salao))) throw new Error("Escolha uma grade do Salão antes de ativar os preços por setor.");
   if (sectorPricingEnabled) {
     const slots = new Set(presetSlotsFor("salao", tableMap.layouts.salao).map((slot) => slot.id));
-    if (tableMap.furniture.some((item) => item.area === "salao" && item.kind === "table" && !slots.has(item.slotId))) throw new Error("Para cobrar por setor, posicione todas as mesas do Salão na grade selecionada.");
+    if (tableMap.furniture.some((item) => item.area === "salao" && item.kind === "table" && !slots.has(item.slotId || item.id))) throw new Error("Para cobrar por setor, posicione todas as mesas do Salão na grade selecionada.");
   }
   if (existingEvent) {
     const localOccupied = tableOccupanciesFor(id).length > 0;

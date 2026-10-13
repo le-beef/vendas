@@ -1,5 +1,10 @@
 # Le Beef — painel de vendas de ingressos
 
+## Versão 6.2.3 — correção da criação de eventos com mesas Ouro
+
+- A validação reconhece tanto as posições novas (`slotId`) quanto as mesas já posicionadas cujo identificador é a própria posição da grade.
+- A criação e a edição de eventos com preço Ouro deixam de rejeitar mesas colocadas corretamente. Não há mudança de layout, preços ou dados existentes.
+
 ## Versão 6.2.2 — somente mesas Ouro têm preço especial
 
 - As duas fileiras da esquerda do Salão continuam sendo Ouro nas quatro grades. Todas as outras mesas usam o valor normal por pessoa/cadeira, sem categoria ou campo de preço Prata.
