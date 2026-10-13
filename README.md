@@ -1,5 +1,10 @@
 # Le Beef — painel de vendas de ingressos
 
+## Versão 6.2.5 — números redondos no mapa
+
+- Os círculos dos números de todas as mesas têm largura e altura iguais, sem se tornarem ovais conforme os dígitos.
+- Mantidos o aro roxo para Ouro e o aro branco para as mesas comuns; nenhuma regra de preço ou reserva mudou.
+
 ## Versão 6.2.4 — aro roxo nas mesas Ouro do mapa de reservas
 
 - Quando o preço especial Ouro está ativado, somente as mesas Ouro exibem aro roxo ao redor do número no mapa de reservas e na visualização ampliada.
