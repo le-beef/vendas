@@ -2948,28 +2948,42 @@ async function deleteEvent(id) {
   const event = state.events.find((item) => item.id === id);
   if (!event || !confirm(`Excluir o evento “${event.name}” e todas as vendas, históricos, conexões e fechamentos dele? Esta ação não pode ser desfeita.`)) return;
   try {
-  const changes = { [`events/${id}`]:null, [`platformSettlements/${id}`]:null, [`promoters/${id}`]:null };
-  for (const sale of state.sales.filter((item) => item.eventId === id)) {
-    changes[`sales/${sale.id}`] = null;
-    if (!isDemo) {
-      const sharePath = await ticketSharePath(sale, event);
-      if (sharePath) changes[sharePath] = null;
+    if (isDemo) {
+      state.events = state.events.filter((item) => item.id !== id);
+      state.sales = state.sales.filter((sale) => sale.eventId !== id);
+      state.platformSettlements = state.platformSettlements.filter((settlement) => settlement.eventId !== id);
+      state.auditLogs = state.auditLogs.filter((log) => log.eventId !== id);
+      persistDemo(); render();
+    } else {
+      const [salesSnapshot, auditSnapshot, promotersSnapshot, settlementsSnapshot, connectionSnapshot] = await Promise.all([
+        get(query(ref(db, "sales"), orderByChild("eventId"), equalTo(id))),
+        get(query(ref(db, "auditLogs"), orderByChild("eventId"), equalTo(id))),
+        get(ref(db, `promoters/${id}`)),
+        get(ref(db, `platformSettlements/${id}`)),
+        get(ref(db, `paymentConnections/${id}`))
+      ]);
+      const changes = { [`events/${id}`]: null };
+      for (const sale of objectToArray(salesSnapshot.val())) {
+        changes[`sales/${sale.id}`] = null;
+        const sharePath = await ticketSharePath(sale, event);
+        if (sharePath) changes[sharePath] = null;
+      }
+      Object.keys(auditSnapshot.val() || {}).forEach((logId) => { changes[`auditLogs/${logId}`] = null; });
+      Object.keys(promotersSnapshot.val() || {}).forEach((uid) => { changes[`promoters/${id}/${uid}`] = null; });
+      Object.keys(settlementsSnapshot.val() || {}).forEach((settlementId) => { changes[`platformSettlements/${id}/${settlementId}`] = null; });
+      if (connectionSnapshot.exists()) {
+        const token = await currentUser.getIdToken();
+        let cleanup;
+        try {
+          cleanup = await fetch(`${PAYMENT_API_BASE}/cleanupEventPaymentConnection`, { method:"POST", headers:{ Authorization:`Bearer ${token}`, "Content-Type":"application/json" }, body:JSON.stringify({ eventId:id }) });
+        } catch {
+          throw new Error("Não foi possível acessar a função de limpeza financeira. Publique a função cleanupEventPaymentConnection antes de excluir este evento.");
+        }
+        if (!cleanup.ok) { const result = await cleanup.json().catch(() => ({})); throw new Error(result.error || "Não foi possível remover a conexão financeira do evento."); }
+      }
+      await update(ref(db), changes);
     }
-  }
-  state.auditLogs.filter((log) => log.eventId === id).forEach((log) => { changes[`auditLogs/${log.id}`] = null; });
-  if (isDemo) {
-    state.events = state.events.filter((item) => item.id !== id);
-    state.sales = state.sales.filter((sale) => sale.eventId !== id);
-    state.platformSettlements = state.platformSettlements.filter((settlement) => settlement.eventId !== id);
-    state.auditLogs = state.auditLogs.filter((log) => log.eventId !== id);
-    persistDemo(); render();
-  } else {
-    const token = await currentUser.getIdToken();
-    const cleanup = await fetch(`${PAYMENT_API_BASE}/cleanupEventPaymentConnection`, { method:"POST", headers:{ Authorization:`Bearer ${token}`, "Content-Type":"application/json" }, body:JSON.stringify({ eventId:id }) });
-    if (!cleanup.ok) { const result = await cleanup.json().catch(() => ({})); throw new Error(result.error || "Não foi possível remover a conexão financeira do evento."); }
-    await update(ref(db), changes);
-  }
-  toast("Evento e registros vinculados excluídos.");
+    toast("Evento e registros vinculados excluídos.");
   } catch (error) { toast(error.message || "Não foi possível excluir o evento."); }
 }
 function toast(message) { const el = $("toast"); el.textContent = message; el.classList.add("visible"); setTimeout(() => el.classList.remove("visible"), 5000); }

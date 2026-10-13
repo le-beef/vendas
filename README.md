@@ -1,5 +1,12 @@
 # Le Beef — painel de vendas de ingressos
 
+## Versão 6.1.1 — correção da exclusão de eventos
+
+- Eventos sem conexão financeira agora podem ser excluídos sem depender da função de limpeza de pagamentos.
+- Promoters e fechamentos são removidos por registro, nos caminhos permitidos pelas regras atuais do Realtime Database; vendas e históricos são consultados novamente antes da exclusão.
+- Eventos com conexão financeira continuam exigindo a função `cleanupEventPaymentConnection` publicada, para não deixar dados financeiros órfãos. Se ela estiver indisponível, a exclusão é interrompida com uma mensagem específica.
+- Nenhuma regra do Firebase, dado existente ou layout foi alterado nesta versão. A exclusão real não foi executada durante a preparação do pacote.
+
 ## Versão 6.1.0 — grades de montagem do mapa
 
 - O salão oferece exatamente as grades 6x4, 6x5, 7x5 e 8x5 enviadas; o mezanino usa a nova grade de 13 posições. Cada posição continua opcional e pode ser ativada como mesa ou bistrô.
