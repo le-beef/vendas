@@ -1,5 +1,10 @@
 # Le Beef — painel de vendas de ingressos
 
+## Versão 6.2.6 — círculos do Mezanino
+
+- O Mezanino aplica uma medida quadrada explícita aos círculos dos números no mapa normal, no ampliado e no editor, inclusive quando os números têm dois dígitos.
+- O arquivo de estilo e o cache do aplicativo foram atualizados para carregar a correção após a publicação. Não há alteração em dados, preços ou reservas.
+
 ## Versão 6.2.5 — números redondos no mapa
 
 - Os círculos dos números de todas as mesas têm largura e altura iguais, sem se tornarem ovais conforme os dígitos.

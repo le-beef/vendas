@@ -47,5 +47,6 @@
 .map-sector-key i{width:9px;height:9px;border-radius:50%;background:#7e22ce}
 .table-map-editor .map-preset-slot.sector-gold{outline:2px solid #7e22ce;outline-offset:1px}
 .map-furniture-number{width:25px;min-width:25px;max-width:25px;height:25px;padding:0;border-radius:50%}
+.table-map-stage[data-area="mezanino"] .map-furniture-number{box-sizing:border-box;inline-size:25px;block-size:25px;min-inline-size:25px;max-inline-size:25px;min-block-size:25px;max-block-size:25px;aspect-ratio:1;padding:0;border-radius:50%}
 .table-map-viewer .map-furniture.sector-gold .map-furniture-number,.table-map-zoom-viewer .map-furniture.sector-gold .map-furniture-number{border:3px solid #8b00d0}
 @media(max-width:520px){.table-sector-price-fields{grid-template-columns:1fr}.map-sector-key{flex-basis:100%;margin-left:0}}
