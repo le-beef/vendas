@@ -2060,23 +2060,24 @@ async function buildClientMapImage(event, eventSales, areaMode = activeClientMap
   });
   const selectedFurniture = sectionData.flatMap((section) => section.furniture);
   const prices = tableMapPriceCategories(event, selectedFurniture);
-  const priceRows = Math.max(1, Math.ceil(prices.length / 3));
-  const headerHeight = 270; const sectionExtra = 200; const legendHeight = 150; const pricesHeight = 70 + priceRows * 155; const footerHeight = 150;
+  const priceColumns = Math.min(3, Math.max(1, prices.length));
+  const priceRows = Math.max(1, Math.ceil(prices.length / priceColumns));
+  const headerHeight = 365; const sectionExtra = 210; const legendHeight = 205; const pricesHeight = 90 + priceRows * 195; const footerHeight = 230;
   const height = headerHeight + sectionData.reduce((sum, section) => sum + section.mapHeight + sectionExtra, 0) + legendHeight + pricesHeight + footerHeight;
   const canvas = document.createElement("canvas");
   canvas.width = width; canvas.height = height;
   const ctx = canvas.getContext("2d");
   ctx.fillStyle = "#f3f6fb"; ctx.fillRect(0, 0, width, height);
-  ctx.fillStyle = "#17345b"; ctx.fillRect(0, 0, width, headerHeight - 20);
+  ctx.fillStyle = "#17345b"; ctx.fillRect(0, 0, width, headerHeight);
   if (logo) {
-    const logoWidth = 245; const logoHeight = Math.min(115, logoWidth * logo.naturalHeight / logo.naturalWidth);
-    ctx.drawImage(logo, padding, 54, logoWidth, logoHeight);
+    const logoWidth = 300; const logoHeight = Math.min(145, logoWidth * logo.naturalHeight / logo.naturalWidth);
+    ctx.drawImage(logo, padding, 61, logoWidth, logoHeight);
   }
-  ctx.fillStyle = "#93c5fd"; ctx.font = "700 22px Arial"; ctx.fillText("DISPONIBILIDADE DE MESAS", 355, 61);
-  ctx.fillStyle = "#ffffff"; ctx.font = "700 42px Arial"; clientMapDrawWrappedText(ctx, event?.name || "Evento", 355, 112, 785, 48, 2);
-  ctx.fillStyle = "#dbeafe"; ctx.font = "500 24px Arial";
+  ctx.fillStyle = "#93c5fd"; ctx.font = "700 28px Arial"; ctx.fillText("DISPONIBILIDADE DE MESAS", 405, 70);
+  ctx.fillStyle = "#ffffff"; ctx.font = "700 56px Arial"; clientMapDrawWrappedText(ctx, event?.name || "Evento", 405, 135, 735, 62, 2);
+  ctx.fillStyle = "#dbeafe"; ctx.font = "600 30px Arial"; ctx.textAlign = "center";
   const eventMeta = `${eventDateTimeText(event)}${event?.place ? `  •  ${event.place}` : ""}`;
-  clientMapDrawWrappedText(ctx, eventMeta, 355, 211, 785, 30, 2);
+  clientMapDrawWrappedText(ctx, eventMeta, width / 2, 305, mapWidth, 35, 2); ctx.textAlign = "left";
 
   const occupiedSales = eventSales.filter((sale) => isTableReservation(sale) || isTableBlock(sale));
   let y = headerHeight;
@@ -2090,39 +2091,40 @@ async function buildClientMapImage(event, eventSales, areaMode = activeClientMap
       const itemWidth = mapWidth * item.width / 100; const itemHeight = section.mapHeight * item.height / 100;
       const centerX = padding + mapWidth * item.x / 100; const centerY = mapY + section.mapHeight * item.y / 100;
       const icon = item.kind === "bistro" ? bistroIcon : tableIcon;
-      if (icon) ctx.drawImage(icon, centerX - itemWidth / 2, centerY - itemHeight / 2, itemWidth, itemHeight);
+      const iconWidth = itemWidth * 1.22; const iconHeight = itemHeight * 1.22;
+      if (icon) ctx.drawImage(icon, centerX - iconWidth / 2, centerY - iconHeight / 2, iconWidth, iconHeight);
       const occupied = occupiedSales.some((sale) => sale.furnitureId === item.id);
-      const radius = Math.max(20, Math.min(31, Math.min(itemWidth, itemHeight) * .29));
+      const radius = Math.max(32, Math.min(37, Math.min(itemWidth, itemHeight) * .48));
       ctx.beginPath(); ctx.arc(centerX, centerY, radius, 0, Math.PI * 2); ctx.fillStyle = occupied ? "#dc2626" : "#16a34a"; ctx.fill();
-      ctx.lineWidth = 7; ctx.strokeStyle = chairSectorFor(event, item) === "gold" ? "#8b00d0" : "#ffffff"; ctx.stroke();
-      ctx.fillStyle = "#ffffff"; ctx.font = `800 ${Math.round(radius * .88)}px Arial`; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText(String(item.number).padStart(2, "0"), centerX, centerY + 1); ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
+      ctx.lineWidth = 8; ctx.strokeStyle = chairSectorFor(event, item) === "gold" ? "#8b00d0" : "#ffffff"; ctx.stroke();
+      ctx.fillStyle = "#ffffff"; ctx.font = `900 ${Math.round(radius * .98)}px Arial`; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.shadowColor = "#0f172a99"; ctx.shadowBlur = 2; ctx.fillText(String(item.number).padStart(2, "0"), centerX, centerY + 1); ctx.shadowColor = "transparent"; ctx.shadowBlur = 0; ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
     }
     const occupied = section.furniture.filter((item) => occupiedSales.some((sale) => sale.furnitureId === item.id)).length;
     const free = Math.max(0, section.furniture.length - occupied);
     y = mapY + section.mapHeight + 32;
     ctx.fillStyle = "#ffffff"; clientMapRoundedRect(ctx, padding, y, mapWidth, 82, 18); ctx.fill();
-    ctx.fillStyle = "#16a34a"; ctx.beginPath(); ctx.arc(padding + 36, y + 41, 12, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = "#17345b"; ctx.font = "700 25px Arial"; ctx.fillText(`${free} livres`, padding + 60, y + 50);
-    ctx.fillStyle = "#dc2626"; ctx.beginPath(); ctx.arc(padding + 245, y + 41, 12, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = "#17345b"; ctx.fillText(`${occupied} ${occupied === 1 ? "ocupada" : "ocupadas"}`, padding + 269, y + 50);
+    ctx.fillStyle = "#16a34a"; ctx.beginPath(); ctx.arc(padding + 38, y + 41, 15, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = "#17345b"; ctx.font = "700 29px Arial"; ctx.fillText(`${free} livres`, padding + 69, y + 51);
+    ctx.fillStyle = "#dc2626"; ctx.beginPath(); ctx.arc(padding + 285, y + 41, 15, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = "#17345b"; ctx.fillText(`${occupied} ${occupied === 1 ? "ocupada" : "ocupadas"}`, padding + 316, y + 51);
     y += 135;
   }
 
-  ctx.fillStyle = "#17345b"; ctx.font = "700 27px Arial"; ctx.fillText("LEGENDA", padding, y + 30);
+  ctx.fillStyle = "#17345b"; ctx.font = "700 34px Arial"; ctx.fillText("LEGENDA", padding, y + 38);
   const legend = [["#16a34a", "#ffffff", "Livre"], ["#dc2626", "#ffffff", "Ocupada"], ["#64748b", "#8b00d0", "Aro roxo: Mesa Ouro"], ["#64748b", "#ffffff", "Aro branco: comum / bistrô"]];
-  legend.forEach(([fill, stroke, label], index) => { const x = padding + (index % 2) * 540; const ly = y + 76 + Math.floor(index / 2) * 48; ctx.beginPath(); ctx.arc(x + 14, ly - 7, 13, 0, Math.PI * 2); ctx.fillStyle = fill; ctx.fill(); ctx.lineWidth = 5; ctx.strokeStyle = stroke; ctx.stroke(); ctx.fillStyle = "#334155"; ctx.font = "600 21px Arial"; ctx.fillText(label, x + 42, ly); });
+  legend.forEach(([fill, stroke, label], index) => { const x = padding + (index % 2) * 540; const ly = y + 98 + Math.floor(index / 2) * 64; ctx.beginPath(); ctx.arc(x + 18, ly - 8, 17, 0, Math.PI * 2); ctx.fillStyle = fill; ctx.fill(); ctx.lineWidth = 6; ctx.strokeStyle = stroke; ctx.stroke(); ctx.fillStyle = "#334155"; ctx.font = "600 26px Arial"; ctx.fillText(label, x + 54, ly); });
   y += legendHeight;
-  ctx.fillStyle = "#17345b"; ctx.font = "700 27px Arial"; ctx.fillText("VALORES VIGENTES", padding, y + 31);
+  ctx.fillStyle = "#17345b"; ctx.font = "700 34px Arial"; ctx.fillText("VALORES VIGENTES", padding, y + 39);
   prices.forEach((price, index) => {
-    const column = index % 3; const row = Math.floor(index / 3); const cardWidth = 340; const cardX = padding + column * 370; const cardY = y + 58 + row * 155;
-    ctx.fillStyle = price.extraClass ? "#faf5ff" : "#ffffff"; clientMapRoundedRect(ctx, cardX, cardY, cardWidth, 125, 17); ctx.fill(); ctx.lineWidth = 3; ctx.strokeStyle = price.extraClass ? "#d8b4fe" : "#dbeafe"; ctx.stroke();
-    ctx.fillStyle = price.extraClass ? "#7e22ce" : "#17345b"; ctx.font = "700 23px Arial"; ctx.fillText(price.label, cardX + 19, cardY + 34);
-    ctx.fillStyle = "#334155"; ctx.font = "600 20px Arial"; ctx.fillText(`${money.format(price.unit)} por pessoa`, cardX + 19, cardY + 70);
-    ctx.fillStyle = "#64748b"; ctx.font = "500 18px Arial"; ctx.fillText(`${price.kind === "mesa" ? "Mesa" : "Bistrô"} completo (${price.places}): ${money.format(price.full)}`, cardX + 19, cardY + 101);
+    const cardGap = 24; const column = index % priceColumns; const row = Math.floor(index / priceColumns); const cardWidth = (mapWidth - cardGap * (priceColumns - 1)) / priceColumns; const cardX = padding + column * (cardWidth + cardGap); const cardY = y + 69 + row * 195;
+    ctx.fillStyle = price.extraClass ? "#faf5ff" : "#ffffff"; clientMapRoundedRect(ctx, cardX, cardY, cardWidth, 168, 19); ctx.fill(); ctx.lineWidth = 4; ctx.strokeStyle = price.extraClass ? "#d8b4fe" : "#dbeafe"; ctx.stroke();
+    ctx.fillStyle = price.extraClass ? "#7e22ce" : "#17345b"; ctx.font = "700 30px Arial"; ctx.fillText(price.label, cardX + 25, cardY + 43);
+    ctx.fillStyle = "#334155"; ctx.font = "700 27px Arial"; ctx.fillText(`${money.format(price.unit)} por pessoa`, cardX + 25, cardY + 91);
+    ctx.fillStyle = "#64748b"; ctx.font = "600 24px Arial"; ctx.fillText(`${price.kind === "mesa" ? "Mesa completa" : "Bistrô completo"} (${price.places}): ${money.format(price.full)}`, cardX + 25, cardY + 135);
   });
   y += pricesHeight;
   const generatedAt = new Intl.DateTimeFormat("pt-BR", { dateStyle:"short", timeStyle:"short" }).format(new Date());
-  ctx.fillStyle = "#e2e8f0"; ctx.fillRect(padding, y + 4, mapWidth, 2);
-  ctx.fillStyle = "#475569"; ctx.font = "600 19px Arial"; ctx.fillText(`Atualizado em ${generatedAt}`, padding, y + 47);
-  ctx.fillStyle = "#64748b"; ctx.font = "500 18px Arial"; ctx.fillText("Disponibilidade sujeita a alteração. Confirme antes de concluir a reserva.", padding, y + 83);
+  ctx.fillStyle = "#cbd5e1"; ctx.fillRect(padding, y + 9, mapWidth, 3);
+  ctx.fillStyle = "#334155"; ctx.font = "700 31px Arial"; ctx.fillText(`Mapa atualizado em ${generatedAt}`, padding, y + 70);
+  ctx.fillStyle = "#475569"; ctx.font = "600 28px Arial"; clientMapDrawWrappedText(ctx, "Disponibilidade sujeita a alteração. Confirme antes de concluir a reserva.", padding, y + 126, mapWidth, 36, 2);
   const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png", .95));
   if (!blob) throw new Error("Não foi possível gerar a imagem do mapa.");
   return { canvas, file:new File([blob], clientMapFilename(event, areaMode), { type:"image/png" }) };

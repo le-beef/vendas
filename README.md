@@ -1,5 +1,12 @@
 # Le Beef — painel de vendas de ingressos
 
+## Versão 6.3.1 — textos maiores no mapa para o cliente
+
+- O cabeçalho do PNG aproveita melhor a largura, com logotipo, nome do evento, data, horário e local maiores.
+- A legenda e os valores ficaram maiores; quando existem apenas duas categorias, os dois cartões dividem toda a largura disponível.
+- O horário de geração e o aviso de disponibilidade no rodapé ficaram maiores e mais fáceis de ler no celular.
+- As mesas, os bistrôs, os círculos de situação e os números ficaram maiores no Salão e no Mezanino, mantendo separação mesmo nas grades cheias.
+
 ## Versão 6.3.0 — mapa de disponibilidade para o cliente
 
 - A lupa do mapa agora abre uma prévia própria para o cliente, com opção de gerar somente a área atual ou o mapa completo quando Salão e Mezanino estiverem ativos.
