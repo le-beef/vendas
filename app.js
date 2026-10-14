@@ -1964,6 +1964,20 @@ function selectMapLayout(layout) {
   renderMapEditor();
 }
 
+function tableMapPriceLegend(event, furniture) {
+  const gold = furniture.find((item) => item.kind === "table" && chairSectorFor(event, item) === "gold");
+  const common = furniture.find((item) => item.kind === "table" && chairSectorFor(event, item) !== "gold");
+  const bistro = furniture.find((item) => item.kind === "bistro");
+  const categories = [[gold, "Mesa Ouro", 4, "mesa", "is-gold"], [common, "Mesa comum", 4, "mesa", ""], [bistro, "Bistrô", 2, "bistrô", ""]].filter(([item]) => item);
+  if (!categories.length) return "";
+  const prices = categories.map(([item, label, places, kind, extraClass]) => {
+    const unit = chairPriceFor(event, item);
+    const full = Math.round(unit * places * 100) / 100;
+    return `<div class="map-price-item ${extraClass}"><strong>${label}</strong><small>${money.format(unit)} por pessoa</small><small>${kind === "mesa" ? "Mesa completa" : "Bistrô completo"} (${places}): ${money.format(full)}</small></div>`;
+  }).join("");
+  return `<div class="table-map-prices" aria-label="Valores vigentes por pessoa e por mesa ou bistrô completo">${prices}<small class="map-price-note">Valores de referência para novas reservas, antes de descontos.</small></div>`;
+}
+
 function renderTableMapPanel(event, eventSales) {
   const panel = $("tableMapPanel");
   const tableMap = normalizeTableMap(event?.tableMap);
@@ -1981,7 +1995,10 @@ function renderTableMapPanel(event, eventSales) {
   const paid = furniture.filter((item) => reservations.some((sale) => sale.furnitureId === item.id && isTableReservation(sale) && sale.paid)).length;
   const blocked = furniture.filter((item) => reservations.some((sale) => sale.furnitureId === item.id && isTableBlock(sale))).length;
   const reserved = occupied - blocked;
-  $("tableMapSummary").innerHTML = `<span>${furniture.length} móveis</span><span>${reserved} reservados</span><span>${blocked} ocupados sem venda</span><span>${Math.max(0, furniture.length - occupied)} livres</span><span>${paid} pagos</span>`;
+  const tables = furniture.filter((item) => item.kind === "table").length;
+  const bistros = furniture.length - tables;
+  const furnitureCounts = `${tables || !bistros ? `<span>${tables} ${tables === 1 ? "mesa" : "mesas"}</span>` : ""}${bistros ? `<span>${bistros} ${bistros === 1 ? "bistrô" : "bistrôs"}</span>` : ""}`;
+  $("tableMapSummary").innerHTML = `${furnitureCounts}<span>${reserved} reservados</span><span>${blocked} ocupados sem venda</span><span>${Math.max(0, furniture.length - occupied)} livres</span><span>${paid} pagos</span>${tableMapPriceLegend(event, furniture)}`;
   renderMapZoom(event, eventSales);
 }
 

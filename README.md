@@ -1,5 +1,11 @@
 # Le Beef — painel de vendas de ingressos
 
+## Versão 6.2.7 — contagem e preços abaixo do mapa
+
+- O resumo de cada área mostra quantas mesas e bistrôs existem, sem chamar as posições de “móveis”.
+- A legenda mostra o preço vigente por pessoa e o valor de referência de uma mesa completa com 4 lugares ou de um bistrô completo com 2. No Salão, mesas Ouro e comuns aparecem separadas quando existem; no Mezanino, aparecem apenas as categorias presentes.
+- A legenda não muda a cobrança de reservas nem os valores históricos; descontos e taxas continuam calculados no fluxo de reserva.
+
 ## Versão 6.2.6 — círculos do Mezanino
 
 - O Mezanino aplica uma medida quadrada explícita aos círculos dos números no mapa normal, no ampliado e no editor, inclusive quando os números têm dois dígitos.
