@@ -1,5 +1,11 @@
 # Le Beef — painel de vendas de ingressos
 
+## Versão 6.3.2 — cabeçalho horizontal do mapa
+
+- O cabeçalho do PNG segue o modelo solicitado: faixa mais baixa, logotipo centralizado à esquerda e todas as informações centralizadas no bloco da direita.
+- O nome do evento e a linha de data, hora e local se ajustam automaticamente à largura para permanecerem em uma linha sempre que possível.
+- Mesas, números, legenda, valores e rodapé permanecem com o tamanho maior da versão anterior.
+
 ## Versão 6.3.1 — textos maiores no mapa para o cliente
 
 - O cabeçalho do PNG aproveita melhor a largura, com logotipo, nome do evento, data, horário e local maiores.

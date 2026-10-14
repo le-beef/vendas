@@ -2046,6 +2046,12 @@ function clientMapDrawWrappedText(ctx, text, x, y, maxWidth, lineHeight, maxLine
   return lines;
 }
 
+function clientMapFitFont(ctx, text, maxWidth, maximum, minimum, weight = 700) {
+  let size = maximum;
+  do { ctx.font = `${weight} ${size}px Arial`; size -= 1; } while (size >= minimum && ctx.measureText(String(text || "")).width > maxWidth);
+  return Math.max(minimum, size + 1);
+}
+
 async function buildClientMapImage(event, eventSales, areaMode = activeClientMapArea) {
   const tableMap = normalizeTableMap(event?.tableMap);
   const areas = areaMode === "all" ? tableMap.areas : tableMap.areas.filter((area) => area === areaMode);
@@ -2062,7 +2068,7 @@ async function buildClientMapImage(event, eventSales, areaMode = activeClientMap
   const prices = tableMapPriceCategories(event, selectedFurniture);
   const priceColumns = Math.min(3, Math.max(1, prices.length));
   const priceRows = Math.max(1, Math.ceil(prices.length / priceColumns));
-  const headerHeight = 365; const sectionExtra = 210; const legendHeight = 205; const pricesHeight = 90 + priceRows * 195; const footerHeight = 230;
+  const headerHeight = 285; const sectionExtra = 210; const legendHeight = 205; const pricesHeight = 90 + priceRows * 195; const footerHeight = 230;
   const height = headerHeight + sectionData.reduce((sum, section) => sum + section.mapHeight + sectionExtra, 0) + legendHeight + pricesHeight + footerHeight;
   const canvas = document.createElement("canvas");
   canvas.width = width; canvas.height = height;
@@ -2070,14 +2076,18 @@ async function buildClientMapImage(event, eventSales, areaMode = activeClientMap
   ctx.fillStyle = "#f3f6fb"; ctx.fillRect(0, 0, width, height);
   ctx.fillStyle = "#17345b"; ctx.fillRect(0, 0, width, headerHeight);
   if (logo) {
-    const logoWidth = 300; const logoHeight = Math.min(145, logoWidth * logo.naturalHeight / logo.naturalWidth);
-    ctx.drawImage(logo, padding, 61, logoWidth, logoHeight);
+    const logoWidth = 315; const logoHeight = Math.min(145, logoWidth * logo.naturalHeight / logo.naturalWidth);
+    ctx.drawImage(logo, 45, (headerHeight - logoHeight) / 2, logoWidth, logoHeight);
   }
-  ctx.fillStyle = "#93c5fd"; ctx.font = "700 28px Arial"; ctx.fillText("DISPONIBILIDADE DE MESAS", 405, 70);
-  ctx.fillStyle = "#ffffff"; ctx.font = "700 56px Arial"; clientMapDrawWrappedText(ctx, event?.name || "Evento", 405, 135, 735, 62, 2);
-  ctx.fillStyle = "#dbeafe"; ctx.font = "600 30px Arial"; ctx.textAlign = "center";
+  const headerRightCenter = 785; const headerRightWidth = 750;
+  ctx.textAlign = "center";
+  ctx.fillStyle = "#93c5fd"; ctx.font = "700 27px Arial"; ctx.fillText("DISPONIBILIDADE DE MESAS", headerRightCenter, 54);
+  const eventName = event?.name || "Evento";
+  const eventNameSize = clientMapFitFont(ctx, eventName, headerRightWidth, 58, 37, 700);
+  ctx.fillStyle = "#ffffff"; ctx.font = `700 ${eventNameSize}px Arial`; ctx.fillText(eventName, headerRightCenter, 132);
   const eventMeta = `${eventDateTimeText(event)}${event?.place ? `  •  ${event.place}` : ""}`;
-  clientMapDrawWrappedText(ctx, eventMeta, width / 2, 305, mapWidth, 35, 2); ctx.textAlign = "left";
+  const eventMetaSize = clientMapFitFont(ctx, eventMeta, headerRightWidth, 30, 21, 600);
+  ctx.fillStyle = "#dbeafe"; ctx.font = `600 ${eventMetaSize}px Arial`; ctx.fillText(eventMeta, headerRightCenter, 226); ctx.textAlign = "left";
 
   const occupiedSales = eventSales.filter((sale) => isTableReservation(sale) || isTableBlock(sale));
   let y = headerHeight;
