@@ -57,3 +57,15 @@
 .table-map-prices .map-price-note{width:100%;color:#64748b;font-size:9px;text-align:center}
 .table-map-viewer .map-furniture.sector-gold .map-furniture-number,.table-map-zoom-viewer .map-furniture.sector-gold .map-furniture-number{border:3px solid #8b00d0}
 @media(max-width:520px){.table-sector-price-fields{grid-template-columns:1fr}.map-sector-key{flex-basis:100%;margin-left:0}}
+
+.map-share-shell{display:grid;grid-template-rows:auto auto minmax(0,1fr) auto auto;height:100%;background:#f3f6fb}
+.map-share-preview{position:relative;min-height:0;overflow:auto;padding:14px;background:#e8eef6}
+.map-share-preview canvas{display:block;width:min(720px,100%);height:auto;margin:0 auto;border-radius:12px;background:#fff;box-shadow:0 8px 28px #14213d2b}
+.map-share-preview canvas[hidden]{display:none}
+.map-share-generating{display:grid;min-height:260px;place-items:center;color:#475569;font-size:12px;font-weight:700}
+.map-share-generating[hidden]{display:none}
+.map-share-actions{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:9px;padding:11px 14px;background:#fff;border-top:1px solid #dbeafe}
+.map-share-actions .button{width:100%;min-height:43px}
+.map-share-actions .button:disabled{cursor:wait;opacity:.55}
+.map-share-modal .map-zoom-help{background:#fff}
+@media(max-width:700px){.map-share-preview{padding:8px}.map-share-actions{padding:9px}.map-share-modal .map-zoom-tabs{grid-template-columns:repeat(3,minmax(0,1fr))}.map-share-modal .map-zoom-tabs button{padding:6px 4px;font-size:9px}}

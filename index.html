@@ -36,7 +36,7 @@
     <link rel="stylesheet" href="payment-closing.css?v=28" />
     <link rel="stylesheet" href="event-access.css?v=18" />
     <link rel="stylesheet" href="table-map.css?v=16" />
-    <link rel="stylesheet" href="map-layouts.css?v=8" />
+    <link rel="stylesheet" href="map-layouts.css?v=9" />
     <link rel="stylesheet" href="table-reservation-override.css?v=2" />
     <link rel="stylesheet" href="table-reservation-details.css?v=2" />
     <link rel="stylesheet" href="table-reservation-final.css?v=3" />
@@ -145,7 +145,7 @@
         <article id="tableMapPanel" class="panel table-map-panel" hidden>
           <div class="panel-heading table-map-panel-heading"><div><p class="eyebrow">RESERVAS</p><h2>Mapa de mesas</h2><p>Selecione uma mesa ou bistrô para registrar ou consultar os ocupantes.</p></div><div id="tableMapLegend" class="table-map-legend"><span><i class="is-free"></i>Livre</span><span><i class="is-pending"></i>Ocupada</span><span><i class="is-paid"></i>Pago</span></div></div>
           <div id="tableMapAreaTabs" class="map-area-tabs" role="tablist" aria-label="Áreas do evento"></div>
-          <div class="table-map-viewer-shell"><div id="tableMapViewer" class="table-map-stage table-map-viewer" aria-label="Mapa das mesas do evento"></div><button id="openMapZoom" class="map-zoom-button" type="button" aria-label="Ampliar mapa" title="Ampliar mapa"><span aria-hidden="true"></span></button></div>
+          <div class="table-map-viewer-shell"><div id="tableMapViewer" class="table-map-stage table-map-viewer" aria-label="Mapa das mesas do evento"></div><button id="openMapZoom" class="map-zoom-button" type="button" aria-label="Gerar mapa para o cliente" title="Gerar mapa para o cliente"><span aria-hidden="true"></span></button></div>
           <div id="tableMapSummary" class="table-map-summary"></div>
         </article>
 
@@ -271,7 +271,7 @@
       </section>
     </main>
 
-    <footer class="site-footer">Le Beef | Versão: 6.2.7</footer>
+    <footer class="site-footer">Le Beef | Versão: 6.3.0</footer>
 
     <button class="fab" data-open="saleModal" data-roles="admin,event_manager,seller" aria-label="Registrar venda">+</button>
 
@@ -419,12 +419,19 @@
       </div>
     </dialog>
 
-    <dialog id="mapZoomModal" class="map-zoom-modal">
-      <div class="map-zoom-shell">
-        <div class="map-zoom-heading"><div><p class="eyebrow">MAPA AMPLIADO</p><h2 id="mapZoomTitle">Mapa de mesas</h2></div><button class="close" type="button" data-close="mapZoomModal" aria-label="Fechar">×</button></div>
-        <div id="tableMapZoomAreaTabs" class="map-area-tabs map-zoom-tabs" role="tablist" aria-label="Áreas do mapa ampliado"></div>
-        <div id="mapZoomCanvas" class="map-zoom-canvas"><div id="tableMapZoomViewer" class="table-map-stage table-map-zoom-viewer" aria-label="Mapa ampliado das mesas"></div></div>
-        <p class="map-zoom-help">Toque numa mesa ou bistrô para abrir a reserva.</p>
+    <dialog id="mapZoomModal" class="map-zoom-modal map-share-modal">
+      <div class="map-share-shell">
+        <div class="map-zoom-heading"><div><p class="eyebrow">MAPA PARA O CLIENTE</p><h2 id="mapZoomTitle">Disponibilidade de mesas</h2></div><button class="close" type="button" data-close="mapZoomModal" aria-label="Fechar">×</button></div>
+        <div id="tableMapZoomAreaTabs" class="map-area-tabs map-zoom-tabs" role="tablist" aria-label="Área incluída na imagem"></div>
+        <div id="mapSharePreview" class="map-share-preview" aria-live="polite">
+          <canvas id="clientMapCanvas" aria-label="Prévia do mapa de disponibilidade para o cliente"></canvas>
+          <div id="clientMapGenerating" class="map-share-generating">Gerando imagem atualizada…</div>
+        </div>
+        <div class="map-share-actions">
+          <button id="shareClientMap" class="button primary" type="button">Compartilhar imagem</button>
+          <button id="downloadClientMap" class="button secondary" type="button">Baixar imagem</button>
+        </div>
+        <p class="map-zoom-help">A imagem não inclui nomes, telefones nem dados de pagamento. No celular, use “Compartilhar imagem” e escolha o WhatsApp desejado.</p>
       </div>
     </dialog>
 
@@ -529,6 +536,6 @@
     <div id="toast" role="status" aria-live="polite"></div>
     <script src="pwa.js"></script>
     <script src="excel-export.js?v=40"></script>
-    <script type="module" src="app.js?v=130"></script>
+    <script type="module" src="app.js?v=131"></script>
   </body>
 </html>

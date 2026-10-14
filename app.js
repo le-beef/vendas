@@ -38,7 +38,11 @@ let tableReservationViewportAnchor = null;
 let eventMapDraft = { areas: [], furniture: [], layouts: {} };
 let activeMapEditorArea = "";
 let activeMapViewerArea = "";
+let activeClientMapArea = "";
 let activeMapTool = "";
+let clientMapFile = null;
+let clientMapGeneration = 0;
+const clientMapImageCache = new Map();
 let firebaseApp;
 let auth;
 let db;
@@ -1964,15 +1968,20 @@ function selectMapLayout(layout) {
   renderMapEditor();
 }
 
-function tableMapPriceLegend(event, furniture) {
+function tableMapPriceCategories(event, furniture) {
   const gold = furniture.find((item) => item.kind === "table" && chairSectorFor(event, item) === "gold");
   const common = furniture.find((item) => item.kind === "table" && chairSectorFor(event, item) !== "gold");
   const bistro = furniture.find((item) => item.kind === "bistro");
-  const categories = [[gold, "Mesa Ouro", 4, "mesa", "is-gold"], [common, "Mesa comum", 4, "mesa", ""], [bistro, "Bistrô", 2, "bistrô", ""]].filter(([item]) => item);
-  if (!categories.length) return "";
-  const prices = categories.map(([item, label, places, kind, extraClass]) => {
+  return [[gold, "Mesa Ouro", 4, "mesa", "is-gold"], [common, "Mesa comum", 4, "mesa", ""], [bistro, "Bistrô", 2, "bistrô", ""]].filter(([item]) => item).map(([item, label, places, kind, extraClass]) => {
     const unit = chairPriceFor(event, item);
-    const full = Math.round(unit * places * 100) / 100;
+    return { item, label, places, kind, extraClass, unit, full:Math.round(unit * places * 100) / 100 };
+  });
+}
+
+function tableMapPriceLegend(event, furniture) {
+  const categories = tableMapPriceCategories(event, furniture);
+  if (!categories.length) return "";
+  const prices = categories.map(({ label, places, kind, extraClass, unit, full }) => {
     return `<div class="map-price-item ${extraClass}"><strong>${label}</strong><small>${money.format(unit)} por pessoa</small><small>${kind === "mesa" ? "Mesa completa" : "Bistrô completo"} (${places}): ${money.format(full)}</small></div>`;
   }).join("");
   return `<div class="table-map-prices" aria-label="Valores vigentes por pessoa e por mesa ou bistrô completo">${prices}<small class="map-price-note">Valores de referência para novas reservas, antes de descontos.</small></div>`;
@@ -1999,20 +2008,143 @@ function renderTableMapPanel(event, eventSales) {
   const bistros = furniture.length - tables;
   const furnitureCounts = `${tables || !bistros ? `<span>${tables} ${tables === 1 ? "mesa" : "mesas"}</span>` : ""}${bistros ? `<span>${bistros} ${bistros === 1 ? "bistrô" : "bistrôs"}</span>` : ""}`;
   $("tableMapSummary").innerHTML = `${furnitureCounts}<span>${reserved} reservados</span><span>${blocked} ocupados sem venda</span><span>${Math.max(0, furniture.length - occupied)} livres</span><span>${paid} pagos</span>${tableMapPriceLegend(event, furniture)}`;
-  renderMapZoom(event, eventSales);
 }
 
-function renderMapZoom(event, eventSales) {
+function loadClientMapImage(src) {
+  if (!clientMapImageCache.has(src)) clientMapImageCache.set(src, new Promise((resolve) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => resolve(null);
+    image.src = src;
+  }));
+  return clientMapImageCache.get(src);
+}
+
+function clientMapRoundedRect(ctx, x, y, width, height, radius) {
+  const r = Math.min(radius, width / 2, height / 2);
+  ctx.beginPath(); ctx.moveTo(x + r, y); ctx.lineTo(x + width - r, y); ctx.quadraticCurveTo(x + width, y, x + width, y + r); ctx.lineTo(x + width, y + height - r); ctx.quadraticCurveTo(x + width, y + height, x + width - r, y + height); ctx.lineTo(x + r, y + height); ctx.quadraticCurveTo(x, y + height, x, y + height - r); ctx.lineTo(x, y + r); ctx.quadraticCurveTo(x, y, x + r, y); ctx.closePath();
+}
+
+function clientMapSafeName(value) {
+  return String(value || "evento").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 70) || "evento";
+}
+
+function clientMapFilename(event, areaMode = activeClientMapArea) {
+  const area = areaMode === "all" ? "completo" : areaMode || "mapa";
+  return `mapa-disponibilidade-${clientMapSafeName(event?.name)}-${area}.png`;
+}
+
+function clientMapDrawWrappedText(ctx, text, x, y, maxWidth, lineHeight, maxLines = 2) {
+  const words = String(text || "").split(/\s+/).filter(Boolean);
+  let line = ""; let lines = 0;
+  for (const word of words) {
+    const test = line ? `${line} ${word}` : word;
+    if (ctx.measureText(test).width > maxWidth && line) { ctx.fillText(line, x, y + lines * lineHeight); lines += 1; line = word; if (lines >= maxLines) break; }
+    else line = test;
+  }
+  if (line && lines < maxLines) { ctx.fillText(line, x, y + lines * lineHeight); lines += 1; }
+  return lines;
+}
+
+async function buildClientMapImage(event, eventSales, areaMode = activeClientMapArea) {
+  const tableMap = normalizeTableMap(event?.tableMap);
+  const areas = areaMode === "all" ? tableMap.areas : tableMap.areas.filter((area) => area === areaMode);
+  const selectedAreas = areas.length ? areas : tableMap.areas.slice(0, 1);
+  const assets = await Promise.all([loadClientMapImage("logo-le-beef-branca.png"), loadClientMapImage("mesa-icon.png"), loadClientMapImage("bistro-icon.png"), ...selectedAreas.map((area) => loadClientMapImage(area === "mezanino" ? "mezanino-fundo.png" : "salao-fundo.png"))]);
+  const [logo, tableIcon, bistroIcon, ...backgrounds] = assets;
+  const width = 1200; const padding = 60; const mapWidth = width - padding * 2;
+  const sectionData = selectedAreas.map((area, index) => {
+    const background = backgrounds[index];
+    const ratio = background?.naturalHeight && background?.naturalWidth ? background.naturalHeight / background.naturalWidth : area === "salao" ? 957 / 913 : 960 / 925;
+    return { area, background, mapHeight:Math.round(mapWidth * ratio), furniture:tableMap.furniture.filter((item) => item.area === area) };
+  });
+  const selectedFurniture = sectionData.flatMap((section) => section.furniture);
+  const prices = tableMapPriceCategories(event, selectedFurniture);
+  const priceRows = Math.max(1, Math.ceil(prices.length / 3));
+  const headerHeight = 270; const sectionExtra = 200; const legendHeight = 150; const pricesHeight = 70 + priceRows * 155; const footerHeight = 150;
+  const height = headerHeight + sectionData.reduce((sum, section) => sum + section.mapHeight + sectionExtra, 0) + legendHeight + pricesHeight + footerHeight;
+  const canvas = document.createElement("canvas");
+  canvas.width = width; canvas.height = height;
+  const ctx = canvas.getContext("2d");
+  ctx.fillStyle = "#f3f6fb"; ctx.fillRect(0, 0, width, height);
+  ctx.fillStyle = "#17345b"; ctx.fillRect(0, 0, width, headerHeight - 20);
+  if (logo) {
+    const logoWidth = 245; const logoHeight = Math.min(115, logoWidth * logo.naturalHeight / logo.naturalWidth);
+    ctx.drawImage(logo, padding, 54, logoWidth, logoHeight);
+  }
+  ctx.fillStyle = "#93c5fd"; ctx.font = "700 22px Arial"; ctx.fillText("DISPONIBILIDADE DE MESAS", 355, 61);
+  ctx.fillStyle = "#ffffff"; ctx.font = "700 42px Arial"; clientMapDrawWrappedText(ctx, event?.name || "Evento", 355, 112, 785, 48, 2);
+  ctx.fillStyle = "#dbeafe"; ctx.font = "500 24px Arial";
+  const eventMeta = `${eventDateTimeText(event)}${event?.place ? `  •  ${event.place}` : ""}`;
+  clientMapDrawWrappedText(ctx, eventMeta, 355, 211, 785, 30, 2);
+
+  const occupiedSales = eventSales.filter((sale) => isTableReservation(sale) || isTableBlock(sale));
+  let y = headerHeight;
+  for (const section of sectionData) {
+    ctx.fillStyle = "#17345b"; ctx.font = "700 31px Arial"; ctx.fillText(mapAreaLabel(section.area).toUpperCase(), padding, y + 42);
+    ctx.fillStyle = "#64748b"; ctx.font = "500 20px Arial"; ctx.textAlign = "right"; ctx.fillText(`${section.furniture.length} ${section.furniture.length === 1 ? "posição" : "posições"}`, width - padding, y + 40); ctx.textAlign = "left";
+    const mapY = y + 65;
+    ctx.fillStyle = "#ffffff"; ctx.fillRect(padding, mapY, mapWidth, section.mapHeight);
+    if (section.background) ctx.drawImage(section.background, padding, mapY, mapWidth, section.mapHeight);
+    for (const item of section.furniture) {
+      const itemWidth = mapWidth * item.width / 100; const itemHeight = section.mapHeight * item.height / 100;
+      const centerX = padding + mapWidth * item.x / 100; const centerY = mapY + section.mapHeight * item.y / 100;
+      const icon = item.kind === "bistro" ? bistroIcon : tableIcon;
+      if (icon) ctx.drawImage(icon, centerX - itemWidth / 2, centerY - itemHeight / 2, itemWidth, itemHeight);
+      const occupied = occupiedSales.some((sale) => sale.furnitureId === item.id);
+      const radius = Math.max(20, Math.min(31, Math.min(itemWidth, itemHeight) * .29));
+      ctx.beginPath(); ctx.arc(centerX, centerY, radius, 0, Math.PI * 2); ctx.fillStyle = occupied ? "#dc2626" : "#16a34a"; ctx.fill();
+      ctx.lineWidth = 7; ctx.strokeStyle = chairSectorFor(event, item) === "gold" ? "#8b00d0" : "#ffffff"; ctx.stroke();
+      ctx.fillStyle = "#ffffff"; ctx.font = `800 ${Math.round(radius * .88)}px Arial`; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText(String(item.number).padStart(2, "0"), centerX, centerY + 1); ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
+    }
+    const occupied = section.furniture.filter((item) => occupiedSales.some((sale) => sale.furnitureId === item.id)).length;
+    const free = Math.max(0, section.furniture.length - occupied);
+    y = mapY + section.mapHeight + 32;
+    ctx.fillStyle = "#ffffff"; clientMapRoundedRect(ctx, padding, y, mapWidth, 82, 18); ctx.fill();
+    ctx.fillStyle = "#16a34a"; ctx.beginPath(); ctx.arc(padding + 36, y + 41, 12, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = "#17345b"; ctx.font = "700 25px Arial"; ctx.fillText(`${free} livres`, padding + 60, y + 50);
+    ctx.fillStyle = "#dc2626"; ctx.beginPath(); ctx.arc(padding + 245, y + 41, 12, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = "#17345b"; ctx.fillText(`${occupied} ${occupied === 1 ? "ocupada" : "ocupadas"}`, padding + 269, y + 50);
+    y += 135;
+  }
+
+  ctx.fillStyle = "#17345b"; ctx.font = "700 27px Arial"; ctx.fillText("LEGENDA", padding, y + 30);
+  const legend = [["#16a34a", "#ffffff", "Livre"], ["#dc2626", "#ffffff", "Ocupada"], ["#64748b", "#8b00d0", "Aro roxo: Mesa Ouro"], ["#64748b", "#ffffff", "Aro branco: comum / bistrô"]];
+  legend.forEach(([fill, stroke, label], index) => { const x = padding + (index % 2) * 540; const ly = y + 76 + Math.floor(index / 2) * 48; ctx.beginPath(); ctx.arc(x + 14, ly - 7, 13, 0, Math.PI * 2); ctx.fillStyle = fill; ctx.fill(); ctx.lineWidth = 5; ctx.strokeStyle = stroke; ctx.stroke(); ctx.fillStyle = "#334155"; ctx.font = "600 21px Arial"; ctx.fillText(label, x + 42, ly); });
+  y += legendHeight;
+  ctx.fillStyle = "#17345b"; ctx.font = "700 27px Arial"; ctx.fillText("VALORES VIGENTES", padding, y + 31);
+  prices.forEach((price, index) => {
+    const column = index % 3; const row = Math.floor(index / 3); const cardWidth = 340; const cardX = padding + column * 370; const cardY = y + 58 + row * 155;
+    ctx.fillStyle = price.extraClass ? "#faf5ff" : "#ffffff"; clientMapRoundedRect(ctx, cardX, cardY, cardWidth, 125, 17); ctx.fill(); ctx.lineWidth = 3; ctx.strokeStyle = price.extraClass ? "#d8b4fe" : "#dbeafe"; ctx.stroke();
+    ctx.fillStyle = price.extraClass ? "#7e22ce" : "#17345b"; ctx.font = "700 23px Arial"; ctx.fillText(price.label, cardX + 19, cardY + 34);
+    ctx.fillStyle = "#334155"; ctx.font = "600 20px Arial"; ctx.fillText(`${money.format(price.unit)} por pessoa`, cardX + 19, cardY + 70);
+    ctx.fillStyle = "#64748b"; ctx.font = "500 18px Arial"; ctx.fillText(`${price.kind === "mesa" ? "Mesa" : "Bistrô"} completo (${price.places}): ${money.format(price.full)}`, cardX + 19, cardY + 101);
+  });
+  y += pricesHeight;
+  const generatedAt = new Intl.DateTimeFormat("pt-BR", { dateStyle:"short", timeStyle:"short" }).format(new Date());
+  ctx.fillStyle = "#e2e8f0"; ctx.fillRect(padding, y + 4, mapWidth, 2);
+  ctx.fillStyle = "#475569"; ctx.font = "600 19px Arial"; ctx.fillText(`Atualizado em ${generatedAt}`, padding, y + 47);
+  ctx.fillStyle = "#64748b"; ctx.font = "500 18px Arial"; ctx.fillText("Disponibilidade sujeita a alteração. Confirme antes de concluir a reserva.", padding, y + 83);
+  const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png", .95));
+  if (!blob) throw new Error("Não foi possível gerar a imagem do mapa.");
+  return { canvas, file:new File([blob], clientMapFilename(event, areaMode), { type:"image/png" }) };
+}
+
+async function renderClientMapPreview(event, eventSales) {
   if (!event || !eventUsesTableMap(event)) return;
   const tableMap = normalizeTableMap(event.tableMap);
-  if (!tableMap.areas.includes(activeMapViewerArea)) activeMapViewerArea = tableMap.areas[0];
-  $("mapZoomTitle").textContent = `Mapa de ${event.name}`;
-  $("tableMapZoomAreaTabs").innerHTML = tableMap.areas.map((area) => `<button class="${area === activeMapViewerArea ? "is-active" : ""}" type="button" data-zoom-map-area="${area}" role="tab" aria-selected="${area === activeMapViewerArea}">${mapAreaLabel(area)}</button>`).join("");
-  const reservations = eventSales.filter((sale) => isTableReservation(sale) || isTableBlock(sale));
-  const stage = $("tableMapZoomViewer");
-  stage.dataset.area = activeMapViewerArea;
-  const furniture = tableMap.furniture.filter((item) => item.area === activeMapViewerArea);
-  stage.innerHTML = furniture.map((item) => mapFurnitureHtml(item, false, reservations.find((sale) => sale.furnitureId === item.id), false, event)).join("") || `<div class="map-empty-hint">Nenhuma mesa ou bistrô configurado nesta área.</div>`;
+  if (activeClientMapArea !== "all" && !tableMap.areas.includes(activeClientMapArea)) activeClientMapArea = tableMap.areas.includes(activeMapViewerArea) ? activeMapViewerArea : tableMap.areas[0];
+  $("mapZoomTitle").textContent = `Disponibilidade — ${event.name}`;
+  const tabs = tableMap.areas.map((area) => ({ value:area, label:mapAreaLabel(area) }));
+  if (tableMap.areas.length > 1) tabs.push({ value:"all", label:"Mapa completo" });
+  $("tableMapZoomAreaTabs").innerHTML = tabs.map((tab) => `<button class="${tab.value === activeClientMapArea ? "is-active" : ""}" type="button" data-client-map-area="${tab.value}" role="tab" aria-selected="${tab.value === activeClientMapArea}">${tab.label}</button>`).join("");
+  const generation = ++clientMapGeneration;
+  $("clientMapGenerating").hidden = false; $("clientMapCanvas").hidden = true; $("shareClientMap").disabled = true; $("downloadClientMap").disabled = true; clientMapFile = null;
+  try {
+    const generated = await buildClientMapImage(event, eventSales, activeClientMapArea);
+    if (generation !== clientMapGeneration) return;
+    const preview = $("clientMapCanvas"); preview.width = generated.canvas.width; preview.height = generated.canvas.height; preview.getContext("2d").drawImage(generated.canvas, 0, 0);
+    clientMapFile = generated.file; preview.hidden = false;
+  } catch (error) { console.error(error); toast(error.message || "Não foi possível gerar o mapa para o cliente."); }
+  finally { if (generation === clientMapGeneration) { $("clientMapGenerating").hidden = true; const ready = Boolean(clientMapFile); $("shareClientMap").disabled = !ready; $("downloadClientMap").disabled = !ready; } }
 }
 
 function renderTableReservationsList(event, eventSales) {
@@ -3282,9 +3414,16 @@ $("tableMapEditor").addEventListener("click", (event) => { const slot = event.ta
 $("mapEditorAreaTabs").addEventListener("click", (event) => { const button = event.target.closest("[data-editor-map-area]"); if (!button) return; activeMapEditorArea = button.dataset.editorMapArea; renderMapEditor(); });
 $("tableMapAreaTabs").addEventListener("click", (event) => { const button = event.target.closest("[data-view-map-area]"); if (!button) return; activeMapViewerArea = button.dataset.viewMapArea; const selectedEvent = state.events.find((item) => item.id === selectedEventId); renderTableMapPanel(selectedEvent, state.sales.filter((sale) => sale.eventId === selectedEventId)); });
 $("tableMapViewer").addEventListener("click", (event) => { const furniture = event.target.closest("[data-reserve-furniture]"); if (furniture) openTableReservation(furniture.dataset.reserveFurniture); });
-$("openMapZoom").addEventListener("click", () => { const selectedEvent = state.events.find((item) => item.id === selectedEventId); renderMapZoom(selectedEvent, state.sales.filter((sale) => sale.eventId === selectedEventId)); $("mapZoomModal").showModal(); requestAnimationFrame(() => { const canvas = $("mapZoomCanvas"); canvas.scrollLeft = 0; canvas.scrollTop = 0; }); });
-$("tableMapZoomAreaTabs").addEventListener("click", (event) => { const button = event.target.closest("[data-zoom-map-area]"); if (!button) return; activeMapViewerArea = button.dataset.zoomMapArea; const selectedEvent = state.events.find((item) => item.id === selectedEventId); renderTableMapPanel(selectedEvent, state.sales.filter((sale) => sale.eventId === selectedEventId)); });
-$("tableMapZoomViewer").addEventListener("click", (event) => { const furniture = event.target.closest("[data-reserve-furniture]"); if (!furniture) return; $("mapZoomModal").close(); openTableReservation(furniture.dataset.reserveFurniture); });
+$("openMapZoom").addEventListener("click", () => { const selectedEvent = state.events.find((item) => item.id === selectedEventId); activeClientMapArea = activeMapViewerArea; $("mapZoomModal").showModal(); renderClientMapPreview(selectedEvent, state.sales.filter((sale) => sale.eventId === selectedEventId)); });
+$("tableMapZoomAreaTabs").addEventListener("click", (event) => { const button = event.target.closest("[data-client-map-area]"); if (!button) return; activeClientMapArea = button.dataset.clientMapArea; const selectedEvent = state.events.find((item) => item.id === selectedEventId); renderClientMapPreview(selectedEvent, state.sales.filter((sale) => sale.eventId === selectedEventId)); });
+$("shareClientMap").addEventListener("click", async () => {
+  if (!clientMapFile) return;
+  try {
+    if (navigator.share && (!navigator.canShare || navigator.canShare({ files:[clientMapFile] }))) { await navigator.share({ files:[clientMapFile], title:"Disponibilidade de mesas", text:"Segue o mapa atualizado de mesas disponíveis." }); return; }
+    downloadBlob(clientMapFile, clientMapFile.name); toast("O compartilhamento direto não está disponível neste aparelho. A imagem foi baixada.");
+  } catch (error) { if (error?.name !== "AbortError") { console.error(error); toast("Não foi possível compartilhar a imagem."); } }
+});
+$("downloadClientMap").addEventListener("click", () => { if (!clientMapFile) return; downloadBlob(clientMapFile, clientMapFile.name); toast("Imagem do mapa baixada."); });
 $("tableReservationsList").addEventListener("click", (event) => { if (event.target.closest("[data-delete-sale], [data-whatsapp]")) return; const edit = event.target.closest("[data-open-table-reservation]"); if (edit) return openTableReservation(edit.dataset.openTableReservation); const toggle = event.target.closest("[data-toggle-table-reservation-details]"); if (toggle) toggleTableReservationCard(toggle.closest(".table-reservation-card")); });
 $("tableReservationsList").addEventListener("keydown", (event) => { if ((event.key === "Enter" || event.key === " ") && event.target.matches("[data-toggle-table-reservation-details]")) { event.preventDefault(); toggleTableReservationCard(event.target.closest(".table-reservation-card")); } });
 $("allSalesList").addEventListener("click", (event) => { const reservation = event.target.closest("[data-open-table-reservation]"); if (reservation) openTableReservation(reservation.dataset.openTableReservation); });

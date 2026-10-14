@@ -1,5 +1,13 @@
 # Le Beef — painel de vendas de ingressos
 
+## Versão 6.3.0 — mapa de disponibilidade para o cliente
+
+- A lupa do mapa agora abre uma prévia própria para o cliente, com opção de gerar somente a área atual ou o mapa completo quando Salão e Mezanino estiverem ativos.
+- A imagem marca o centro de cada mesa ou bistrô em verde quando livre e vermelho quando ocupado. O aro roxo identifica Mesa Ouro; o aro branco identifica mesa comum ou bistrô.
+- O PNG inclui evento, data, hora, local, contagem de livres e ocupadas, legenda, valores vigentes por pessoa e os valores de mesa completa (4 pessoas) e bistrô completo (2 pessoas).
+- A imagem não inclui nomes, telefones ou informações de pagamento. Ela traz horário de atualização e aviso de que a disponibilidade pode mudar.
+- “Compartilhar imagem” usa o compartilhamento nativo do celular para escolher WhatsApp normal, Business ou outro aplicativo. “Baixar imagem” mantém uma cópia no aparelho e funciona como alternativa quando o compartilhamento de arquivos não estiver disponível.
+
 ## Versão 6.2.7 — contagem e preços abaixo do mapa
 
 - O resumo de cada área mostra quantas mesas e bistrôs existem, sem chamar as posições de “móveis”.
