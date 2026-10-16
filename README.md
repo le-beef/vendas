@@ -1,31 +1,10 @@
 # Le Beef — painel de vendas de ingressos
 
-## Versão 6.4.6 — recebimento push direto pelo Service Worker
+## Versão 6.4.7 — restauração das notificações em segundo plano
 
-- O Service Worker agora trata diretamente o evento `push`, sem depender da biblioteca do Firebase ser carregada quando o aplicativo está fechado.
-- O envio voltou ao formato somente de dados, que permite ao navegador acordar o Service Worker e exibir o aviso em segundo plano.
-- O clique permanece controlado pelo aplicativo e abre o resumo do evento indicado na mensagem.
-- A renovação dos tokens após o carregamento dos eventos continua ativa.
-
-## Versão 6.4.5 — notificação nativa com o aplicativo fechado
-
-- O Worker agora envia uma mensagem de notificação nativa do Firebase, em vez de depender do JavaScript do aplicativo para exibi-la em segundo plano.
-- O Firebase exibe o aviso mesmo quando o aplicativo está fechado ou o aparelho está em repouso.
-- O endereço do evento segue no campo nativo `fcm_options.link`; ao tocar, o aplicativo abre diretamente o resumo correto.
-- O aviso em primeiro plano continua sendo mostrado dentro do aplicativo.
-
-## Versão 6.4.4 — renovação das notificações após atualização
-
-- Os tokens dos sinos ativos agora são renovados novamente assim que os eventos terminam de carregar do Firebase.
-- A renovação deixa de depender da primeira renderização, que ainda podia ocorrer com a lista de eventos vazia após uma atualização do aplicativo.
-- O Service Worker agora aguarda a criação da notificação antes de encerrar o processamento em segundo plano.
-- A abertura direta do evento implementada na versão 6.4.3 foi preservada.
-
-## Versão 6.4.3 — evento da notificação preservado durante o carregamento
-
-- O evento indicado pela notificação agora permanece selecionado enquanto os dados do Firebase são carregados.
-- A primeira renderização não apaga mais o evento pendente nem devolve o usuário para a Home.
-- Assim que o evento chega do Firebase, o aplicativo abre diretamente seu resumo.
+- Restaurado o aplicativo e o Service Worker da versão 6.4.2, que recebia notificações com o aplicativo fechado.
+- O número da versão, o cache e a referência do arquivo principal foram renovados para 6.4.7.
+- O Worker de envio já corresponde exatamente ao da versão 6.4.2.
 
 ## Versão 6.4.2 — toque abre o evento notificado
 

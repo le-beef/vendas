@@ -71,12 +71,6 @@ function rememberSelectedEvent(eventId) {
   if (selectedEventId) sessionStorage.setItem(EVENT_SESSION_KEY, selectedEventId);
   else sessionStorage.removeItem(EVENT_SESSION_KEY);
 }
-function queueSelectedEvent(eventId) {
-  selectedEventId = String(eventId || "");
-  pendingSelectedEventId = selectedEventId;
-  if (selectedEventId) sessionStorage.setItem(EVENT_SESSION_KEY, selectedEventId);
-  else sessionStorage.removeItem(EVENT_SESSION_KEY);
-}
 function clearSelectedEventSession() {
   selectedEventId = "";
   pendingSelectedEventId = "";
@@ -346,7 +340,7 @@ async function handleAuthenticatedUser(user) {
     const continuingSession = sessionStorage.getItem(AUTH_SESSION_KEY) === user.uid;
     sessionStorage.setItem(AUTH_SESSION_KEY, user.uid);
     if (initialNotificationEventId) {
-      queueSelectedEvent(initialNotificationEventId);
+      rememberSelectedEvent(initialNotificationEventId);
       history.replaceState(null, "", `${location.pathname}#resumo`);
     } else if (!location.hash.startsWith("#validar=") && (!continuingSession || !restoreNavigationSession())) navigateToEventsHome();
     currentUser = user; currentUserProfile = { ...profile, active: profile.active === true }; hideAccessModal(); applyRolePermissions();
@@ -359,10 +353,7 @@ async function start() {
   if (isDemo) {
     currentUser = { uid: "local-demo", email: "demo@local" }; currentUserProfile = { name: "Administrador local", email: "demo@local", role: "admin", active: true };
     state = { events: JSON.parse(localStorage.getItem("ingressa-events") || "null") || demoEvents, sales: JSON.parse(localStorage.getItem("ingressa-sales") || "null") || demoSales, users: [{ id: "local-demo", ...currentUserProfile }], promoters: [], paymentConnections: [], platformSettlements: JSON.parse(localStorage.getItem("ingressa-platform-settlements") || "null") || [], auditLogs: JSON.parse(localStorage.getItem("ingressa-audit-logs") || "null") || [] };
-    if (initialNotificationEventId) {
-      queueSelectedEvent(initialNotificationEventId);
-      history.replaceState(null, "", `${location.pathname}#resumo`);
-    } else if (!location.hash.startsWith("#validar=") && !restoreNavigationSession()) navigateToEventsHome();
+    if (!location.hash.startsWith("#validar=") && !restoreNavigationSession()) navigateToEventsHome();
     $("connectionText").textContent = "Desconectado"; applyRolePermissions(); render(); return;
   }
   try {
@@ -2873,10 +2864,6 @@ function syncApplicationPage() {
 function render() {
   const events = [...state.events].sort((a, b) => a.date.localeCompare(b.date));
   const sales = [...state.sales].sort((a, b) => b.createdAt - a.createdAt);
-  if (events.length) {
-    const notificationEventIds = allowedEventIds().length ? allowedEventIds() : events.map((event) => event.id);
-    notificationManager.sync(notificationEventIds);
-  }
   if (pendingSelectedEventId) {
     if (events.some((event) => event.id === pendingSelectedEventId)) {
       selectedEventId = pendingSelectedEventId;
