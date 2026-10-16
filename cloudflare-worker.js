@@ -184,7 +184,7 @@ async function sendMessage(env, account, recipient, eventId, eventName, type) {
             type,
             url: siteUrl,
             icon: "https://le-beef.github.io/vendas/icon-192.png?v=19",
-            badge: "https://le-beef.github.io/vendas/icon-192.png?v=19"
+            badge: "https://le-beef.github.io/vendas/notification-badge.png?v=1"
           }
         }
       }

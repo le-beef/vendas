@@ -1,5 +1,11 @@
 # Le Beef — painel de vendas de ingressos
 
+## Versão 6.4.1 — taça nas notificações
+
+- O ícone pequeno das notificações no Android agora usa uma versão monocromática e transparente da taça original do site.
+- O ícone principal da notificação continua usando a identidade visual completa do Le Beef.
+- O cache do aplicativo foi renovado para carregar o novo arquivo após a publicação.
+
 ## Versão 6.4.0 — notificações por evento
 
 - Administradores e gerentes de evento veem um sino em cada evento da tela inicial. Ele começa silenciado e a ativação vale somente para aquele evento e aparelho.

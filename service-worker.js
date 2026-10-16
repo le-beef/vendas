@@ -1,4 +1,4 @@
-const CACHE_NAME = "le-beef-painel-v6-4-0-2";
+const CACHE_NAME = "le-beef-painel-v6-4-1-1";
 const CACHE_PREFIX = "le-beef-painel-";
 const APP_SHELL = [
   "./",
@@ -59,6 +59,7 @@ const APP_SHELL = [
   "./icon-192.png?v=19",
   "./icon-512.png?v=19",
   "./icon-maskable-512.png?v=19",
+  "./notification-badge.png?v=1",
   "./mesa-icon.png",
   "./bistro-icon.png",
   "./salao-fundo.png",
@@ -88,7 +89,7 @@ try {
     self.registration.showNotification(data.title || "Le Beef", {
       body: data.body || "Há uma atualização em um evento.",
       icon: data.icon || "./icon-192.png?v=19",
-      badge: data.badge || "./icon-192.png?v=19",
+      badge: data.badge || "./notification-badge.png?v=1",
       tag: `le-beef-${data.eventId || "evento"}-${data.type || "atualizacao"}`,
       renotify: true,
       data: { url: data.url || "./#eventos" }
