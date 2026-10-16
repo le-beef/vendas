@@ -1,5 +1,11 @@
 # Le Beef — painel de vendas de ingressos
 
+## Versão 6.4.12 — detalhes fechados das reservas no computador
+
+- Corrigida a regra que exibia os detalhes em uma linha comprimida mesmo quando a reserva estava fechada e o botão ainda dizia “Detalhar”.
+- No computador, “Detalhar” abre a grade organizada e “Ocultar detalhes” fecha o painel. O estado permanece correto após a atualização da lista.
+- Verificado com o HTML, todas as folhas de estilo e as funções reais de renderização e abertura, em monitor, notebook e celular. O estilo do celular foi preservado.
+
 ## Versão 6.4.11 — correção do painel de reservas no computador
 
 - O painel expandido força a grade correta no desktop, impedindo que todos os campos e botões sejam comprimidos em uma única linha.

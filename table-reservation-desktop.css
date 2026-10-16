@@ -1,5 +1,10 @@
 /* Colunas dos detalhes de reserva apenas no computador. */
 @media (min-width: 701px) {
+  /* A regra genérica dos cartões usa display:flex e expunha detalhes fechados. */
+  .table-reservation-card:not(.is-expanded) > .table-reservation-expanded {
+    display: none !important;
+  }
+
   .table-reservation-card.is-expanded > .table-reservation-expanded {
     display: grid !important;
     grid-template-columns: repeat(12, minmax(0, 1fr)) !important;
