@@ -1,4 +1,4 @@
-const CACHE_NAME = "le-beef-painel-v6-4-5-1";
+const CACHE_NAME = "le-beef-painel-v6-4-6-1";
 const CACHE_PREFIX = "le-beef-painel-";
 const APP_SHELL = [
   "./",
@@ -72,22 +72,47 @@ const APP_SHELL = [
 ];
 const STATIC_HOSTS = new Set(["www.gstatic.com", "fonts.googleapis.com", "fonts.gstatic.com"]);
 
-try {
-  importScripts(
-    "https://www.gstatic.com/firebasejs/11.10.0/firebase-app-compat.js",
-    "https://www.gstatic.com/firebasejs/11.10.0/firebase-messaging-compat.js"
-  );
-  firebase.initializeApp({
-    apiKey: "AIzaSyBLoBE2jT9QbmB5FpYJP4IYRDGFzd07Hx8",
-    authDomain: "vendas-76f49.firebaseapp.com",
-    projectId: "vendas-76f49",
-    messagingSenderId: "658944606398",
-    appId: "1:658944606398:web:060a4801f9f4d90ef39eef"
-  });
-  firebase.messaging();
-} catch (error) {
-  console.warn("As notificações em segundo plano não puderam ser iniciadas.", error);
-}
+self.addEventListener("push", (event) => {
+  let payload = {};
+  try {
+    payload = event.data?.json?.() || {};
+  } catch (error) {
+    console.warn("A mensagem push recebida não pôde ser interpretada.", error);
+    return;
+  }
+
+  const data = payload.data || {};
+  if (!data.eventId || !data.url) return;
+  if (typeof event.stopImmediatePropagation === "function") event.stopImmediatePropagation();
+  event.waitUntil(self.registration.showNotification(data.title || "Le Beef", {
+    body: data.body || "Há uma atualização em um evento.",
+    icon: data.icon || "./icon-192.png?v=19",
+    badge: data.badge || "./notification-badge.png?v=1",
+    tag: `le-beef-${data.eventId}-${data.type || "atualizacao"}`,
+    renotify: true,
+    data: { url: data.url, eventId: data.eventId }
+  }));
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  if (typeof event.stopImmediatePropagation === "function") event.stopImmediatePropagation();
+  const targetUrl = new URL(event.notification.data?.url || "./#eventos", self.location.origin).href;
+  event.waitUntil((async () => {
+    const windows = await self.clients.matchAll({ type:"window", includeUncontrolled:true });
+    for (const client of windows) {
+      if (new URL(client.url).origin !== self.location.origin) continue;
+      try {
+        const navigated = "navigate" in client ? await client.navigate(targetUrl) : client;
+        if (navigated && "focus" in navigated) return navigated.focus();
+        if ("focus" in client) return client.focus();
+      } catch (error) {
+        console.warn("A janela aberta não pôde ser direcionada ao evento.", error);
+      }
+    }
+    return self.clients.openWindow ? self.clients.openWindow(targetUrl) : undefined;
+  })());
+});
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL)).then(() => self.skipWaiting()));

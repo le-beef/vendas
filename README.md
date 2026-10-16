@@ -1,5 +1,12 @@
 # Le Beef — painel de vendas de ingressos
 
+## Versão 6.4.6 — recebimento push direto pelo Service Worker
+
+- O Service Worker agora trata diretamente o evento `push`, sem depender da biblioteca do Firebase ser carregada quando o aplicativo está fechado.
+- O envio voltou ao formato somente de dados, que permite ao navegador acordar o Service Worker e exibir o aviso em segundo plano.
+- O clique permanece controlado pelo aplicativo e abre o resumo do evento indicado na mensagem.
+- A renovação dos tokens após o carregamento dos eventos continua ativa.
+
 ## Versão 6.4.5 — notificação nativa com o aplicativo fechado
 
 - O Worker agora envia uma mensagem de notificação nativa do Firebase, em vez de depender do JavaScript do aplicativo para exibi-la em segundo plano.
