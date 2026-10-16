@@ -1,4 +1,4 @@
-const CACHE_NAME = "le-beef-painel-v6-4-3-1";
+const CACHE_NAME = "le-beef-painel-v6-4-4-1";
 const CACHE_PREFIX = "le-beef-painel-";
 const APP_SHELL = [
   "./",
@@ -37,7 +37,7 @@ const APP_SHELL = [
   "./ticket-config.css?v=8",
   "./excel-export.js?v=40",
   "./firebase-config.js",
-  "./app.js?v=136",
+  "./app.js?v=137",
   "./notifications.js?v=2",
   "./map-layouts.js?v=4",
   "./financial-core.js?v=2",
@@ -114,7 +114,7 @@ try {
   });
   firebase.messaging().onBackgroundMessage((payload) => {
     const data = payload?.data || {};
-    self.registration.showNotification(data.title || "Le Beef", {
+    return self.registration.showNotification(data.title || "Le Beef", {
       body: data.body || "Há uma atualização em um evento.",
       icon: data.icon || "./icon-192.png?v=19",
       badge: data.badge || "./notification-badge.png?v=1",

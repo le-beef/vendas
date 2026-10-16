@@ -1,5 +1,12 @@
 # Le Beef — painel de vendas de ingressos
 
+## Versão 6.4.4 — renovação das notificações após atualização
+
+- Os tokens dos sinos ativos agora são renovados novamente assim que os eventos terminam de carregar do Firebase.
+- A renovação deixa de depender da primeira renderização, que ainda podia ocorrer com a lista de eventos vazia após uma atualização do aplicativo.
+- O Service Worker agora aguarda a criação da notificação antes de encerrar o processamento em segundo plano.
+- A abertura direta do evento implementada na versão 6.4.3 foi preservada.
+
 ## Versão 6.4.3 — evento da notificação preservado durante o carregamento
 
 - O evento indicado pela notificação agora permanece selecionado enquanto os dados do Firebase são carregados.

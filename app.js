@@ -2873,6 +2873,10 @@ function syncApplicationPage() {
 function render() {
   const events = [...state.events].sort((a, b) => a.date.localeCompare(b.date));
   const sales = [...state.sales].sort((a, b) => b.createdAt - a.createdAt);
+  if (events.length) {
+    const notificationEventIds = allowedEventIds().length ? allowedEventIds() : events.map((event) => event.id);
+    notificationManager.sync(notificationEventIds);
+  }
   if (pendingSelectedEventId) {
     if (events.some((event) => event.id === pendingSelectedEventId)) {
       selectedEventId = pendingSelectedEventId;
