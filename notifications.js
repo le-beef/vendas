@@ -136,6 +136,7 @@ export function createEventNotificationManager({ getApp, getUser, getProfile, to
       await request("/api/notify", {
         eventId: String(eventId),
         type: String(type),
+        deviceId: deviceId(),
         dedupeKey: `${type}:${eventId}:${reference || crypto.randomUUID()}`
       });
     } catch (error) {

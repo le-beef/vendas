@@ -199,12 +199,13 @@ async function dispatchNotification(request, env, origin) {
   const data = await body(request);
   const eventId = requiredText(data.eventId, "Evento", 160);
   const type = requiredText(data.type, "Tipo", 80);
+  const actorDeviceId = requiredText(data.deviceId, "Aparelho", 160);
   const dedupeKey = requiredText(data.dedupeKey, "Identificador", 240);
   if (!NOTIFICATION_TEXT[type]) throw new Error("Tipo de notificação não permitido.");
   const { identity, event, account } = await authorizedContext(request, env, eventId, ["admin", "event_manager", "seller", "promoter"]);
   const inserted = await env.DB.prepare("INSERT OR IGNORE INTO notification_dispatches (dedupe_key, event_id, notification_type, actor_uid) VALUES (?, ?, ?, ?)").bind(dedupeKey, eventId, type, identity.sub).run();
   if (!inserted.meta?.changes) return json({ ok: true, duplicate: true, sent: 0 }, 200, origin);
-  const recipients = await env.DB.prepare("SELECT id, user_uid, fcm_token FROM push_subscriptions WHERE event_id = ? AND enabled = 1 AND user_uid <> ?").bind(eventId, identity.sub).all();
+  const recipients = await env.DB.prepare("SELECT id, user_uid, fcm_token FROM push_subscriptions WHERE event_id = ? AND enabled = 1 AND NOT (user_uid = ? AND device_id = ?)").bind(eventId, identity.sub, actorDeviceId).all();
   let sent = 0;
   for (const recipient of recipients.results || []) {
     const result = await sendMessage(env, account, recipient, eventId, event.name, type);
