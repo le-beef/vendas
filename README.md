@@ -1,5 +1,11 @@
 # Le Beef — painel de vendas de ingressos
 
+## Versão 6.4.3 — evento da notificação preservado durante o carregamento
+
+- O evento indicado pela notificação agora permanece selecionado enquanto os dados do Firebase são carregados.
+- A primeira renderização não apaga mais o evento pendente nem devolve o usuário para a Home.
+- Assim que o evento chega do Firebase, o aplicativo abre diretamente seu resumo.
+
 ## Versão 6.4.2 — toque abre o evento notificado
 
 - Ao tocar na notificação, o aplicativo abre diretamente o resumo do evento que gerou o aviso.
