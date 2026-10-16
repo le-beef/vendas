@@ -169,17 +169,29 @@ async function saveSubscription(request, env, origin) {
 
 async function sendMessage(env, account, recipient, eventId, eventName, type) {
   const siteUrl = `https://le-beef.github.io/vendas/?eventoPainel=${encodeURIComponent(eventId)}#resumo`;
+  const title = `Le Beef · ${String(eventName || "Evento").slice(0, 80)}`;
+  const body = NOTIFICATION_TEXT[type];
   const response = await fetch(`https://fcm.googleapis.com/v1/projects/${account.project_id}/messages:send`, {
     method: "POST",
     headers: { Authorization: `Bearer ${await serviceAccessToken(env)}`, "Content-Type": "application/json" },
     body: JSON.stringify({
       message: {
         token: recipient.fcm_token,
+        notification: { title, body },
         webpush: {
           headers: { Urgency: "high", TTL: "300" },
+          notification: {
+            title,
+            body,
+            icon: "https://le-beef.github.io/vendas/icon-192.png?v=19",
+            badge: "https://le-beef.github.io/vendas/notification-badge.png?v=1",
+            tag: `le-beef-${eventId}-${type}`,
+            renotify: true
+          },
+          fcm_options: { link: siteUrl },
           data: {
-            title: `Le Beef · ${String(eventName || "Evento").slice(0, 80)}`,
-            body: NOTIFICATION_TEXT[type],
+            title,
+            body,
             eventId,
             type,
             url: siteUrl,

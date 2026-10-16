@@ -1,4 +1,4 @@
-const CACHE_NAME = "le-beef-painel-v6-4-8-1";
+const CACHE_NAME = "le-beef-painel-v6-4-9-1";
 const CACHE_PREFIX = "le-beef-painel-";
 const APP_SHELL = [
   "./",
@@ -78,7 +78,9 @@ self.addEventListener("notificationclick", (event) => {
     event.stopImmediatePropagation();
   }
 
-  const targetUrl = new URL(event.notification.data?.url || "./#eventos", self.location.origin).href;
+  const notificationData = event.notification.data || {};
+  const fcmMessage = notificationData.FCM_MSG || {};
+  const targetUrl = new URL(notificationData.url || fcmMessage.fcmOptions?.link || fcmMessage.data?.url || "./#eventos", self.location.href).href;
   event.waitUntil((async () => {
     const windows = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
 
@@ -113,6 +115,7 @@ try {
     appId: "1:658944606398:web:060a4801f9f4d90ef39eef"
   });
   firebase.messaging().onBackgroundMessage((payload) => {
+    if (payload?.notification) return;
     const data = payload?.data || {};
     return self.registration.showNotification(data.title || "Le Beef", {
       body: data.body || "Há uma atualização em um evento.",

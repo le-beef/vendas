@@ -1,5 +1,11 @@
 # Le Beef — painel de vendas de ingressos
 
+## Versão 6.4.9 — notificação automática em segundo plano
+
+- O Worker envia também a parte de notificação que o Firebase exibe automaticamente quando o aplicativo está fechado.
+- O Service Worker evita avisos duplicados e preserva o link direto do evento ao tocar na notificação automática.
+- O cache e a versão exibida no rodapé foram atualizados para 6.4.9.
+
 ## Versão 6.4.8 — estabilidade das notificações no celular
 
 - O Service Worker aguarda a exibição da notificação em segundo plano antes de encerrar o processamento da mensagem.
