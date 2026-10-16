@@ -1,5 +1,10 @@
 # Le Beef — painel de vendas de ingressos
 
+## Versão 6.4.11 — correção do painel de reservas no computador
+
+- O painel expandido força a grade correta no desktop, impedindo que todos os campos e botões sejam comprimidos em uma única linha.
+- O celular permanece com o mesmo layout da versão anterior.
+
 ## Versão 6.4.10 — cartões de reserva organizados no computador
 
 - Os detalhes das reservas no desktop têm colunas definidas, evitando botões estreitos e textos quebrados.
