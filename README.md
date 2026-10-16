@@ -1,5 +1,11 @@
 # Le Beef — painel de vendas de ingressos
 
+## Versão 6.4.8 — estabilidade das notificações no celular
+
+- O Service Worker aguarda a exibição da notificação em segundo plano antes de encerrar o processamento da mensagem.
+- O Worker registra apenas contagens e códigos de resposta do Firebase Cloud Messaging para diagnosticar falhas de entrega, sem registrar tokens ou dados de clientes.
+- O cache e a versão exibida no rodapé foram atualizados para 6.4.8.
+
 ## Versão 6.4.7 — restauração das notificações em segundo plano
 
 - Restaurado o aplicativo e o Service Worker da versão 6.4.2, que recebia notificações com o aplicativo fechado.

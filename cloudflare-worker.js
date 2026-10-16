@@ -207,12 +207,22 @@ async function dispatchNotification(request, env, origin) {
   if (!inserted.meta?.changes) return json({ ok: true, duplicate: true, sent: 0 }, 200, origin);
   const recipients = await env.DB.prepare("SELECT id, user_uid, fcm_token FROM push_subscriptions WHERE event_id = ? AND enabled = 1 AND NOT (user_uid = ? AND device_id = ?)").bind(eventId, identity.sub, actorDeviceId).all();
   let sent = 0;
+  const failures = {};
   for (const recipient of recipients.results || []) {
-    const result = await sendMessage(env, account, recipient, eventId, event.name, type);
-    if (result.ok) sent += 1;
-    else if (result.expired) await env.DB.prepare("DELETE FROM push_subscriptions WHERE id = ?").bind(recipient.id).run();
+    try {
+      const result = await sendMessage(env, account, recipient, eventId, event.name, type);
+      if (result.ok) sent += 1;
+      else {
+        failures[result.status] = (failures[result.status] || 0) + 1;
+        if (result.expired) await env.DB.prepare("DELETE FROM push_subscriptions WHERE id = ?").bind(recipient.id).run();
+      }
+    } catch (error) {
+      failures.request_error = (failures.request_error || 0) + 1;
+    }
   }
-  return json({ ok: true, sent }, 200, origin);
+  const attempted = (recipients.results || []).length;
+  console.log("push_delivery", JSON.stringify({ type, attempted, sent, failures }));
+  return json({ ok: true, attempted, sent, failed: attempted - sent }, 200, origin);
 }
 
 export default {
