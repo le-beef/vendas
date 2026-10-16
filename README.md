@@ -1,11 +1,5 @@
 # Le Beef — painel de vendas de ingressos
 
-## Versão 6.4.7 — restauração das notificações em segundo plano
-
-- Restaurado o aplicativo e o Service Worker da versão 6.4.2, que recebia notificações com o aplicativo fechado.
-- O número da versão, o cache e a referência do arquivo principal foram renovados para 6.4.7.
-- O Worker de envio já corresponde exatamente ao da versão 6.4.2.
-
 ## Versão 6.4.2 — toque abre o evento notificado
 
 - Ao tocar na notificação, o aplicativo abre diretamente o resumo do evento que gerou o aviso.
