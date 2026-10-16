@@ -175,16 +175,27 @@ async function sendMessage(env, account, recipient, eventId, eventName, type) {
     body: JSON.stringify({
       message: {
         token: recipient.fcm_token,
+        notification: {
+          title: `Le Beef · ${String(eventName || "Evento").slice(0, 80)}`,
+          body: NOTIFICATION_TEXT[type]
+        },
         webpush: {
           headers: { Urgency: "high", TTL: "300" },
+          notification: {
+            icon: "https://le-beef.github.io/vendas/icon-192.png?v=19",
+            badge: "https://le-beef.github.io/vendas/notification-badge.png?v=1",
+            tag: `le-beef-${eventId}-${type}`,
+            renotify: true
+          },
+          fcm_options: {
+            link: siteUrl
+          },
           data: {
             title: `Le Beef · ${String(eventName || "Evento").slice(0, 80)}`,
             body: NOTIFICATION_TEXT[type],
             eventId,
             type,
-            url: siteUrl,
-            icon: "https://le-beef.github.io/vendas/icon-192.png?v=19",
-            badge: "https://le-beef.github.io/vendas/notification-badge.png?v=1"
+            url: siteUrl
           }
         }
       }

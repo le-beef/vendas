@@ -1,5 +1,12 @@
 # Le Beef — painel de vendas de ingressos
 
+## Versão 6.4.5 — notificação nativa com o aplicativo fechado
+
+- O Worker agora envia uma mensagem de notificação nativa do Firebase, em vez de depender do JavaScript do aplicativo para exibi-la em segundo plano.
+- O Firebase exibe o aviso mesmo quando o aplicativo está fechado ou o aparelho está em repouso.
+- O endereço do evento segue no campo nativo `fcm_options.link`; ao tocar, o aplicativo abre diretamente o resumo correto.
+- O aviso em primeiro plano continua sendo mostrado dentro do aplicativo.
+
 ## Versão 6.4.4 — renovação das notificações após atualização
 
 - Os tokens dos sinos ativos agora são renovados novamente assim que os eventos terminam de carregar do Firebase.
