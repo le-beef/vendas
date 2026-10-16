@@ -1,5 +1,11 @@
 # Le Beef — painel de vendas de ingressos
 
+## Versão 6.4.2 — toque abre o evento notificado
+
+- Ao tocar na notificação, o aplicativo abre diretamente o resumo do evento que gerou o aviso.
+- Se o aplicativo já estiver aberto, a janela existente é direcionada ao evento e colocada em primeiro plano; caso contrário, uma nova janela é aberta.
+- O tratamento do toque é registrado antes do Firebase para impedir que o comportamento padrão substitua a navegação personalizada.
+
 ## Versão 6.4.1 — taça nas notificações
 
 - O ícone pequeno das notificações no Android agora usa uma versão monocromática e transparente da taça original do site.

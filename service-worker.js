@@ -1,4 +1,4 @@
-const CACHE_NAME = "le-beef-painel-v6-4-1-1";
+const CACHE_NAME = "le-beef-painel-v6-4-2-1";
 const CACHE_PREFIX = "le-beef-painel-";
 const APP_SHELL = [
   "./",
@@ -72,6 +72,34 @@ const APP_SHELL = [
 ];
 const STATIC_HOSTS = new Set(["www.gstatic.com", "fonts.googleapis.com", "fonts.gstatic.com"]);
 
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  if (typeof event.stopImmediatePropagation === "function") {
+    event.stopImmediatePropagation();
+  }
+
+  const targetUrl = new URL(event.notification.data?.url || "./#eventos", self.location.origin).href;
+  event.waitUntil((async () => {
+    const windows = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+
+    for (const client of windows) {
+      if (new URL(client.url).origin !== self.location.origin) continue;
+
+      try {
+        const navigatedClient = "navigate" in client ? await client.navigate(targetUrl) : client;
+        if (navigatedClient && "focus" in navigatedClient) {
+          return navigatedClient.focus();
+        }
+        if ("focus" in client) return client.focus();
+      } catch (error) {
+        console.warn("Não foi possível reutilizar a janela aberta para exibir o evento.", error);
+      }
+    }
+
+    return self.clients.openWindow ? self.clients.openWindow(targetUrl) : undefined;
+  })());
+});
+
 try {
   importScripts(
     "https://www.gstatic.com/firebasejs/11.10.0/firebase-app-compat.js",
@@ -98,18 +126,6 @@ try {
 } catch (error) {
   console.warn("As notificações em segundo plano não puderam ser iniciadas.", error);
 }
-
-self.addEventListener("notificationclick", (event) => {
-  event.notification.close();
-  const targetUrl = new URL(event.notification.data?.url || "./#eventos", self.location.origin).href;
-  event.waitUntil(self.clients.matchAll({ type: "window", includeUncontrolled: true }).then(async (clients) => {
-    for (const client of clients) {
-      if ("navigate" in client) await client.navigate(targetUrl);
-      if ("focus" in client) return client.focus();
-    }
-    return self.clients.openWindow ? self.clients.openWindow(targetUrl) : undefined;
-  }));
-});
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL)).then(() => self.skipWaiting()));
