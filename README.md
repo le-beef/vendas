@@ -1,5 +1,13 @@
 # Le Beef — painel de vendas de ingressos
 
+## Versão 6.4.0 — notificações por evento
+
+- Administradores e gerentes de evento veem um sino em cada evento da tela inicial. Ele começa silenciado e a ativação vale somente para aquele evento e aparelho.
+- O aplicativo instalado pode avisar, mesmo fechado, sobre novas vendas e reservas, alterações de pagamento, exclusões, mesas ocupadas ou liberadas e mudanças importantes do evento.
+- Quem realizou a ação não recebe o próprio aviso. A tela bloqueada mostra somente o evento e uma descrição genérica, sem nome, telefone ou forma de pagamento do cliente.
+- O envio usa Firebase Cloud Messaging com o Worker gratuito `le-beef-notificacoes` e o banco D1 gratuito. O arquivo `cloudflare-worker.js` é o código do Worker e `wrangler.toml` mantém o vínculo com o D1.
+- As regras existentes do Firebase não foram alteradas.
+
 ## Versão 6.3.2 — cabeçalho horizontal do mapa
 
 - O cabeçalho do PNG segue o modelo solicitado: faixa mais baixa, logotipo centralizado à esquerda e todas as informações centralizadas no bloco da direita.

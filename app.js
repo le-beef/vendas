@@ -10,6 +10,7 @@ import { THERMAL_PAPER_WIDTHS, buildThermalPrintHtml, normalizeThermalPaperWidth
 import { DEFAULT_TICKET_DESIGN, normalizeTicketDesign, ticketHeightForDesign } from "./ticket-layout.js?v=3";
 import { PLATFORM_COMMISSION_SCOPES, eventFinancialRules, normalizeCommissionScope, normalizePercentage, promoterFinancialSnapshot, saleFinancialSnapshot } from "./financial-core.js?v=2";
 import { SALON_LAYOUTS, presetSlotsFor, salonSectorForSlot, validMapLayout } from "./map-layouts.js?v=4";
+import { createEventNotificationManager } from "./notifications.js?v=1";
 
 const demoEvents = [
   { id: "demo-1", name: "Festival de Inverno", date: "2026-08-02", time: "20:00", place: "Espaço Aurora", capacity: 300, ticketTypes: [{ id: "inteira", name: "Inteira", price: 85, capacity: 200 }, { id: "meia", name: "Meia-entrada", price: 42.5, capacity: 100 }], packages: [{ id: "combo-casal", name: "Combo Casal", discountType: "percent", discountValue: 10, discountPercent: 10, regularPrice: 127.5, price: 114.75, items: [{ ticketTypeId: "inteira", quantity: 1 }, { ticketTypeId: "meia", quantity: 1 }] }] },
@@ -50,6 +51,14 @@ let currentUser;
 let currentUserProfile;
 let dataSubscriptions = [];
 let isDemo = !firebaseConfig.apiKey || !firebaseConfig.databaseURL || location.protocol === "file:";
+const initialNotificationEventId = new URLSearchParams(location.search).get("eventoPainel") || "";
+const notificationManager = createEventNotificationManager({
+  getApp: () => firebaseApp,
+  getUser: () => currentUser,
+  getProfile: () => currentUserProfile,
+  toast: (message) => toast(message),
+  changed: () => render()
+});
 
 const money = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 const $ = (id) => document.getElementById(id);
@@ -330,10 +339,14 @@ async function handleAuthenticatedUser(user) {
     if (!profile || !profile.active || !ROLE_LABELS[profile.role]) { await signOut(auth); showAccessModal("Sua conta ainda não possui permissão ativa. Fale com o administrador."); return; }
     const continuingSession = sessionStorage.getItem(AUTH_SESSION_KEY) === user.uid;
     sessionStorage.setItem(AUTH_SESSION_KEY, user.uid);
-    if (!location.hash.startsWith("#validar=") && (!continuingSession || !restoreNavigationSession())) navigateToEventsHome();
+    if (initialNotificationEventId) {
+      rememberSelectedEvent(initialNotificationEventId);
+      history.replaceState(null, "", `${location.pathname}#resumo`);
+    } else if (!location.hash.startsWith("#validar=") && (!continuingSession || !restoreNavigationSession())) navigateToEventsHome();
     currentUser = user; currentUserProfile = { ...profile, active: profile.active === true }; hideAccessModal(); applyRolePermissions();
     $("connectionDot").classList.add("online"); $("connectionText").textContent = "Conectado";
     attachRealtimeListeners();
+    notificationManager.sync(allowedEventIds().length ? allowedEventIds() : state.events.map((event) => event.id));
   } catch (error) { console.error(error); await signOut(auth); showAccessModal("Não foi possível carregar suas permissões. Confira as regras do Firebase."); }
 }
 async function start() {
@@ -2366,6 +2379,7 @@ async function occupyTableWithoutSale() {
   try {
     if (isDemo) { state.sales.push({ id:crypto.randomUUID(), ...blockData }); persistDemo(); render(); }
     else { const blockRef = push(ref(db, "sales")); await set(blockRef, blockData); }
+    if (!isDemo) notificationManager.notify(event.id, "table_occupied", `${furniture.id}:${timestamp}`);
     $("tableReservationModal").close();
     toast("Mesa ocupada sem registrar venda.");
   } catch(error) { toast(`Não foi possível ocupar a mesa: ${error.message}`); }
@@ -2379,6 +2393,7 @@ async function releaseTableOccupancy() {
   try {
     if (isDemo) { state.sales = state.sales.filter((sale) => sale.id !== block.id); persistDemo(); render(); }
     else await set(ref(db, `sales/${block.id}`), null);
+    if (!isDemo) notificationManager.notify(block.eventId, "table_released", block.id);
     modal.close();
     toast("Mesa liberada.");
   } catch(error) { toast(`Não foi possível liberar a mesa: ${error.message}`); }
@@ -2444,6 +2459,10 @@ async function saveTableReservation(data) {
     savedReservation = stored;
     state.sales = current ? state.sales.map((sale) => sale.id === saleId ? stored : sale) : [...state.sales, stored];
     render();
+  }
+  if (!isDemo) {
+    if (!current) notificationManager.notify(event.id, "reservation_created", savedReservation.id);
+    else if (Boolean(current.paid) !== Boolean(savedReservation.paid) || String(current.paymentMethod || "") !== String(savedReservation.paymentMethod || "") || String(current.paymentDate || "") !== String(savedReservation.paymentDate || "")) notificationManager.notify(event.id, "payment_changed", `${savedReservation.id}:${Date.now()}`);
   }
   toast(current ? "Reserva atualizada." : "Reserva criada.");
   return savedReservation;
@@ -2915,10 +2934,12 @@ function render() {
   renderTableReservationsList(selectedEvent, selectedSales);
   if (selectedEvent) { $("selectedEventName").textContent = selectedEvent.name; $("selectedEventMeta").textContent = hasRole("door") ? `${selectedEvent.place} · ${eventDateTimeText(selectedEvent)}` : `${selectedEvent.place} · ${eventDateTimeText(selectedEvent)} · ${priceLabel(selectedEvent)}`; $("salesPanelTitle").textContent = `Vendas de ${selectedEvent.name}`; $("allSalesTitle").textContent = `Participantes — ${selectedEvent.name}`; if ($("ticketConfigForm").dataset.eventId !== selectedEvent.id) populateTicketConfigPage(selectedEvent); renderOnlineSalesSettings(selectedEvent); }
   const activeEvents = events.filter(event => !eventIsArchived(event));
+  notificationManager.sync(activeEvents.map((event) => event.id));
   $("eventsList").innerHTML = activeEvents.length ? activeEvents.map((event) => {
     const eventSold = sales.filter((sale) => sale.eventId === event.id && !isTableReservation(sale) && isCommercialSale(sale)).reduce((sum, sale) => sum + saleQuantity(sale, event), 0);
     const deleteControl = hasRole("admin") ? `<button class="event-card-delete" type="button" data-delete-event="${event.id}" aria-label="Excluir o evento ${escapeHtml(event.name)}" title="Excluir evento">Excluir</button>` : "";
-    return `<div class="event-card ${event.id === selectedEventId ? "is-selected" : ""}" data-select-event="${event.id}" role="button" tabindex="0" aria-pressed="${event.id === selectedEventId}"><span class="calendar"><b>${new Date(`${event.date}T12:00:00`).getDate()}</b><small>${new Date(`${event.date}T12:00:00`).toLocaleDateString("pt-BR", { month: "short" }).replace(".", "")}</small></span><span class="event-info"><strong>${escapeHtml(event.name)}</strong><small>${escapeHtml(event.place)}${eventTimeText(event) ? ` · ${eventTimeText(event)}` : ""}${hasRole("door") ? "" : ` · ${priceLabel(event)}`}</small>${eventUsesTableMap(event) ? `<span class="event-card-mode">Mesas + unitários</span>` : ""}</span><span class="event-card-tools"><span class="event-count">${eventSold}/${eventCapacity(event)}</span>${deleteControl}</span></div>`;
+    const notificationControl = notificationManager.canManage() ? `<button class="event-notification-toggle ${notificationManager.isEnabled(event.id) ? "is-enabled" : ""}" type="button" data-event-notification="${event.id}" aria-pressed="${notificationManager.isEnabled(event.id)}" aria-label="${notificationManager.isEnabled(event.id) ? "Silenciar" : "Ativar"} notificações de ${escapeHtml(event.name)}" title="${notificationManager.isEnabled(event.id) ? "Notificações ativadas — toque para silenciar" : "Notificações silenciadas — toque para ativar"}"><span class="event-notification-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9Z"/><path d="M10 21h4"/><path class="mute-slash" d="M4 4l16 16"/></svg></span></button>` : "";
+    return `<div class="event-card ${event.id === selectedEventId ? "is-selected" : ""}" data-select-event="${event.id}" role="button" tabindex="0" aria-pressed="${event.id === selectedEventId}"><span class="calendar"><b>${new Date(`${event.date}T12:00:00`).getDate()}</b><small>${new Date(`${event.date}T12:00:00`).toLocaleDateString("pt-BR", { month: "short" }).replace(".", "")}</small></span><span class="event-info"><strong>${escapeHtml(event.name)}</strong><small>${escapeHtml(event.place)}${eventTimeText(event) ? ` · ${eventTimeText(event)}` : ""}${hasRole("door") ? "" : ` · ${priceLabel(event)}`}</small>${eventUsesTableMap(event) ? `<span class="event-card-mode">Mesas + unitários</span>` : ""}</span><span class="event-card-tools"><span class="event-card-notification-row"><span class="event-count">${eventSold}/${eventCapacity(event)}</span>${notificationControl}</span>${deleteControl}</span></div>`;
   }).join("") : `<div class="empty">Nenhum evento ativo. Consulte os eventos arquivados ou cadastre um novo evento.</div>`;
   const canManageSales = hasRole("admin", "event_manager", "seller");
   const paymentControl = (sale) => { const courtesy = saleIsCourtesy(sale, selectedEvent) || sale.courtesy; const protectedOnline = sale.channel === "online"; return `<span class="payment-display">${courtesy ? `<span class="payment paid courtesy-payment">Cortesia</span>` : canManageSales && !protectedOnline ? `<button class="payment ${sale.paid ? "paid" : ""}" data-paid="${sale.id}">${sale.paid ? "✓ Pago" : "Pendente"}</button>` : `<span class="payment ${sale.paid ? "paid" : ""}">${sale.paid ? "✓ Pago" : "Pendente"}</span>`}${paymentDetailsHtml(sale)}</span>`; };
@@ -2939,6 +2960,7 @@ async function saveEvent(data, id = "") {
   if (!id && !hasRole("admin")) throw new Error("Somente administradores podem criar eventos.");
   if (id && !canAdministerEvent(id)) throw new Error("Você não administra este evento.");
   const existingEvent = state.events.find((event) => event.id === id);
+  const previousImportantSignature = existingEvent ? JSON.stringify({ name:existingEvent.name || "", date:existingEvent.date || "", time:existingEvent.time || "", place:existingEvent.place || "", eventMode:existingEvent.eventMode || "unit", tableMap:normalizeTableMap(existingEvent.tableMap) }) : "";
   let preservedSoldInventory = false;
   if (existingEvent) {
     const submittedIds = new Set(data.ticketTypes.map((item) => item.id));
@@ -2996,6 +3018,8 @@ async function saveEvent(data, id = "") {
   const eventData = { name: data.name.trim(), date:data.date, time:String(data.time).slice(0, 5), place: data.place.trim(), eventMode, chairPrice, tableSectorPricing, tableMap, capacity, ticketTypes: data.ticketTypes, packages: data.packages || [], ticketDesign, ...submittedFinancialRules, manualBuyerFeeMode, manualBuyerFeeValue, manualBuyerFeeDefault:data.manualBuyerFeeDefault === "on", updatedAt: Date.now() };
   if (isDemo) { if (id) state.events = state.events.map((item) => item.id === id ? { ...item, ...eventData } : item); else { rememberSelectedEvent(crypto.randomUUID()); state.events.push({ id: selectedEventId, ...eventData, createdAt: Date.now() }); } persistDemo(); render(); }
   else if (id) await update(ref(db, `events/${id}`), eventData); else { const eventRef = push(ref(db, "events")); rememberSelectedEvent(eventRef.key); await set(eventRef, { ...eventData, createdAt: Date.now() }); }
+  const nextImportantSignature = JSON.stringify({ name:eventData.name, date:eventData.date, time:eventData.time, place:eventData.place, eventMode:eventData.eventMode, tableMap:eventData.tableMap });
+  if (!isDemo && id && previousImportantSignature !== nextImportantSignature) notificationManager.notify(id, "event_updated", `${eventData.updatedAt}`);
   const preservationNote = [preservedSoldInventory ? "ingressos vendidos" : ""].filter(Boolean).join(" e ");
   toast(id ? preservationNote ? `Evento atualizado. Foram preservados: ${preservationNote}.` : "Evento atualizado." : "Evento criado com sucesso.");
 }
@@ -3016,6 +3040,7 @@ async function saveSale(data, id = "") {
   const subtotal = items.reduce((sum, item) => sum + Number(item.subtotal || 0), 0);
   const primaryTicket = items[0];
   const current = state.sales.find((sale) => sale.id === id);
+  let persistedSaleId = id;
   const courtesy = Boolean(items.length && items.every((item) => item.kind === "package" && item.packageKind === "courtesy") && subtotal === 0);
   const paid = courtesy || data.paymentStatus === "paid";
   const paymentMethod = courtesy ? "courtesy" : paid ? String(data.paymentMethod || "") : "";
@@ -3046,12 +3071,17 @@ async function saveSale(data, id = "") {
     persistDemo(); render();
   } else {
     const saleId = id || push(ref(db, "sales")).key;
+    persistedSaleId = saleId;
     const storedSale = { ...current, id: saleId, ...saleData };
     if (!id) Object.assign(storedSale, { createdByUid: currentUser.uid, createdByName: currentUserProfile.name || currentUser.email, createdByEmail: currentUser.email || currentUserProfile.email || "", createdAt: timestamp });
     const logId = push(ref(db, "auditLogs")).key;
     const action = id ? "edited" : "created";
     const details = id ? auditChangeSummary(current, storedSale) : `Criou a venda com ${saleTicketSummary(storedSale, event)}, ${storedSale.courtesy ? "cortesia sem cobrança" : `pagamento ${storedSale.paid ? `${paymentMethodLabel(storedSale.paymentMethod)} em ${paymentDateLabel(storedSale.paymentDate)}` : "pendente"}`}.`;
     await update(ref(db), { [`sales/${saleId}`]: Object.fromEntries(Object.entries(storedSale).filter(([key]) => key !== "id")), [`auditLogs/${logId}`]: auditLogData(action, storedSale, details, timestamp) });
+  }
+  if (!isDemo) {
+    if (!id) notificationManager.notify(event.id, "new_sale", persistedSaleId);
+    else if (Boolean(current?.paid) !== Boolean(saleData.paid) || String(current?.paymentMethod || "") !== String(saleData.paymentMethod || "") || String(current?.paymentDate || "") !== String(saleData.paymentDate || "")) notificationManager.notify(event.id, "payment_changed", `${persistedSaleId}:${Date.now()}`);
   }
   toast(id ? "Participante atualizado." : "Venda registrada.");
 }
@@ -3118,6 +3148,7 @@ async function togglePayment(id) {
   const details = "Alterou o pagamento para pendente.";
   if (isDemo) { sale.paid = false; sale.paymentMethod = ""; sale.paymentDate = ""; sale.updatedAt = Date.now(); appendDemoAudit("payment", sale, details); persistDemo(); render(); }
   else { const logId = push(ref(db, "auditLogs")).key; await update(ref(db), { [`sales/${id}/paid`]: false, [`sales/${id}/paymentMethod`]: null, [`sales/${id}/paymentDate`]: null, [`sales/${id}/updatedAt`]: serverTimestamp(), [`auditLogs/${logId}`]: auditLogData("payment", sale, details) }); }
+  if (!isDemo) notificationManager.notify(sale.eventId, "payment_changed", `${sale.id}:${Date.now()}`);
 }
 async function confirmSalePayment(data) {
   if (!requireRole(["admin", "event_manager", "seller"])) return;
@@ -3128,6 +3159,7 @@ async function confirmSalePayment(data) {
   const details = `Confirmou o pagamento por ${paymentMethodLabel(data.paymentMethod)} em ${paymentDateLabel(data.paymentDate)}.`;
   if (isDemo) { sale.paid = true; sale.paymentMethod = data.paymentMethod; sale.paymentDate = data.paymentDate; sale.updatedAt = Date.now(); appendDemoAudit("payment", sale, details); persistDemo(); render(); }
   else { const logId = push(ref(db, "auditLogs")).key; await update(ref(db), { [`sales/${sale.id}/paid`]: true, [`sales/${sale.id}/paymentMethod`]: data.paymentMethod, [`sales/${sale.id}/paymentDate`]: data.paymentDate, [`sales/${sale.id}/updatedAt`]: serverTimestamp(), [`auditLogs/${logId}`]: auditLogData("payment", sale, details) }); }
+  if (!isDemo) notificationManager.notify(sale.eventId, "payment_changed", `${sale.id}:${Date.now()}`);
 }
 async function deleteSale(id) {
   if (!requireRole(["admin", "event_manager", "seller"])) return false;
@@ -3152,6 +3184,7 @@ async function deleteSale(id) {
     if (sharePath) changes[sharePath] = null;
     await update(ref(db), changes);
   }
+  if (!isDemo) notificationManager.notify(sale.eventId, isTableReservation(sale) ? "reservation_deleted" : "sale_deleted", sale.id);
   toast(isTableReservation(sale) ? "Reserva excluída." : "Venda excluída.");
   return true;
 }
@@ -3561,11 +3594,21 @@ $("qrImageInput").addEventListener("change", (event) => { const [file] = event.c
 $("qrScannerModal").addEventListener("cancel", (event) => { event.preventDefault(); stopQrScanner(); $("qrScannerModal").close(); });
 document.querySelector("[data-close-qr-scanner]").addEventListener("click", () => { stopQrScanner(); $("qrScannerModal").close(); });
 $("paymentConfirmationForm").addEventListener("submit", async (event) => { event.preventDefault(); const form = event.currentTarget; const button = form.querySelector('[type="submit"]'); button.disabled = true; try { await confirmSalePayment(Object.fromEntries(new FormData(form))); form.reset(); $("paymentConfirmationModal").close(); toast("Pagamento confirmado."); } catch (error) { toast(error.message); } finally { button.disabled = false; } });
+document.addEventListener("click", async (event) => {
+  const bell = event.target.closest?.("[data-event-notification]");
+  if (!bell) return;
+  event.preventDefault();
+  event.stopImmediatePropagation();
+  bell.disabled = true;
+  try { await notificationManager.toggle(bell.dataset.eventNotification); }
+  catch (error) { toast(error.message || "Não foi possível configurar as notificações."); }
+  finally { bell.disabled = false; }
+}, true);
 document.addEventListener("click", (event) => { const whatsappTrigger = event.target.closest("[data-whatsapp]"); if (whatsappTrigger) { event.preventDefault(); openWhatsappChooser(whatsappTrigger); return; } const whatsappApp = event.target.closest("[data-whatsapp-app]"); if (whatsappApp) { launchWhatsapp(whatsappApp.dataset.whatsappApp); return; } const metricDetails = event.target.closest("[data-toggle-metric-details]"); if (metricDetails) { toggleMetricDetails(metricDetails); return; } const participantDetails = event.target.closest("[data-toggle-sale-details]"); if (participantDetails) { toggleParticipantCard(participantDetails.closest("[data-sale-row]")); return; } const addPackageComponent = event.target.closest("[data-add-package-component]"); if (addPackageComponent) { const packageRow = addPackageComponent.closest(".package-row"); if (packageRow.querySelectorAll(".package-component-row").length >= draftTicketTypes().filter((item) => item.name).length) return toast("Todos os tipos de ingresso já foram adicionados aqui."); addPackageComponentRow(packageRow); refreshPackageTicketOptions(); return; } const removePackageComponent = event.target.closest("[data-remove-package-component]"); if (removePackageComponent) { const packageRow = removePackageComponent.closest(".package-row"); if (packageRow.querySelectorAll(".package-component-row").length === 1) return toast("O pacote ou cortesia precisa ter pelo menos um ingresso."); removePackageComponent.closest(".package-component-row").remove(); refreshPackageTicketOptions(); return; } const removePackage = event.target.closest("[data-remove-package]"); if (removePackage) { removePackage.closest(".package-row").remove(); refreshPackageTicketOptions(); return; } const removeTicket = event.target.closest("[data-remove-ticket]"); if (removeTicket) { if (document.querySelectorAll(".ticket-type-row").length === 1) return toast("O evento precisa de pelo menos um tipo de ingresso."); removeTicket.closest(".ticket-type-row").remove(); refreshPackageTicketOptions(); return; } const removeSaleTicket = event.target.closest("[data-remove-sale-ticket]"); if (removeSaleTicket) { const rows = document.querySelectorAll(".sale-ticket-item-row"); if (rows.length === 1) return toast("A venda precisa de pelo menos um item."); removeSaleTicket.closest(".sale-ticket-item-row").remove(); populateSaleTicketItemOptions(); return; } const deleteEventButton = event.target.closest("[data-delete-event]"); if (deleteEventButton) { event.preventDefault(); event.stopPropagation(); deleteEvent(deleteEventButton.dataset.deleteEvent); return; } const selectedAction = event.target.closest("[data-selected-action]"); if (selectedAction) { const action = selectedAction.dataset.selectedAction; if (action === "sale") openNewSale(selectedEventId); if (action === "edit") openEditEvent(selectedEventId); if (action === "history") openAuditHistory(selectedEventId); if (action === "export" && requireRole(["admin", "seller"])) window.exportSalesXlsx(state.sales, state.events, selectedEventId, "unit"); if (action === "delete") deleteEvent(selectedEventId); return; } const selectEvent = event.target.closest("[data-select-event]"); if (selectEvent) { rememberSelectedEvent(selectEvent.dataset.selectEvent); location.hash = "resumo"; render(); return; } const editSaleButton = event.target.closest("[data-edit-sale]"); if (editSaleButton) { openEditSale(editSaleButton.dataset.editSale); return; } const deleteSaleButton = event.target.closest("[data-delete-sale]"); if (deleteSaleButton) { deleteSale(deleteSaleButton.dataset.deleteSale); return; } const checkin = event.target.closest("[data-checkin]"); if (checkin) { toggleCheckin(checkin.dataset.checkin); return; } const paid = event.target.closest("[data-paid]"); if (paid) { togglePayment(paid.dataset.paid); return; } });
 document.addEventListener("click", (event) => { const toggle = event.target.closest?.("[data-toggle-package-discount]"); if (!toggle) return; event.preventDefault(); event.stopImmediatePropagation(); togglePackageDiscountType(toggle.closest(".package-row")); }, true);
 // O cartão do participante é somente informativo; edição acontece apenas pelo botão Editar.
 document.addEventListener("click", (event) => { const row = event.target.closest?.("#salesList [data-sale-row]"); if (!row || event.target.closest("button, a, input, select, textarea")) return; if (window.matchMedia("(max-width: 700px)").matches) toggleParticipantCard(row); event.stopImmediatePropagation(); }, true);
-document.addEventListener("keydown", (event) => { const card = event.target.closest?.("[data-select-event]"); if (card && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); rememberSelectedEvent(card.dataset.selectEvent); resetParticipantFilters(); location.hash = "resumo"; render(); } });
+document.addEventListener("keydown", (event) => { const card = event.target.closest?.("[data-select-event]"); if (card && !event.target.closest?.("[data-event-notification]") && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); rememberSelectedEvent(card.dataset.selectEvent); resetParticipantFilters(); location.hash = "resumo"; render(); } });
 window.addEventListener("hashchange", syncApplicationPage);
 window.addEventListener("popstate", syncApplicationPage);
 const mercadoPagoReturn = new URLSearchParams(location.search).get("mercadoPago");
