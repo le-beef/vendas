@@ -1,5 +1,11 @@
 # Le Beef — painel de vendas de ingressos
 
+## Versão 6.4.10 — cartões de reserva organizados no computador
+
+- Os detalhes das reservas no desktop têm colunas definidas, evitando botões estreitos e textos quebrados.
+- Ações de ingresso e edição ficam alinhadas e com tamanho uniforme; há uma disposição adaptada para notebooks menores.
+- O visual do celular não foi alterado. Nenhuma regra do Firebase ou função de notificação mudou.
+
 ## Versão 6.4.9 — notificação automática em segundo plano
 
 - O Worker envia também a parte de notificação que o Firebase exibe automaticamente quando o aplicativo está fechado.

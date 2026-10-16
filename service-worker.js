@@ -1,4 +1,4 @@
-const CACHE_NAME = "le-beef-painel-v6-4-9-1";
+const CACHE_NAME = "le-beef-painel-v6-4-10-1";
 const CACHE_PREFIX = "le-beef-painel-";
 const APP_SHELL = [
   "./",
@@ -33,11 +33,12 @@ const APP_SHELL = [
   "./table-reservation-details.css?v=2",
   "./table-reservation-final.css?v=3",
   "./table-reservation-harmony.css?v=4",
+  "./table-reservation-desktop.css?v=1",
   "./ticketing.css?v=13",
   "./ticket-config.css?v=8",
   "./excel-export.js?v=40",
   "./firebase-config.js",
-  "./app.js?v=138",
+  "./app.js?v=139",
   "./notifications.js?v=2",
   "./map-layouts.js?v=4",
   "./financial-core.js?v=2",
